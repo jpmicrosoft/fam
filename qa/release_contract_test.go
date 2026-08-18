@@ -200,6 +200,8 @@ func TestCIAndReleaseInvokeExecutableQualification(t *testing.T) {
 		`cp "dist/${bin}${ext}" "dist/fam${ext}"`,
 		`"fam${ext}"`,
 		"sha256sum *.tar.gz *.zip install.sh install.ps1",
+		".release-tooling/scripts/Generate-ThirdPartyNotices.ps1",
+		"-SourceRoot",
 	)
 }
 
@@ -211,7 +213,7 @@ func TestLiveEvaluatorCalibrationWorkflowIsManualAndProtected(t *testing.T) {
 		"id-token: write",
 		"qa/evaluator-calibration/requirements.txt",
 		"scripts/Invoke-LiveEvaluatorCalibration.ps1",
-		"actions/upload-artifact@v4",
+		"actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4",
 		"retention-days: 30",
 	)
 	if strings.Contains(workflow, "schedule:") {

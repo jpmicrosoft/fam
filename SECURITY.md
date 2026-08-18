@@ -359,27 +359,16 @@ vulnerabilities on their own.
 
 ## Reporting a vulnerability
 
-**This repository is private.** It is not publicly visible, so only invited
-collaborators can see it at all — there is no "public issue" risk of the kind
-that applies to open-source repositories.
+Do **not** open a public issue for a suspected vulnerability.
 
-GitHub's native **Private vulnerability reporting** ("Report a vulnerability" on
-the Security tab) requires GitHub Advanced Security on private repositories,
-which is a licensed feature not currently enabled for this repository
-(confirmed: `PUT /repos/.../private-vulnerability-reporting` returns `404` here).
-If GitHub Advanced Security is licensed for this repository in the future, the
-owner should enable it from **Settings → Security → Private vulnerability
-reporting** as an additional, more discoverable channel.
+Use GitHub's private vulnerability reporting flow from the repository
+**Security → Advisories** page and select **Report a vulnerability**. This sends
+the report privately to repository administrators.
 
-Until then, use this instead:
-
-1. **Open a regular GitHub issue in this repository.** Because the repository is
-   private, this is already restricted to repository collaborators — it is the
-   primary supported reporting path today.
-2. If you are not a collaborator and cannot open an issue, contact the repository
-   owner (`jpmicrosoft`) directly through a channel you already have. Do not
-   guess at an email address, and do not describe the issue in an unauthenticated
-   or public channel.
+If the private reporting button is temporarily unavailable, contact the
+repository owner (`jpmicrosoft`) through a private channel you already trust.
+Do not guess an email address or disclose the issue in a public or
+unauthenticated channel.
 
 Please include:
 
@@ -391,8 +380,8 @@ Please include:
 - impact assessment, especially whether a credential, token, or agent data could
   reach an unapproved destination.
 
-There is no published response-time commitment for this repository. Do not
-disclose publicly until you have agreed on a timeline with the owner.
+There is no published response-time commitment. Do not disclose publicly until
+you have agreed on a coordinated disclosure timeline with the maintainer.
 
 Findings that are **not** vulnerabilities here: the documented opt-in risks in
 [Known and accepted operational risks](#known-and-accepted-operational-risks),

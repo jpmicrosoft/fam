@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible FAM defect
+title: "[Bug] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security vulnerabilities here. Follow SECURITY.md instead.
+        Remove credentials, customer information, real resource identifiers, and private endpoints.
+  - type: input
+    id: version
+    attributes:
+      label: FAM version
+      description: Output from `foundry-agent-manager version`.
+      placeholder: 0.14.0
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Prompt Agent
+        - Hosted Agent
+        - Model deployment
+        - Agent 365
+        - Installation or release
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      placeholder: Windows arm64, Linux amd64, or macOS arm64
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide sanitized commands, inputs, and the smallest reproducible sequence.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include sanitized output and exit code.
+    validations:
+      required: true
+  - type: checkboxes
+    id: sanitation
+    attributes:
+      label: Data handling
+      options:
+        - label: I removed credentials, customer information, private endpoints, and real tenant or subscription identifiers.
+          required: true

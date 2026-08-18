@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose a FAM capability or workflow improvement
+title: "[Feature] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Explain the operational problem rather than including customer-specific configuration or data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What operator or lifecycle problem should FAM solve?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the expected command behavior and result.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe current workarounds or related tools.
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Security and operational boundaries
+      description: Note required approvals, mutation behavior, receipts, or compatibility constraints.

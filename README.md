@@ -24,6 +24,9 @@ The installed `fam` executable is an equivalent shorthand for
 the same. The CLI requires no runtime language dependency or external state
 backend.
 
+> **Independent project.** FAM is independently maintained and is not an
+> official Microsoft product or supported Microsoft offering.
+
 ## Why teams adopt FAM
 
 - **[Prove before mutation](#doctor--environment-readiness):** separate
@@ -926,6 +929,10 @@ contract.
   reporting.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev environment, required checks, review
   expectations.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — participation and enforcement
+  expectations.
+- [SUPPORT.md](SUPPORT.md) — supported channels for questions, defects, feature
+  requests, and security reports.
 - [CHANGELOG.md](CHANGELOG.md) — release history in Keep a Changelog format.
 
 ## License

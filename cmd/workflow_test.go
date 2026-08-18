@@ -245,7 +245,7 @@ func TestReleaseWorkflowBuildsEveryDocumentedTargetWithoutCGO(t *testing.T) {
 	for _, want := range []string{
 		"CGO_ENABLED=0",
 		"-trimpath",
-		"sha256sum *.tar.gz *.zip install.sh install.ps1 > SHA256SUMS",
+		"sha256sum *.tar.gz *.zip install.sh install.ps1 LICENSE THIRD_PARTY_NOTICES.txt > SHA256SUMS",
 		"actions/attest-build-provenance",
 		"gh release create",
 		`${RELEASE_TAG#v}`,
@@ -266,6 +266,9 @@ func TestReleaseWorkflowRecoversExistingTagsWithoutMovingThem(t *testing.T) {
 		`git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"`,
 		"github.event.repository.visibility == 'public'",
 		"github.event.repository.visibility != 'public'",
+		"Checkout current release tooling",
+		".release-tooling/scripts/Generate-ThirdPartyNotices.ps1",
+		"-SourceRoot",
 	} {
 		if !strings.Contains(raw, want) {
 			t.Fatalf("combined workflow no longer contains recovery control %q", want)

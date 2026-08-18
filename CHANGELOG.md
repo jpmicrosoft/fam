@@ -13,6 +13,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added
+
+- Public contribution files now include a code of conduct, support policy,
+  issue forms, pull request template, and repository ownership rules.
+- Dependabot and CodeQL workflows provide automated dependency and code
+  security coverage.
+- Release archives now include the project license and generated third-party
+  dependency notices.
+
+### Changed
+
+- Public-facing documentation now identifies FAM as an independent project and
+  directs vulnerability reports to GitHub's private reporting workflow.
+- GitHub Actions dependencies are pinned to immutable commits.
+
 ## [0.14.0] - 2026-08-18
 
 ### Added

@@ -35,3 +35,6 @@ qa/live-release.local.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated at release time
+THIRD_PARTY_NOTICES.txt
