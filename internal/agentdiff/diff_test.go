@@ -142,3 +142,39 @@ func TestCompareCanClearManagedMetadata(t *testing.T) {
 		t.Fatalf("explicit empty metadata must clear remote values: %#v", result.Differences)
 	}
 }
+
+func TestCollectDifferencesCoversOverlappingAndDisjointMapKeys(t *testing.T) {
+	current := map[string]interface{}{
+		"currentOnly": "old",
+		"shared": map[string]interface{}{
+			"changed": "before",
+			"same":    "value",
+		},
+	}
+	desired := map[string]interface{}{
+		"desiredOnly": "new",
+		"shared": map[string]interface{}{
+			"changed": "after",
+			"same":    "value",
+		},
+	}
+
+	var differences []Difference
+	collectDifferences("$", current, desired, &differences)
+
+	wantPaths := []string{"$.currentOnly", "$.desiredOnly", "$.shared.changed"}
+	if len(differences) != len(wantPaths) {
+		t.Fatalf("unexpected differences: %#v", differences)
+	}
+	for index, wantPath := range wantPaths {
+		if differences[index].Path != wantPath {
+			t.Fatalf(
+				"difference %d path = %q, want %q: %#v",
+				index,
+				differences[index].Path,
+				wantPath,
+				differences,
+			)
+		}
+	}
+}

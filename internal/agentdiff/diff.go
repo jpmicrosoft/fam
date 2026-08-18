@@ -157,7 +157,7 @@ func collectDifferences(path string, current, desired interface{}, differences *
 	currentMap, currentIsMap := current.(map[string]interface{})
 	desiredMap, desiredIsMap := desired.(map[string]interface{})
 	if currentIsMap && desiredIsMap {
-		keys := make(map[string]struct{}, len(currentMap)+len(desiredMap))
+		keys := make(map[string]struct{})
 		for key := range currentMap {
 			keys[key] = struct{}{}
 		}

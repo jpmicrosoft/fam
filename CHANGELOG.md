@@ -28,6 +28,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   directs vulnerability reports to GitHub's private reporting workflow.
 - GitHub Actions dependencies are pinned to immutable commits.
 
+### Fixed
+
+- Agent drift comparison no longer adds untrusted map lengths when allocating
+  its key set, eliminating a theoretical integer-overflow allocation path.
+
 ## [0.14.0] - 2026-08-18
 
 ### Added
