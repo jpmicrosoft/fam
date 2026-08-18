@@ -56,6 +56,10 @@ func TestWorkflowsParseAndUseLeastPrivilegeTriggers(t *testing.T) {
 			triggers:    []string{"pull_request", "push", "workflow_dispatch"},
 			permissions: map[string]string{"contents": "read"},
 		},
+		"codeql.yml": {
+			triggers:    []string{"pull_request", "push", "schedule", "workflow_dispatch"},
+			permissions: map[string]string{"actions": "read", "contents": "read"},
+		},
 	}
 	for name, want := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -328,5 +332,59 @@ func TestGoModDeclaresTheDocumentedToolchain(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "module foundry-agent-manager") {
 		t.Fatalf("unexpected module path:\n%s", data)
+	}
+}
+
+func TestCodeQLWorkflowIsSafeWhilePrivate(t *testing.T) {
+	document, raw := loadWorkflow(t, "codeql.yml")
+
+	// Must gate analysis on public visibility so it succeeds in private repos.
+	for _, want := range []string{
+		"github.event.repository.visibility == 'public'",
+		"is_public != 'true'",
+		"CodeQL analysis skipped (private repository)",
+		"workflow_dispatch:",
+	} {
+		if !strings.Contains(raw, want) {
+			t.Fatalf("codeql.yml missing private-safety control %q", want)
+		}
+	}
+
+	// The analyze job must require security-events: write for uploading SARIF.
+	jobs := document["jobs"].(map[string]interface{})
+	analyze := jobs["analyze"].(map[string]interface{})
+	perms := analyze["permissions"].(map[string]interface{})
+	if perms["security-events"] != "write" {
+		t.Fatalf("analyze job must have security-events: write, got %v", perms["security-events"])
+	}
+
+	// The skip-private job must exist for a clean workflow result while private.
+	if _, ok := jobs["skip-private"]; !ok {
+		t.Fatal("codeql.yml must have a skip-private job for clean results while private")
+	}
+}
+
+func TestCodeQLWorkflowUsesSHAPinnedActions(t *testing.T) {
+	_, raw := loadWorkflow(t, "codeql.yml")
+	for _, want := range []string{
+		"actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+		"actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
+		"github/codeql-action/init@faaa5d804fc648d0fdb28822a8e36cf7d0a6132c",
+		"github/codeql-action/autobuild@faaa5d804fc648d0fdb28822a8e36cf7d0a6132c",
+		"github/codeql-action/analyze@faaa5d804fc648d0fdb28822a8e36cf7d0a6132c",
+	} {
+		if !strings.Contains(raw, want) {
+			t.Fatalf("codeql.yml missing immutable SHA pin %q", want)
+		}
+	}
+}
+
+func TestAllWorkflowsUseSHAPinnedActions(t *testing.T) {
+	unpinned := regexp.MustCompile(`uses:\s+[a-zA-Z0-9_-]+/[a-zA-Z0-9_/-]+@v\d`)
+	for _, name := range []string{"ci.yml", "codeql.yml", "live-evaluator-calibration.yml"} {
+		_, raw := loadWorkflow(t, name)
+		if match := unpinned.FindString(raw); match != "" {
+			t.Fatalf("%s has an unpinned action reference (tag instead of SHA): %q", name, match)
+		}
 	}
 }

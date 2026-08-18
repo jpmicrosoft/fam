@@ -213,7 +213,7 @@ func TestLiveEvaluatorCalibrationWorkflowIsManualAndProtected(t *testing.T) {
 		"id-token: write",
 		"qa/evaluator-calibration/requirements.txt",
 		"scripts/Invoke-LiveEvaluatorCalibration.ps1",
-		"actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4",
+		"actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
 		"retention-days: 30",
 	)
 	if strings.Contains(workflow, "schedule:") {
