@@ -89,9 +89,9 @@ Set these as GitHub Actions **repository variables** (`vars.*`) or
 | `FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_DCR_ID` | *(Optional)* Immutable DCR ID paired with the endpoint | `dcr-0123456789abcdef0123456789abcdef` |
 | `FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_STREAM` | *(Optional)* Receipt input stream; defaults to `Custom-FoundryAgentReceipts` | `Custom-FoundryAgentReceipts` |
 
-> **Release requirement:** `v0.4.0` predates the installer release assets used
-> by these templates. `v0.5.0` and later publish `install.sh` and include it in
-> `SHA256SUMS`.
+> **Release requirement:** `v0.5.0` and later publish `install.sh` and include
+> it in `SHA256SUMS`. Earlier tags predate the installer release assets used
+> by these templates.
 
 If `INSTALLER_REPO` is private, add a `FAM_INSTALL_TOKEN` Actions secret with
 read access to that repository. The templates use it through `gh release

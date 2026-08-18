@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title description">
+  <title id="title">Foundry Agent Manager social preview</title>
+  <desc id="description">FAM logo and tagline for controlled, repeatable, and auditable Microsoft Foundry agent deployment.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F172A" />
+      <stop offset="1" stop-color="#1E293B" />
+    </linearGradient>
+    <radialGradient id="accent" cx="0.2" cy="0.5" r="0.8">
+      <stop offset="0" stop-color="#10B981" stop-opacity="0.2" />
+      <stop offset="1" stop-color="#10B981" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#background)" />
+  <rect width="1280" height="640" fill="url(#accent)" />
+
+  <g transform="translate(62 64) scale(.82)">
+    <path
+      fill="#334155"
+      d="M256 32 440 101v129c0 116-74 211-184 250C146 441 72 346 72 230V101Z"
+    />
+    <path
+      fill="none"
+      stroke="#34D399"
+      stroke-width="12"
+      d="M256 58 416 118v112c0 99-61 181-160 219C157 411 96 329 96 230V118Z"
+    />
+    <path
+      fill="none"
+      stroke="#6EE7B7"
+      stroke-linecap="round"
+      stroke-width="10"
+      d="M256 148v208"
+    />
+    <path
+      fill="#0F172A"
+      stroke="#FFFFFF"
+      stroke-linejoin="round"
+      stroke-width="12"
+      d="M126 177a28 28 0 0 1 28-28h62a28 28 0 0 1 28 28v58a28 28 0 0 1-28 28h-25l-35 30 8-30h-10a28 28 0 0 1-28-28Z"
+    />
+    <g fill="#A7F3D0">
+      <circle cx="161" cy="206" r="9" />
+      <circle cx="185" cy="206" r="9" />
+      <circle cx="209" cy="206" r="9" />
+    </g>
+    <path
+      fill="#0F172A"
+      stroke="#FFFFFF"
+      stroke-linejoin="round"
+      stroke-width="12"
+      d="m330 157 66 38v76l-66 38-66-38v-76Z"
+    />
+    <path
+      fill="none"
+      stroke="#FFFFFF"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="10"
+      d="m264 195 66 38 66-38M330 233v76"
+    />
+  </g>
+
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="520" y="205" fill="#F8FAFC" font-size="126" font-weight="800" letter-spacing="4">FAM</text>
+    <text x="526" y="270" fill="#A7F3D0" font-size="42" font-weight="600">Foundry Agent Manager</text>
+    <rect x="526" y="306" width="610" height="4" rx="2" fill="#34D399" />
+    <text x="526" y="370" fill="#E2E8F0" font-size="32" font-weight="500">Controlled, repeatable, and auditable</text>
+    <text x="526" y="414" fill="#E2E8F0" font-size="32" font-weight="500">deployment for Microsoft Foundry agents.</text>
+
+    <g font-size="23" font-weight="600">
+      <rect x="526" y="470" width="190" height="54" rx="27" fill="#334155" stroke="#6EE7B7" stroke-width="2" />
+      <text x="621" y="505" fill="#F8FAFC" text-anchor="middle">Prompt Agents</text>
+      <rect x="738" y="470" width="196" height="54" rx="27" fill="#334155" stroke="#6EE7B7" stroke-width="2" />
+      <text x="836" y="505" fill="#F8FAFC" text-anchor="middle">Hosted Agents</text>
+    </g>
+
+    <text x="1138" y="588" fill="#94A3B8" font-size="20" text-anchor="end">github.com/jpmicrosoft/fam</text>
+  </g>
+</svg>

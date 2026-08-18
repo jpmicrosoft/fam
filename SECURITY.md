@@ -19,15 +19,13 @@ does and does not make, and how to operate and report issues against it.
 
 | Version | Status |
 |---|---|
-| `0.4.x` (current application version) | Supported. Fixes land here. |
-| `0.3.x` | Security fixes only. |
+| `0.14.x` (current application version) | Supported. Fixes land here. |
 | Current `main` | Supported. This is where fixes are developed. |
 | Anything older | Not supported. |
 
 `0.14.0` is the version compiled into the binary
-([`internal/config/config.go`](internal/config/config.go)). Treat "0.4.x" as
-the application version, not as a promise that a published GitHub release
-exists; release assets are created only after the matching tag is pushed.
+([`internal/config/config.go`](internal/config/config.go)). Release assets are
+created only after the matching `v0.14.0` tag is pushed.
 
 Always report against the current `main` if you can reproduce there.
 

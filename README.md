@@ -1,27 +1,75 @@
-# Foundry Agent Manager
+<p align="center">
+  <img
+    src="docs/assets/fam-logo.svg"
+    alt="FAM logo: a shield containing Prompt Agent and Hosted Agent symbols"
+    width="144"
+  />
+</p>
 
-`foundry-agent-manager` is a standalone Go CLI with two deployment paths.
-It deploys and manages Microsoft Foundry **Prompt Agents** directly from a
-standalone YAML or JSON manifest. For Microsoft Foundry **Hosted Agents**, it
-scaffolds or operates an `azure.yaml` workspace through a pinned `azd` and
-extension contract; infrastructure provisioning remains explicit. The CLI
-itself needs no runtime language dependency or state backend. A separate
-`agent365` namespace inventories and correlates Agent ID resources, validates
-Hosted observability, plans publication, and explicitly manages only the
-documented Foundry account logging flag without claiming unsupported binding
-or registry mutations.
+<h1 align="center">Foundry Agent Manager</h1>
+
+<p align="center">
+  <strong>Controlled, repeatable, and auditable deployment for Microsoft
+  Foundry agents.</strong>
+</p>
+
+Foundry Agent Manager (FAM) is a standalone Go CLI that provides a governed
+operations layer between your agent source and Microsoft Foundry. It manages
+**Prompt Agents** directly from YAML or JSON manifests and operates **Hosted
+Agents** through validated `azure.yaml` workspaces and a pinned `azd ai agent`
+contract. Infrastructure provisioning remains explicit.
 
 The installed `fam` executable is an equivalent shorthand for
 `foundry-agent-manager`; commands, flags, exit codes, and structured output are
-the same.
+the same. The CLI requires no runtime language dependency or external state
+backend.
 
-- **Fails closed.** Manifests are untrusted input; every credential-bearing or
-  data-egress destination needs an explicit operator approval before deployment.
-- **Auditable.** Every deploy writes a redacted JSON receipt and every failure
-  returns a stable exit code and error envelope.
-- **AzureCloud only.** Azure Government is unsupported and explicitly rejected
-  before credential acquisition or network access until dedicated subscription
-  qualification is complete.
+## Why teams adopt FAM
+
+- **[Prove before mutation](#doctor--environment-readiness):** separate
+  validation, planning, and online preflight commands.
+- **[Fail closed](#security-principles):** reject missing guardrail intent,
+  conflicting project identities, unsafe references, and unverifiable
+  dependencies.
+- **[Control provisioning](#choose-your-deployment-path):** deploying an agent
+  does not silently authorize infrastructure creation.
+- **[Manage the lifecycle](#common-next-steps-after-your-first-deployment):**
+  immutable versions, change detection, promotion, rollback, pruning, status,
+  and diagnostics.
+- **[Preserve evidence](#cicd-with-structured-output-and-receipts):** supported
+  mutations produce redacted receipts with verified outcomes and recovery
+  guidance.
+- **[Use one operational model](#command-organization):** manage Prompt and
+  Hosted Agents through consistent command and output conventions.
+- **[Bring existing code](#existing-hosted-agent-workspace):** adopt existing
+  Python agents without rewriting their application logic.
+
+## FAM and `azd`
+
+FAM does not replace Microsoft Foundry, `azd`, or your agent framework. Hosted
+deployments use the reviewed `azd ai agent` contract underneath.
+
+Use `azd` directly when you want the simplest greenfield development and
+deployment path.
+
+Use FAM when you need stronger controls around that path: existing
+infrastructure, multiple environments or operators, explicit provisioning
+boundaries, guardrail enforcement, repeatable lifecycle management, and
+auditable deployment evidence.
+
+> **`azd` optimizes the developer deployment path. FAM makes that path
+> controlled, repeatable, and auditable.**
+
+## Operational boundaries
+
+- **Fails closed.** Manifests are untrusted input; credential-bearing and
+  data-egress destinations require explicit operator approval.
+- **Auditable.** Supported mutations write redacted JSON receipts, and failures
+  return stable exit codes and structured error envelopes.
+- **Explicit provisioning.** Agent deployment does not silently authorize
+  infrastructure creation.
+- **AzureCloud only.** Azure Government is rejected before credential
+  acquisition or network access until dedicated qualification is complete.
 
 > **Preview status.** This tool is version 0.14.0. Hosted Agents require
 > `--accept-preview`. See [Support status](#support-status-and-release-boundaries)
@@ -34,6 +82,9 @@ documentation.
 
 ## Contents
 
+- [Why teams adopt FAM](#why-teams-adopt-fam)
+- [FAM and `azd`](#fam-and-azd)
+- [Operational boundaries](#operational-boundaries)
 - [Which path do I need?](#which-path-do-i-need)
 - [Frequently asked questions](docs/faq.md)
 - [Support status and release boundaries](#support-status-and-release-boundaries)
