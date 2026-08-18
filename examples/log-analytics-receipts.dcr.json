@@ -1,0 +1,116 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "dataCollectionRuleName": {
+      "type": "string",
+      "defaultValue": "dcr-foundry-agent-receipts",
+      "metadata": {
+        "description": "Name of the direct Data Collection Rule."
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region of the Log Analytics workspace."
+      }
+    },
+    "workspaceResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Full Azure resource ID of the destination Log Analytics workspace."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Insights/dataCollectionRules",
+      "apiVersion": "2023-03-11",
+      "name": "[parameters('dataCollectionRuleName')]",
+      "location": "[parameters('location')]",
+      "kind": "Direct",
+      "properties": {
+        "streamDeclarations": {
+          "Custom-FoundryAgentReceipts": {
+            "columns": [
+              {
+                "name": "TimeGenerated",
+                "type": "datetime"
+              },
+              {
+                "name": "ReceiptId",
+                "type": "string"
+              },
+              {
+                "name": "SchemaVersion",
+                "type": "string"
+              },
+              {
+                "name": "Operation",
+                "type": "string"
+              },
+              {
+                "name": "Status",
+                "type": "string"
+              },
+              {
+                "name": "Cloud",
+                "type": "string"
+              },
+              {
+                "name": "AgentName",
+                "type": "string"
+              },
+              {
+                "name": "ProjectName",
+                "type": "string"
+              },
+              {
+                "name": "Metadata",
+                "type": "dynamic"
+              },
+              {
+                "name": "Receipt",
+                "type": "dynamic"
+              }
+            ]
+          }
+        },
+        "destinations": {
+          "logAnalytics": [
+            {
+              "workspaceResourceId": "[parameters('workspaceResourceId')]",
+              "name": "receiptWorkspace"
+            }
+          ]
+        },
+        "dataFlows": [
+          {
+            "streams": [
+              "Custom-FoundryAgentReceipts"
+            ],
+            "destinations": [
+              "receiptWorkspace"
+            ],
+            "transformKql": "source",
+            "outputStream": "Custom-FoundryAgentReceipts_CL"
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "dataCollectionRuleResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dataCollectionRuleName'))]"
+    },
+    "inputStream": {
+      "type": "string",
+      "value": "Custom-FoundryAgentReceipts"
+    },
+    "outputStream": {
+      "type": "string",
+      "value": "Custom-FoundryAgentReceipts_CL"
+    }
+  }
+}

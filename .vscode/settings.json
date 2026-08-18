@@ -1,0 +1,33 @@
+{
+  "yaml.validate": true,
+  "json.schemas": [
+    {
+      "fileMatch": [
+        "**/agent*.json",
+        "**/*.agent.json"
+      ],
+      "url": "./schema/manifest.schema.json"
+    },
+    {
+      "fileMatch": [
+        "**/publication*.json",
+        "**/*.publication.json"
+      ],
+      "url": "./schema/publication.schema.json"
+    }
+  ],
+  "yaml.schemas": {
+    "./schema/manifest.schema.json": [
+      "**/agent*.yaml",
+      "**/agent*.yml",
+      "**/*.agent.yaml",
+      "**/*.agent.yml"
+    ],
+    "./schema/publication.schema.json": [
+      "**/publication*.yaml",
+      "**/publication*.yml",
+      "**/*.publication.yaml",
+      "**/*.publication.yml"
+    ]
+  }
+}

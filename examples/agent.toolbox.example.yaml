@@ -1,0 +1,79 @@
+# Reusable Foundry Toolbox lifecycle plus prompt-agent attachment.
+# Replace every placeholder before a real deployment.
+#
+# Offline:
+#   foundry-agent-manager toolbox validate -f examples/agent.toolbox.example.yaml
+#   foundry-agent-manager toolbox plan -f examples/agent.toolbox.example.yaml
+#
+# Create an immutable Toolbox version. Skills are a preview sub-contract, so
+# this example requires explicit preview acceptance:
+#   foundry-agent-manager toolbox deploy -f examples/agent.toolbox.example.yaml `
+#     --toolbox shared-tools --if-changed --accept-preview
+#
+# The first version becomes default automatically. Later versions stay staged:
+#   foundry-agent-manager toolbox versions list -f examples/agent.toolbox.example.yaml `
+#     --toolbox shared-tools
+#   foundry-agent-manager toolbox promote -f examples/agent.toolbox.example.yaml `
+#     --toolbox shared-tools --toolbox-version <version> --yes
+#
+# Deploying the prompt agent is a separate operation. The remote-tool project
+# connection below must already target this Toolbox's same-project MCP endpoint:
+#   foundry-agent-manager prompt deploy -f examples/agent.toolbox.example.yaml --if-changed
+
+apiVersion: foundry-agent-manager/v1
+
+agent:
+  name: toolbox-consumer-agent
+  model: <model-deployment-name>
+  description: Prompt agent that consumes a reusable Foundry Toolbox.
+  instructions: |
+    Use the shared Toolbox when its tools or skills are relevant.
+    Ask before executing any invocation that requires approval.
+
+project:
+  resource_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/sample-account/projects/sample-project
+
+tools:
+  - type: toolbox
+    name: shared-tools
+    project_connection_id: <toolbox-remote-tool-connection-id>
+    allowed_tools:
+      tool_names: [public_web, knowledge_search]
+    require_approval:
+      always:
+        tool_names: [knowledge_search]
+      never:
+        tool_names: [public_web]
+
+toolboxes:
+  - name: shared-tools
+    description: Shared discovery and search capabilities.
+    tools:
+      - type: web_search
+        name: public_web
+        description: Search current public web content.
+
+      # Manager alias compiled to the SDK's web_search wire type with
+      # custom_search_configuration.
+      - type: bing_custom_search
+        name: curated_web
+        description: Search the approved Bing Custom Search instance.
+        custom_search_configuration:
+          project_connection_id: <bing-custom-search-project-connection-id>
+          instance_name: <custom-search-instance-name>
+
+      - type: azure_ai_search
+        name: knowledge_search
+        description: Search the approved enterprise knowledge index.
+        indexes:
+          - project_connection_id: <azure-ai-search-project-connection-id>
+            index_name: <search-index-name>
+            query_type: vector_semantic_hybrid
+            top_k: 5
+
+      - type: toolbox_search
+        description: Discover the most relevant tool before loading it.
+
+    skills:
+      - name: existing-skill-name
+        version: <skill-version>

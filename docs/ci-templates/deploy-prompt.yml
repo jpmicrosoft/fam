@@ -1,0 +1,112 @@
+# deploy-prompt.yml — GitHub Actions template for Prompt-based agent deployment
+#
+# INERT TEMPLATE: Copy this file into your repository's .github/workflows/
+# directory and customise the placeholder values before use.
+#
+# See docs/ci-templates/README.md for required variables and setup instructions.
+
+name: "Deploy Agent (Prompt)"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agents/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+
+concurrency:
+  group: deploy-prompt-${{ github.event.inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # GitHub OIDC for Azure login
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    env:
+      MANIFEST: agents/agent.yaml
+      RECEIPT_PATH: .receipts/${{ github.event.inputs.environment || 'dev' }}.json
+      INSTALLER_REPO: ${{ vars.INSTALLER_REPO || 'jpmicrosoft/fam' }}
+      FAM_VERSION: ${{ vars.FAM_VERSION || 'latest' }}
+      FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_ENDPOINT: ${{ vars.FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_ENDPOINT }}
+      FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_DCR_ID: ${{ vars.FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_DCR_ID }}
+      FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_STREAM: ${{ vars.FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_STREAM }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}          # Replace or set as variable
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}          # Replace or set as variable
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}  # Replace or set as variable
+
+      - name: Install foundry-agent-manager
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.FAM_INSTALL_TOKEN || github.token }}
+        run: |
+          if [[ "$FAM_VERSION" = "latest" ]]; then
+            gh release download \
+              --repo "$INSTALLER_REPO" \
+              --pattern install.sh \
+              --dir "$RUNNER_TEMP"
+          else
+            gh release download "$FAM_VERSION" \
+              --repo "$INSTALLER_REPO" \
+              --pattern install.sh \
+              --dir "$RUNNER_TEMP"
+          fi
+          GITHUB_TOKEN="$GH_TOKEN" sh "${RUNNER_TEMP}/install.sh" \
+            --repo "$INSTALLER_REPO" \
+            --version "$FAM_VERSION" \
+            --install-dir "${RUNNER_TEMP}/bin"
+          echo "${{ runner.temp }}/bin" >> "$GITHUB_PATH"
+
+      - name: Prepare receipt directory
+        run: mkdir -p "$(dirname "$RECEIPT_PATH")"
+
+      - name: Validate manifest
+        run: |
+          foundry-agent-manager prompt validate \
+            --manifest "$MANIFEST" \
+            --output json
+
+      - name: Preflight
+        run: |
+          foundry-agent-manager prompt preflight \
+            --manifest "$MANIFEST" \
+            --cloud AzureCloud \
+            --output json
+
+      - name: Deploy (if changed)
+        run: |
+          foundry-agent-manager prompt deploy \
+            --manifest "$MANIFEST" \
+            --cloud AzureCloud \
+            --receipt "$RECEIPT_PATH" \
+            --if-changed \
+            --output json
+
+      - name: Upload receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-receipt-${{ github.event.inputs.environment || 'dev' }}
+          path: ${{ env.RECEIPT_PATH }}
+          retention-days: 90
+          if-no-files-found: ignore

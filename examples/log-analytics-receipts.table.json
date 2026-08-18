@@ -1,0 +1,59 @@
+{
+  "properties": {
+    "schema": {
+      "name": "FoundryAgentReceipts_CL",
+      "columns": [
+        {
+          "name": "TimeGenerated",
+          "type": "datetime",
+          "description": "Receipt completion time, or start time for an incomplete receipt."
+        },
+        {
+          "name": "ReceiptId",
+          "type": "string",
+          "description": "Stable receipt identifier used for reconciliation and de-duplication."
+        },
+        {
+          "name": "SchemaVersion",
+          "type": "string",
+          "description": "Manager receipt schema version."
+        },
+        {
+          "name": "Operation",
+          "type": "string",
+          "description": "Manager operation that produced the receipt."
+        },
+        {
+          "name": "Status",
+          "type": "string",
+          "description": "Terminal receipt status."
+        },
+        {
+          "name": "Cloud",
+          "type": "string",
+          "description": "Selected Azure cloud."
+        },
+        {
+          "name": "AgentName",
+          "type": "string",
+          "description": "Agent name when present in the receipt."
+        },
+        {
+          "name": "ProjectName",
+          "type": "string",
+          "description": "Foundry project name when present in the receipt."
+        },
+        {
+          "name": "Metadata",
+          "type": "dynamic",
+          "description": "Optional custom non-secret receipt metadata."
+        },
+        {
+          "name": "Receipt",
+          "type": "dynamic",
+          "description": "Complete redacted manager receipt."
+        }
+      ]
+    }
+  }
+}

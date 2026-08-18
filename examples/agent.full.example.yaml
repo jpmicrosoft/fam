@@ -1,0 +1,249 @@
+# Standalone example containing every supported declarative tool type
+# (Azure public cloud; only the Government-verified subset is accepted there).
+#
+# Replace all placeholders before a real deployment.
+#
+# Validate (offline, no Azure, no approvals):
+#   foundry-agent-manager prompt validate -f examples/agent.full.example.yaml
+# Plan (offline, no approvals):
+#   foundry-agent-manager prompt plan -f examples/agent.full.example.yaml
+# Synchronize the managed File Search documents before deploy:
+#   foundry-agent-manager grounding sync -f examples/agent.full.example.yaml
+#
+# validate and plan are offline structural checks only; they report destination
+# trust as "not-evaluated". preflight and deploy additionally require every
+# effective external tool destination to be approved by the operator, as an
+# exact host, outside the manifest:
+#
+#   foundry-agent-manager prompt preflight -f examples/agent.full.example.yaml `
+#     --accept-preview `
+#     --trusted-tool-host api.example.com `
+#     --trusted-tool-host mcp.example.com `
+#     --trusted-tool-host interpreter.example.com
+#
+#   foundry-agent-manager prompt deploy -f examples/agent.full.example.yaml --if-changed `
+#     --accept-preview `
+#     --trusted-tool-host api.example.com `
+#     --trusted-tool-host mcp.example.com `
+#     --trusted-tool-host interpreter.example.com
+#
+# api.example.com comes from servers[0].url in specs/sample-openapi.json and
+# mcp.example.com and interpreter.example.com from the MCP server URLs below.
+# Approvals are exact: no
+# wildcards, no suffixes, no URLs. In CI use FOUNDRY_AGENT_MANAGER_TRUSTED_TOOL_HOSTS
+# from a protected environment instead of flags.
+#
+# This manifest also declares an `endpoint` section (protocols, authorization
+# schemes, and an agent card). `endpoint` never selects which immutable
+# version is active: `deploy` always stages a newly created version behind the
+# current active version (or, for a first deployment, pins that first version
+# explicitly). Use `prompt endpoint configure` to apply endpoint changes without
+# touching routing, and `promote`/`rollback` to move traffic explicitly.
+
+apiVersion: foundry-agent-manager/v1
+
+agent:
+  metadata:
+    owner: <team-name>
+    environment: <environment-name>
+  name: sample-tools-agent
+  model: <model-deployment-name>
+  description: Example agent with the full declarative tool catalog.
+  instructions: |
+    Use the configured tools when they are relevant.
+    Do not invent data that a tool did not return.
+  structured_inputs:
+    tenantContext:
+      description: Non-secret tenant context supplied by the invoking application.
+      required: false
+      schema:
+        type: object
+        additionalProperties: false
+        properties:
+          region:
+            type: string
+
+project:
+  resource_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/sample-account/projects/sample-project
+
+grounding:
+  vector_stores:
+    - name: product-docs
+      description: Local product documentation uploaded and indexed by the CLI.
+      files:
+        - path: knowledge/product-guide.md
+
+memory_stores:
+  - name: assistant-memory
+    description: Preview memory used to personalize interactions by scope.
+    chat_model: <chat-model-deployment-name>
+    embedding_model: <embedding-model-deployment-name>
+    options:
+      user_profile_enabled: true
+      chat_summary_enabled: true
+      procedural_memory_enabled: false
+
+tools:
+  - type: code_interpreter
+
+  - type: file_search
+    vector_store: product-docs
+
+  - type: web_search
+    user_location:
+      country: US
+
+  - type: bing_grounding
+    search_configurations:
+      - project_connection_id: <bing-grounding-project-connection-id>
+        count: 5
+        market: en-US
+        set_lang: en
+
+  - type: bing_custom_search_preview
+    search_configurations:
+      - project_connection_id: <bing-custom-search-project-connection-id>
+        instance_name: <custom-search-instance-name>
+
+  - type: azure_ai_search
+    indexes:
+      - project_connection_id: <azure-ai-search-project-connection-id>
+        index_name: <search-index-name>
+        query_type: vector_semantic_hybrid
+        top_k: 5
+
+  - type: openapi
+    name: sample_api
+    description: Example item lookup API.
+    spec_file: specs/sample-openapi.json
+    auth:
+      type: anonymous
+
+  - type: mcp
+    server_label: sample_mcp
+    server_url: https://mcp.example.com/sse
+    headers:
+      X-Tenant-Context: sample
+    allowed_tools:
+      tool_names: [read_status, update_item]
+    require_approval:
+      always:
+        tool_names: [update_item]
+      never:
+        tool_names: [read_status]
+
+  # Existing Azure Container Apps Dynamic Sessions-backed MCP endpoint.
+  # The CLI attaches it but does not provision the Container Apps resource.
+  - type: custom_code_interpreter
+    server_label: custom_interpreter
+    server_url: https://interpreter.example.com/mcp
+    require_approval: always
+
+  - type: a2a_preview
+    project_connection_id: <a2a-project-connection-id>
+    # Omit this to use Foundry's default /.well-known/agent-card.json path.
+    # Relative paths use the effective A2A base host. Absolute HTTPS URLs
+    # require their own --trusted-tool-host approval.
+    agent_card_path: /.well-known/agent-card.json
+    # Secure default: agent-card discovery is anonymous. Set true only when the
+    # protected card is on the effective A2A base host and may receive the
+    # project connection credentials.
+    send_credentials_for_agent_card: false
+    require_approval: always
+
+  - type: browser_automation_preview
+    name: sample_browser
+    description: Browser automation through an existing project connection.
+    project_connection_id: <browser-project-connection-id>
+
+  - type: computer_use_preview
+    display_width: 1440
+    display_height: 900
+    environment: browser
+
+  - type: fabric_iq_preview
+    project_connection_id: <fabric-iq-project-connection-id>
+    require_approval: always
+
+  - type: work_iq_preview
+    project_connection_id: <work-iq-project-connection-id>
+    require_approval: always
+
+  - type: sharepoint_grounding_preview
+    project_connection_ids:
+      - <sharepoint-project-connection-id>
+
+  - type: image_generation
+    quality: auto
+    size: auto
+
+  - type: memory_search_preview
+    memory_store_name: assistant-memory
+    scope: "{{$userId}}"
+    update_delay: 1
+    search_options:
+      max_memories: 10
+
+  # Function Calling advertises this schema to the model. The caller that
+  # invokes the agent must execute the function and return function_call_output.
+  - type: function
+    function:
+      name: lookup_inventory
+      description: Look up current inventory for one item.
+      strict: true
+      parameters:
+        type: object
+        additionalProperties: false
+        properties:
+          itemId:
+            type: string
+        required: [itemId]
+
+  # Attach an existing same-project Toolbox through a pre-created remote-tool
+  # project connection. Omit version to follow the promoted default_version.
+  - type: toolbox
+    name: shared-tools
+    project_connection_id: <toolbox-remote-tool-connection-id>
+    require_approval: always
+
+  - type: azure_function
+    function:
+      name: processItem
+      description: Process an item by identifier.
+      parameters:
+        type: object
+        properties:
+          itemId:
+            type: string
+    input_queue:
+      name: requests
+      service_endpoint: https://<storage-account>.queue.core.windows.net
+    output_queue:
+      name: results
+      service_endpoint: https://<storage-account>.queue.core.windows.net
+
+# Desired stable-endpoint protocols, authorization, and agent card. This
+# section never controls version routing: a fresh `deploy` still stages the
+# new immutable version behind whatever version is currently active, and only
+# `promote`/`rollback` move traffic. Apply endpoint changes without touching
+# routing with:
+#   foundry-agent-manager prompt endpoint configure -f examples/agent.full.example.yaml
+# Inspect the effective endpoint (including instance identity and current
+# routing) with:
+#   foundry-agent-manager prompt endpoint show -f examples/agent.full.example.yaml
+endpoint:
+  protocols:
+    - responses # always preserved even if omitted here
+    - activity # optional preconfiguration; prompt m365 publish also enables it
+  authorization_schemes:
+    - type: Entra # always preserved even if omitted here
+    - type: BotServiceRbac
+  agent_card:
+    version: 1.0.0
+    description: Example agent with the full declarative tool catalog.
+    skills:
+      - id: lookup-item
+        name: Look up an item
+        description: Finds an item by identifier using the sample API.
+        tags: [lookup]
+        examples: ["Look up item 12345"]

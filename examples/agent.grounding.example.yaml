@@ -1,0 +1,36 @@
+# Managed document grounding example.
+#
+# Offline:
+#   foundry-agent-manager grounding validate -f examples/agent.grounding.example.yaml
+#   foundry-agent-manager grounding plan -f examples/agent.grounding.example.yaml
+#
+# Online:
+#   foundry-agent-manager grounding sync -f examples/agent.grounding.example.yaml
+#   foundry-agent-manager prompt deploy -f examples/agent.grounding.example.yaml --if-changed
+#
+# Deploy resolves the logical name only after grounding sync has completed and
+# the remote desired hash matches this local document set.
+
+apiVersion: foundry-agent-manager/v1
+
+agent:
+  name: grounded-support-agent
+  model: <model-deployment-name>
+  description: Example agent grounded in a managed local document.
+  instructions: |
+    Answer from the indexed product guide.
+    If the guide does not contain the answer, say so.
+
+project:
+  resource_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/sample-account/projects/sample-project
+
+grounding:
+  vector_stores:
+    - name: product-docs
+      description: Product guidance managed by foundry-agent-manager.
+      files:
+        - path: knowledge/product-guide.md
+
+tools:
+  - type: file_search
+    vector_store: product-docs

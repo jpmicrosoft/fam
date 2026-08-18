@@ -1,0 +1,230 @@
+{
+  "schemaVersion": 1,
+  "scenarios": [
+    {
+      "name": "validate the launch manifest",
+      "command": "prompt validate",
+      "gate": "offline",
+      "required": true,
+      "arguments": [
+        "--manifest",
+        "examples/agent.example.yaml",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "plan the launch manifest",
+      "command": "prompt plan",
+      "gate": "offline",
+      "required": true,
+      "arguments": [
+        "--manifest",
+        "examples/agent.example.yaml",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "inspect the deployed prompt agent",
+      "command": "prompt status",
+      "gate": "online-read",
+      "required": false,
+      "arguments": [
+        "--manifest",
+        "<PATH_TO_LIVE_MANIFEST>",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "deploy into the dedicated qualification environment",
+      "command": "prompt deploy",
+      "gate": "mutation",
+      "required": false,
+      "arguments": [
+        "--manifest",
+        "<PATH_TO_LIVE_MANIFEST>",
+        "--if-changed",
+        "--receipt",
+        "<PATH_TO_QUALIFICATION_RECEIPT>",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "dry-run prompt agent deletion",
+      "command": "prompt delete",
+      "gate": "online-read",
+      "required": false,
+      "arguments": [
+        "--manifest",
+        "<PATH_TO_LIVE_MANIFEST>",
+        "--dry-run",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "list account model deployments",
+      "command": "model deployment list",
+      "gate": "online-read",
+      "required": false,
+      "arguments": [
+        "--manifest",
+        "<PATH_TO_MODEL_DEPLOYMENT_MANIFEST>",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "plan exact model deployment capacity",
+      "command": "model deployment plan",
+      "gate": "online-read",
+      "required": false,
+      "arguments": [
+        "--manifest",
+        "<PATH_TO_MODEL_DEPLOYMENT_MANIFEST>",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "create model deployment in qualification account",
+      "command": "model deployment create",
+      "gate": "mutation",
+      "required": false,
+      "arguments": [
+        "--manifest",
+        "<PATH_TO_MODEL_DEPLOYMENT_MANIFEST>",
+        "--receipt",
+        "<PATH_TO_MODEL_DEPLOYMENT_RECEIPT>",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "show qualified model deployment",
+      "command": "model deployment show",
+      "gate": "online-read",
+      "required": false,
+      "arguments": [
+        "--manifest",
+        "<PATH_TO_MODEL_DEPLOYMENT_MANIFEST>",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "dry-run model deployment deletion",
+      "command": "model deployment delete",
+      "gate": "online-read",
+      "required": false,
+      "arguments": [
+        "--manifest",
+        "<PATH_TO_MODEL_DEPLOYMENT_MANIFEST>",
+        "--dry-run",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "validate the hosted workspace",
+      "command": "hosted validate",
+      "gate": "offline",
+      "enabled": false,
+      "required": false,
+      "arguments": [
+        "--workspace",
+        "<PATH_TO_HOSTED_WORKSPACE>",
+        "--service",
+        "<HOSTED_SERVICE_NAME>",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "inspect the deployed hosted agent",
+      "command": "hosted status",
+      "gate": "online-read",
+      "required": false,
+      "arguments": [
+        "--workspace",
+        "<PATH_TO_HOSTED_WORKSPACE>",
+        "--service",
+        "<HOSTED_SERVICE_NAME>",
+        "--environment",
+        "<AZD_ENVIRONMENT_NAME>",
+        "--accept-preview",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "deploy the hosted agent into the qualification environment",
+      "command": "hosted deploy",
+      "gate": "mutation",
+      "required": false,
+      "arguments": [
+        "--workspace",
+        "<PATH_TO_HOSTED_WORKSPACE>",
+        "--service",
+        "<HOSTED_SERVICE_NAME>",
+        "--environment",
+        "<AZD_ENVIRONMENT_NAME>",
+        "--accept-preview",
+        "--if-changed",
+        "--receipt",
+        "<PATH_TO_HOSTED_QUALIFICATION_RECEIPT>",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    },
+    {
+      "name": "dry-run hosted agent deletion",
+      "command": "hosted delete",
+      "gate": "online-read",
+      "required": false,
+      "arguments": [
+        "--workspace",
+        "<PATH_TO_HOSTED_WORKSPACE>",
+        "--service",
+        "<HOSTED_SERVICE_NAME>",
+        "--environment",
+        "<AZD_ENVIRONMENT_NAME>",
+        "--accept-preview",
+        "--dry-run",
+        "--output",
+        "json"
+      ],
+      "expectedExitCodes": [0]
+    }
+  ],
+  "exclusions": [
+    {
+      "command": "autopilot deploy",
+      "reason": "Experimental pinned sample deployment is qualified separately in a dedicated disposable subscription."
+    },
+    {
+      "command": "connector logic-apps registration plan",
+      "reason": "This command produces a validated portal handoff plan and has no public registration mutation API."
+    },
+    {
+      "command": "hosted environment create",
+      "reason": "Local azd environment initialization is qualified by the offline release gate and is intentionally completed before the live cloud acceptance matrix."
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Foundry Agent Manager publication configuration",
+  "description": "Environment-specific Microsoft 365 publication metadata for an existing Foundry agent endpoint.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "microsoft365"],
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "const": "foundry-agent-manager/publication/v1"
+    },
+    "microsoft365": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bot_service",
+        "publish_scope",
+        "app_version",
+        "agent_display_name",
+        "short_description",
+        "full_description",
+        "developer_name"
+      ],
+      "properties": {
+        "bot_service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "tenant_id"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{1,63}$"
+            },
+            "subscription_id": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            },
+            "resource_group": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tenant_id": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            },
+            "display_name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sku": {
+              "type": "string",
+              "const": "F0"
+            },
+            "allow_update": {
+              "type": "boolean"
+            }
+          }
+        },
+        "publish_scope": {
+          "type": "string",
+          "enum": ["Shared", "Tenant"]
+        },
+        "app_version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*\\.[0-9]+\\.[0-9]+$"
+        },
+        "agent_display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "short_description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "full_description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "developer_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "developer_website_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "privacy_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "terms_of_use_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "color_icon_file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outline_icon_file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "can_respond_without_mention": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

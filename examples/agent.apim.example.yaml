@@ -1,0 +1,53 @@
+# Standalone example that routes model inference through an existing APIM API
+# (Azure public cloud).
+#
+# Foundry Agent Manager creates the Foundry project connection only. It does not create
+# or configure APIM, its APIs, or its policies.
+#
+# Validate (offline, no Azure, no approvals):
+#   foundry-agent-manager prompt validate -f examples/agent.apim.example.yaml
+# Plan (offline, no approvals):
+#   foundry-agent-manager prompt plan -f examples/agent.apim.example.yaml
+#
+# Preflight (online, read-only; requires the gateway host approval):
+#   foundry-agent-manager prompt preflight -f examples/agent.apim.example.yaml `
+#     --trusted-apim-host <apim-name>.azure-api.net
+#
+# Deploy:
+#   $env:FOUNDRY_AGENT_MANAGER_APIM_SUBSCRIPTION_KEY = "<subscription-key>"
+#   foundry-agent-manager prompt deploy -f examples/agent.apim.example.yaml --if-changed `
+#     --trusted-apim-host <apim-name>.azure-api.net
+#
+# preflight and deploy refuse to send the APIM subscription key (or the project
+# managed-identity token) to a gateway the operator did not approve. Approve the
+# exact host with --trusted-apim-host, or FOUNDRY_AGENT_MANAGER_TRUSTED_APIM_HOSTS from
+# a protected CI environment. The manifest cannot approve its own destination,
+# and host approval happens before the subscription key is ever resolved.
+#
+# Prefer the environment variable, a file, stdin, or Key Vault over
+# --apim-subscription-key: process arguments can be read by other users.
+
+apiVersion: foundry-agent-manager/v1
+
+agent:
+  name: sample-apim-agent
+  model: <model-deployment-name>
+  description: Example agent routed through an existing APIM API.
+  instructions: |
+    Answer clearly and only from the information available to you.
+
+project:
+  resource_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/sample-account/projects/sample-project
+
+apim:
+  gateway_url: https://<apim-name>.azure-api.net
+  api_path: agents/chat
+  auth: api_key
+  # connection_name: sample-apim-connection
+  # models: [<model-deployment-name>]
+  # For managed identity, configure APIM to accept the project identity, then use:
+  # auth: managed_identity
+  # audience: https://cognitiveservices.azure.com
+
+tools:
+  - type: code_interpreter

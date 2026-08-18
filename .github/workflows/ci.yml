@@ -1,0 +1,192 @@
+name: CI and Release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to rebuild without moving tag history
+        required: true
+        type: string
+
+concurrency:
+  group: ci-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/v') }}
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout selected release tag
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Checkout source
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::Files not formatted with gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -count=1 ./...
+
+      # The race detector is unavailable on windows/arm64 developer machines, so
+      # CI is the gate that runs it.
+      - name: Test with the race detector
+        run: go test -count=1 -race ./...
+
+      - name: Build
+        run: go build -o foundry-agent-manager ./cmd
+
+      - name: Qualify executable contract
+        shell: pwsh
+        run: >
+          ./scripts/Test-Release.ps1
+          -SkipCoreChecks
+          -SkipRace
+          -SkipCrossCompile
+          -OutputDirectory "${{ runner.temp }}/release-qualification"
+
+  release:
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Release tag must be semantic versioning prefixed with v."
+            exit 1
+          fi
+          if ! git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            echo "::error::Release tag $RELEASE_TAG does not exist."
+            exit 1
+          fi
+          TAG_VERSION="${RELEASE_TAG#v}"
+          SOURCE_VERSION="$(go run ./cmd version --output json | awk -F'"' '/"version"/ { print $4; exit }')"
+          if [ -z "$SOURCE_VERSION" ]; then
+            echo "::error::Could not read the source version from foundry-agent-manager."
+            exit 1
+          fi
+          if [ "$TAG_VERSION" != "$SOURCE_VERSION" ]; then
+            echo "::error::Release tag version ${TAG_VERSION} does not match source version ${SOURCE_VERSION}."
+            exit 1
+          fi
+
+      - name: Derive version metadata
+        id: meta
+        run: |
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Cross-compile binaries
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          DATE: ${{ steps.meta.outputs.date }}
+        run: |
+          set -euo pipefail
+          PKG="foundry-agent-manager/internal/config"
+          LDFLAGS="-s -w -X ${PKG}.Version=${VERSION} -X ${PKG}.BuildCommit=${COMMIT} -X ${PKG}.BuildDate=${DATE}"
+
+          targets=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
+            "windows/amd64"
+            "windows/arm64"
+          )
+
+          mkdir -p dist
+          for target in "${targets[@]}"; do
+            os="${target%/*}"
+            arch="${target#*/}"
+            bin="foundry-agent-manager"
+            ext=""
+            if [ "$os" = "windows" ]; then ext=".exe"; fi
+
+            echo "::group::Building ${os}/${arch}"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+              go build -trimpath -ldflags "$LDFLAGS" -o "dist/${bin}${ext}" ./cmd
+            cp "dist/${bin}${ext}" "dist/fam${ext}"
+
+            archive="foundry-agent-manager_${VERSION}_${os}_${arch}"
+            if [ "$os" = "windows" ]; then
+              (cd dist && zip "../dist/${archive}.zip" "${bin}${ext}" "fam${ext}" && rm "${bin}${ext}" "fam${ext}")
+            else
+              tar -czf "dist/${archive}.tar.gz" -C dist "${bin}" "fam" && rm "dist/${bin}" "dist/fam"
+            fi
+            echo "::endgroup::"
+          done
+          cp scripts/install.sh dist/install.sh
+          cp scripts/install.ps1 dist/install.ps1
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: sha256sum *.tar.gz *.zip install.sh install.ps1 > SHA256SUMS
+
+      - name: Attest build provenance
+        if: ${{ github.event.repository.visibility == 'public' }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
+
+      - name: Explain skipped build provenance
+        if: ${{ github.event.repository.visibility != 'public' }}
+        run: echo "::notice::Skipping build provenance attestation for a non-public repository; verify SHA256SUMS or build from source."
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$RELEASE_TAG" dist/* \
+            --title "$RELEASE_TAG" \
+            --generate-notes

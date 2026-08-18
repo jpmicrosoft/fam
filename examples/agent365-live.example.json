@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "description": "Inert value template for Invoke-LiveAgent365Acceptance.ps1 parameters. Copy only the values you intend to pass explicitly; the script does not load this file.",
+  "binary": "bin\\foundry-agent-manager.exe",
+  "blueprintAppId": "",
+  "blueprintObjectId": "",
+  "expectedTenantId": "",
+  "agentIdentityObjectId": "",
+  "blueprintPrincipalObjectId": "",
+  "promptManifest": "",
+  "hostedWorkspace": "",
+  "hostedEnvironment": "",
+  "hostedService": "",
+  "foundrySubscriptionId": "",
+  "foundryResourceGroup": "",
+  "foundryAccountName": ""
+}

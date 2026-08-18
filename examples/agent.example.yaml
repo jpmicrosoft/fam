@@ -1,0 +1,37 @@
+# Minimal standalone manifest (Azure public cloud).
+#
+# Edit the model deployment and project placeholders before deploy.
+#
+# Validate (offline, no Azure, no approvals):
+#   foundry-agent-manager prompt validate -f examples/agent.example.yaml
+# Plan (offline):
+#   foundry-agent-manager prompt plan -f examples/agent.example.yaml
+# Preflight (online, read-only):
+#   foundry-agent-manager prompt preflight -f examples/agent.example.yaml
+# Deploy:
+#   foundry-agent-manager prompt deploy -f examples/agent.example.yaml --if-changed
+#
+# This manifest declares no APIM connection and no external tool, so preflight
+# and deploy need no destination approvals. Adding an apim section, an openapi
+# tool, or an mcp tool makes --trusted-apim-host / --trusted-tool-host
+# mandatory: destination trust is operator input and can never come from a
+# manifest field.
+
+apiVersion: foundry-agent-manager/v1
+
+agent:
+  name: sample-agent
+  model: <model-deployment-name>
+  description: Minimal standalone Foundry agent.
+  metadata:
+    owner: <team-name>
+    environment: <environment-name>
+  instructions: |
+    Answer clearly and only from the information available to you.
+    If required information is missing, say what is needed.
+
+project:
+  resource_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/sample-account/projects/sample-project
+
+tools:
+  - type: code_interpreter

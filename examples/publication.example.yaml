@@ -1,0 +1,72 @@
+# Standalone Microsoft 365 publication configuration
+# (foundry-agent-manager/publication/v1; Azure public cloud only).
+#
+# This file is NOT an agent manifest. It is a separate input consumed only by
+# `prompt m365 publish`, passed with --publication. It never has an apiVersion of
+# foundry-agent-manager/v1, and the agent manifest never references it. Replace every
+# placeholder before use; do not commit real tenant ids, bot names, or URLs.
+#
+# prompt m365 publish requires:
+#   - cloud: AzureCloud, the only supported cloud;
+#   - the agent already deployed, with exactly one active (pinned) version
+#     (run `foundry-agent-manager prompt promote` first if the agent still routes to
+#     @latest);
+#   - the agent to have a system-assigned instance identity with a principal ID
+#     (instance_identity.principal_id), which Foundry assigns automatically to
+#     modern (endpoint-based) agents.
+#
+# What prompt m365 publish does, in order:
+#   1. Ensures (creates or updates) an Azure Bot Service resource bound to the
+#      agent's instance identity as its Microsoft App ID.
+#   2. Ensures the bot's Microsoft Teams channel.
+#   3. Sends exactly one publish request to the Foundry
+#      /agents/{name}/microsoft365/publish endpoint, with
+#      publishAsAutopilot=false (this path never uses Autopilot).
+#   4. If publish_scope is Tenant, the response requires a Microsoft 365
+#      tenant administrator to approve the agent in the Microsoft 365 admin
+#      center. That approval is an external, manual action this tool cannot
+#      perform or wait for.
+#
+# The publish POST is treated as non-repeatable: if the outcome is ambiguous
+# (for example a network failure or timeout after the request was sent), the
+# operation receipt records the mutation as unresolved and the command exits
+# without retrying. Inspect the receipt and the Foundry agent's publication
+# state before ever re-running prompt m365 publish for the same version.
+#
+# Example invocation (run after `foundry-agent-manager prompt promote` has pinned a version):
+#   foundry-agent-manager prompt m365 publish -f agent.yaml --publication examples\publication.example.yaml
+#
+# A Bot Service identity/tenant/endpoint change on an existing bot is refused
+# unless you also pass --allow-bot-update, after reviewing the impact.
+
+apiVersion: foundry-agent-manager/publication/v1
+
+microsoft365:
+  bot_service:
+    name: sample-agent-bot
+    # subscription_id and resource_group default to the values derived from the
+    # project resource_id in the agent manifest when omitted here.
+    # subscription_id: <subscription-id>
+    # resource_group: <resource-group>
+    tenant_id: "00000000-0000-0000-0000-000000000000" # replace with your Entra tenant id
+    display_name: Sample Agent
+    # sku: F0 is the only supported value and defaults automatically.
+    allow_update: false
+
+  publish_scope: Tenant # Shared or Tenant. Tenant requires admin approval.
+  app_version: 1.0.0
+  agent_display_name: Sample Agent
+  short_description: One-line description shown in the Teams catalog.
+  full_description: >-
+    Full description shown on the agent's Teams details page.
+  developer_name: Example Publisher
+  developer_website_url: https://example.com
+  privacy_url: https://example.com/privacy
+  terms_of_use_url: https://example.com/terms
+  can_respond_without_mention: false
+
+  # Optional PNG icons, read relative to this file's directory (same
+  # containment rules as other manifest-referenced files: no absolute paths,
+  # no '..', no symlink escape). Omit both to publish without custom icons.
+  # color_icon_file: publication-icon-color.png   # exactly 192x192
+  # outline_icon_file: publication-icon-outline.png # exactly 32x32

@@ -1,0 +1,5 @@
+Classify whether an assistant response satisfies a specific user requirement.
+
+Use only the supplied query, expected behavior, and response. Choose PASS only when the response fully satisfies every applicable requirement. Choose FAIL when any explicit format, factual, safety, non-fabrication, scope, or required-content constraint is violated.
+
+Explicit constraints are vetoes. Do not average a critical failure against unrelated strengths. Do not require optional detail that the expected behavior explicitly marks optional. Do not reward brevity, tone, or safety for compensating for an incorrect answer or broken output contract.

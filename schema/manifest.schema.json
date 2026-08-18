@@ -1,0 +1,1212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Foundry Agent Manager manifest",
+  "description": "Standalone declarative definition of a Microsoft Foundry account-based agent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "agent"],
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "const": "foundry-agent-manager/v1"
+    },
+    "cloud": {
+      "type": "string",
+      "enum": ["AzureCloud"],
+      "description": "Azure cloud environment. Only AzureCloud is supported. Azure Government is rejected because this release has not been qualified against a dedicated Government subscription."
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "model", "instructions"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+          "description": "Foundry agent name (create_version agent_name)."
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Model deployment name used by the agent. It must exist before Prompt preflight/deploy and can be created explicitly through the separate model deployment workflow."
+        },
+        "instructions": {
+          "type": "string",
+          "minLength": 1,
+          "description": "System instructions for the PromptAgentDefinition."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional human-readable agent description."
+        },
+        "metadata": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "description": "Optional custom non-secret string metadata copied to agent versions, operation receipts, and Log Analytics. Foundry supports at most 16 entries; keys are limited to 64 characters and values to 512 characters."
+        },
+        "rai_policy_id": {
+          "type": "string",
+          "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.CognitiveServices/accounts/[^/]+/raiPolicies/[^/]+$",
+          "description": "Optional content-safety guardrail (preview): full ARM resource id of an RAI policy that already exists on the Foundry account (.../raiPolicies/<name>). Attached to the agent via PromptAgentDefinition.rai_config so Foundry screens the agent's prompts and responses. Referenced, never created. Omit to use the model deployment's default content filter."
+        },
+        "structured_inputs": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/structuredInputDefinition"
+          },
+          "description": "Runtime input definitions available to prompt templates and supported tool bindings."
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource_id"],
+      "properties": {
+        "resource_id": {
+          "type": "string",
+          "pattern": "^/subscriptions/[0-9a-fA-F-]+/resourceGroups/[^/]+/providers/Microsoft\\.CognitiveServices/accounts/[^/]+/projects/[^/]+$",
+          "description": "Canonical Foundry project resource ID: /subscriptions/<uuid>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>. All project coordinates (subscription, resource group, account, project name, endpoints) are derived from this single field."
+        },
+        "location": {
+          "type": "string",
+          "description": "Azure region for a newly created project. OPTIONAL for --ensure-project: defaults to the Foundry account's own region (projects are co-regional). Set only to pin/validate; a mismatch with the account region is rejected. Also settable via --location."
+        },
+        "display_name": { "type": "string" },
+        "description": { "type": "string" },
+        "api_version": {
+          "type": "string",
+          "description": "Control-plane api-version for --ensure-project (Microsoft.CognitiveServices/accounts/projects). Defaults to a GA version."
+        }
+      }
+    },
+    "model_deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_name", "model_version", "model_format", "sku_name", "capacity"],
+      "description": "Optional desired state for an explicit account-level model deployment. If deployment_name is omitted, agent.model is used. Prompt deployment never creates this resource implicitly.",
+      "properties": {
+        "deployment_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Account-level deployment name. Defaults to agent.model."
+        },
+        "model_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact catalog model name."
+        },
+        "model_version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact catalog model version. Use live model planning rather than assuming latest."
+        },
+        "model_format": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact catalog model format, such as OpenAI."
+        },
+        "sku_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact live catalog deployment SKU."
+        },
+        "capacity": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Capacity in the units defined by the selected SKU."
+        },
+        "rai_policy_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional existing account RAI policy name."
+        },
+        "version_upgrade_option": {
+          "type": "string",
+          "enum": ["OnceNewDefaultVersionAvailable", "OnceCurrentVersionExpired", "NoAutoUpgrade"],
+          "description": "Optional model version upgrade policy."
+        },
+        "spillover_deployment_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional existing deployment that receives spillover requests."
+        }
+      }
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Desired stable agent endpoint protocols, authorization schemes, and optional agent card. Version routing is managed by promote/rollback, not by this section.",
+      "properties": {
+        "protocols": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["responses", "activity", "invocations", "a2a", "mcp"]
+          },
+          "description": "Protocols exposed by the stable endpoint. responses is always preserved."
+        },
+        "authorization_schemes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["Entra", "BotServiceRbac", "BotServiceTenant"]
+              }
+            }
+          },
+          "description": "Inbound endpoint authorization. Entra is always preserved."
+        },
+        "agent_card": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "description"],
+          "properties": {
+            "version": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "name", "description"],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "tags": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "examples": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "apim": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional connection to an existing Azure API Management API. Foundry Agent Manager creates the Foundry project connection but does not provision APIM or its policies.",
+      "oneOf": [
+        {
+          "required": ["target"],
+          "not": {
+            "anyOf": [
+              { "required": ["gateway_url"] },
+              { "required": ["api_path"] }
+            ]
+          }
+        },
+        {
+          "required": ["gateway_url", "api_path"],
+          "not": { "required": ["target"] }
+        }
+      ],
+      "properties": {
+        "connection_name": {
+          "type": "string",
+          "description": "Foundry connection name. Defaults to apim-<api_name|agent>."
+        },
+        "target": {
+          "type": "string",
+          "pattern": "^https://",
+          "description": "Full APIM target URL the connection points at, e.g. https://<apim>.azure-api.net/agents/chat. Alternatively set gateway_url + api_path. The target host must also be approved at deploy time with --trusted-apim-host (or FOUNDRY_AGENT_MANAGER_TRUSTED_APIM_HOSTS); the manifest cannot approve its own destination."
+        },
+        "gateway_url": {
+          "type": "string",
+          "pattern": "^https://",
+          "description": "APIM gateway base URL, combined with api_path to form the target. The resulting host must also be approved at deploy time with --trusted-apim-host (or FOUNDRY_AGENT_MANAGER_TRUSTED_APIM_HOSTS)."
+        },
+        "api_path": {
+          "type": "string",
+          "description": "APIM API path appended to gateway_url."
+        },
+        "api_name": {
+          "type": "string",
+          "description": "APIM API name used for the default connection name."
+        },
+        "auth": {
+          "type": "string",
+          "enum": ["api_key", "managed_identity"],
+          "description": "api_key (default) uses an APIM subscription key supplied at deploy time. managed_identity uses the project's system-assigned identity and requires the APIM API to accept that identity."
+        },
+        "audience": {
+          "type": "string",
+          "description": "managed_identity auth token audience. Defaults to https://cognitiveservices.azure.com. That AzureCloud default is allow-listed; any other audience must be approved at deploy time with --trusted-managed-identity-audience (or FOUNDRY_AGENT_MANAGER_TRUSTED_MANAGED_IDENTITY_AUDIENCES). OAuth scope forms ending in /.default are rejected."
+        },
+        "deployment_in_path": {
+          "type": "boolean",
+          "description": "true uses {target}/deployments/{deployment}/chat/completions; false uses {target}/chat/completions."
+        },
+        "inference_api_version": {
+          "type": "string",
+          "description": "Optional api-version query parameter for inference calls through APIM."
+        },
+        "is_shared_to_all": {
+          "type": "boolean",
+          "description": "Share the connection to all project users (default false)."
+        },
+        "models": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Static deployment names exposed through the connection. Defaults to [agent.model]. The agent reaches the model as <connection>/<deployment>."
+        },
+        "connection_api_version": {
+          "type": "string",
+          "description": "Control-plane api-version for the connection resource (default 2025-04-01-preview)."
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "description": "Declarative Foundry tools attached to the agent.",
+      "items": { "$ref": "#/$defs/tool" }
+    },
+    "grounding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vector_stores"],
+      "description": "Manager-owned document grounding sources synchronized through the grounding-* commands.",
+      "properties": {
+        "vector_stores": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/groundingVectorStore" }
+        }
+      }
+    },
+    "toolboxes": {
+      "type": "array",
+      "description": "Immutable Foundry Toolbox definitions managed independently with the toolbox-* commands.",
+      "items": { "$ref": "#/$defs/toolbox" }
+    },
+    "memory_stores": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Preview long-term memory stores managed with the memory-store-* commands.",
+      "items": { "$ref": "#/$defs/memoryStore" }
+    }
+  },
+  "$defs": {
+    "memoryStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "chat_model", "embedding_model"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+        },
+        "description": { "type": "string" },
+        "chat_model": { "type": "string", "minLength": 1 },
+        "embedding_model": { "type": "string", "minLength": 1 },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "user_profile_enabled": { "type": "boolean", "default": true },
+            "user_profile_details": { "type": "string" },
+            "chat_summary_enabled": { "type": "boolean", "default": true },
+            "procedural_memory_enabled": { "type": "boolean" },
+            "default_ttl_seconds": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "required": ["type"],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "a2a_preview",
+            "azure_ai_search",
+            "azure_function",
+            "bing_custom_search_preview",
+            "bing_grounding",
+            "browser_automation_preview",
+            "code_interpreter",
+            "computer_use_preview",
+            "custom_code_interpreter",
+            "fabric_iq_preview",
+            "file_search",
+            "function",
+            "image_generation",
+            "memory_search_preview",
+            "mcp",
+            "openapi",
+            "sharepoint_grounding_preview",
+            "toolbox",
+            "web_search",
+            "work_iq_preview"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "memory_search_preview" } } },
+          "then": {
+            "required": ["memory_store_name", "scope"],
+            "properties": {
+              "memory_store_name": { "type": "string", "minLength": 1 },
+              "scope": { "type": "string", "minLength": 1 },
+              "update_delay": { "type": "integer", "minimum": 0 },
+              "search_options": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "max_memories": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["bing_grounding", "bing_custom_search_preview"]
+              }
+            }
+          },
+          "then": {
+            "required": ["search_configurations"],
+            "properties": {
+              "search_configurations": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "oneOf": [
+                    { "$ref": "#/$defs/bingGroundingConfiguration" },
+                    { "$ref": "#/$defs/bingCustomSearchConfiguration" }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "bing_grounding" } } },
+          "then": {
+            "properties": {
+              "search_configurations": {
+                "items": { "$ref": "#/$defs/bingGroundingConfiguration" }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "bing_custom_search_preview" } } },
+          "then": {
+            "properties": {
+              "search_configurations": {
+                "items": { "$ref": "#/$defs/bingCustomSearchConfiguration" }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "code_interpreter" } } },
+          "then": {
+            "properties": {
+              "container": {
+                "type": "object",
+                "description": "Optional Responses API Code Interpreter container configuration."
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "file_search" } } },
+          "then": {
+            "oneOf": [
+              {
+                "required": ["vector_store_ids"],
+                "not": { "required": ["vector_store"] }
+              },
+              {
+                "required": ["vector_store"],
+                "not": { "required": ["vector_store_ids"] }
+              }
+            ],
+            "properties": {
+              "vector_store_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+              "vector_store": { "$ref": "#/$defs/groundingName" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "openapi" } } },
+          "then": {
+            "required": ["name"],
+            "description": "Every effective servers[].url in the spec (root, path item, and operation level) must be an absolute https URL whose host is approved at deploy time with --trusted-tool-host (or FOUNDRY_AGENT_MANAGER_TRUSTED_TOOL_HOSTS). Templated server URLs and server variables are rejected because their effective destination is ambiguous.",
+            "oneOf": [
+              {
+                "required": ["spec"],
+                "not": { "required": ["spec_file"] }
+              },
+              {
+                "required": ["spec_file"],
+                "not": { "required": ["spec"] }
+              }
+            ],
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "spec_file": { "type": "string", "minLength": 1 },
+              "spec": { "type": "object" },
+              "auth": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "type": "string", "enum": ["anonymous", "managed_identity", "connection"] },
+                  "audience": {
+                    "type": "string",
+                    "description": "managed_identity auth: token audience (resource / App ID URI) requested by the Foundry OpenAPI authentication flow (OpenApiManagedSecurityScheme.audience). Anything other than the built-in cloud default must be approved at deploy time with --trusted-managed-identity-audience (or FOUNDRY_AGENT_MANAGER_TRUSTED_MANAGED_IDENTITY_AUDIENCES)."
+                  },
+                  "connection_id": {
+                    "type": "string",
+                    "description": "connection auth: Foundry project connection id (OpenApiProjectConnectionSecurityScheme.project_connection_id)."
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": { "properties": { "type": { "const": "managed_identity" } }, "required": ["type"] },
+                    "then": { "required": ["audience"] }
+                  },
+                  {
+                    "if": { "properties": { "type": { "const": "connection" } }, "required": ["type"] },
+                    "then": { "required": ["connection_id"] }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["mcp", "custom_code_interpreter"]
+              }
+            }
+          },
+          "then": {
+            "required": ["server_label", "server_url"],
+            "properties": {
+              "server_label": { "type": "string" },
+              "server_url": {
+                "type": "string",
+                "pattern": "^https://",
+                "description": "MCP server endpoint. The host must be approved at deploy time with --trusted-tool-host (or FOUNDRY_AGENT_MANAGER_TRUSTED_TOOL_HOSTS)."
+              },
+              "require_approval": {
+                "$ref": "#/$defs/mcpApprovalPolicy",
+                "description": "Human approval mode for MCP tool calls. Defaults to always. never disables per-call approval and is only safe for a fully trusted MCP server."
+              },
+              "project_connection_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional existing Foundry project connection used to authenticate the MCP endpoint."
+              },
+              "allowed_tools": {
+                "oneOf": [
+                  { "$ref": "#/$defs/mcpToolNames" },
+                  { "$ref": "#/$defs/mcpToolFilter" }
+                ]
+              },
+              "headers": { "$ref": "#/$defs/mcpHeaders" },
+              "tool_configs": { "type": "object" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "azure_function" } } },
+          "then": {
+            "required": ["function", "input_queue", "output_queue"],
+            "properties": {
+              "function": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "parameters": { "type": "object" }
+                }
+              },
+              "input_queue": { "$ref": "#/$defs/storageQueue" },
+              "output_queue": { "$ref": "#/$defs/storageQueue" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "toolbox" } } },
+          "then": {
+            "required": ["name", "project_connection_id"],
+            "properties": {
+              "name": { "$ref": "#/$defs/toolboxName" },
+              "version": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional immutable Toolbox version. Omit to follow default_version."
+              },
+              "server_label": { "type": "string", "minLength": 1 },
+              "project_connection_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Existing remote-tool connection whose target matches the derived Toolbox MCP endpoint."
+              },
+              "require_approval": {
+                "$ref": "#/$defs/mcpApprovalPolicy"
+              },
+              "allowed_tools": {
+                "oneOf": [
+                  { "$ref": "#/$defs/mcpToolNames" },
+                  { "$ref": "#/$defs/mcpToolFilter" }
+                ]
+              },
+              "headers": { "$ref": "#/$defs/mcpHeaders" },
+              "tool_configs": { "type": "object" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "web_search" } } },
+          "then": {
+            "properties": {
+              "user_location": { "$ref": "#/$defs/webSearchLocation" },
+              "custom_search_configuration": { "$ref": "#/$defs/customSearchConfiguration" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "azure_ai_search" } } },
+          "then": {
+            "required": ["indexes"],
+            "properties": {
+              "indexes": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/$defs/aiSearchIndex" }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["a2a_preview", "work_iq_preview"]
+              }
+            }
+          },
+          "then": {
+            "required": ["project_connection_id"],
+            "properties": {
+              "project_connection_id": { "type": "string", "minLength": 1 },
+              "base_url": { "type": "string", "pattern": "^https://" },
+              "require_approval": {
+                "type": "string",
+                "enum": ["always", "never"]
+              },
+              "tool_configs": { "type": "object" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "a2a_preview" }
+            }
+          },
+          "then": {
+            "properties": {
+              "agent_card_path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "send_credentials_for_agent_card": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "fabric_iq_preview" } } },
+          "then": {
+            "required": ["project_connection_id"],
+            "properties": {
+              "project_connection_id": { "type": "string", "minLength": 1 },
+              "base_url": { "type": "string", "pattern": "^https://" },
+              "server_label": { "type": "string", "minLength": 1 },
+              "server_url": { "type": "string", "pattern": "^https://" },
+              "require_approval": {
+                "type": "string",
+                "enum": ["always", "never"]
+              },
+              "tool_configs": { "type": "object" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "browser_automation_preview" } } },
+          "then": {
+            "required": ["project_connection_id"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "description": { "type": "string" },
+              "project_connection_id": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "sharepoint_grounding_preview" } } },
+          "then": {
+            "required": ["project_connection_ids"],
+            "properties": {
+              "project_connection_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "computer_use_preview" } } },
+          "then": {
+            "required": ["display_width", "display_height", "environment"],
+            "properties": {
+              "display_width": { "type": "integer", "minimum": 1 },
+              "display_height": { "type": "integer", "minimum": 1 },
+              "environment": {
+                "type": "string",
+                "enum": ["browser", "windows", "mac", "linux"]
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "image_generation" } } },
+          "then": {
+            "properties": {
+              "model": { "type": "string", "minLength": 1 },
+              "quality": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "auto"]
+              },
+              "size": {
+                "type": "string",
+                "enum": ["1024x1024", "1024x1536", "1536x1024", "auto"]
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "function" } } },
+          "then": {
+            "required": ["function"],
+            "properties": {
+              "function": { "$ref": "#/$defs/functionDefinition" }
+            }
+          }
+        }
+      ]
+    },
+    "toolbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "anyOf": [
+        { "required": ["tools"] },
+        { "required": ["skills"] }
+      ],
+      "properties": {
+        "name": { "$ref": "#/$defs/toolboxName" },
+        "description": { "type": "string" },
+        "rai_policy_id": {
+          "type": "string",
+          "pattern": "^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.CognitiveServices/accounts/[^/]+/raiPolicies/[^/]+$"
+        },
+        "tools": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/toolboxTool" }
+        },
+        "skills": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/toolboxSkill" }
+        }
+      }
+    },
+    "toolboxTool": {
+      "type": "object",
+      "required": ["type"],
+      "unevaluatedProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "a2a_preview",
+            "azure_ai_search",
+            "bing_custom_search",
+            "browser_automation_preview",
+            "code_interpreter",
+            "fabric_iq_preview",
+            "file_search",
+            "mcp",
+            "openapi",
+            "reminder_preview",
+            "toolbox_search",
+            "web_search",
+            "work_iq_preview"
+          ]
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "tool_configs": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "bing_custom_search" } } },
+          "then": {
+            "required": ["name", "custom_search_configuration"],
+            "properties": {
+              "custom_search_configuration": { "$ref": "#/$defs/customSearchConfiguration" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "web_search" } } },
+          "then": {
+            "properties": {
+              "user_location": { "$ref": "#/$defs/webSearchLocation" },
+              "custom_search_configuration": { "$ref": "#/$defs/customSearchConfiguration" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "azure_ai_search" } } },
+          "then": {
+            "required": ["indexes"],
+            "properties": {
+              "indexes": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/$defs/aiSearchIndex" }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "code_interpreter" } } },
+          "then": {
+            "properties": {
+              "container": { "type": "object" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "file_search" } } },
+          "then": {
+            "properties": {
+              "vector_store_ids": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "vector_store": { "$ref": "#/$defs/groundingName" }
+            },
+            "not": {
+              "required": ["vector_store_ids", "vector_store"]
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "openapi" } } },
+          "then": {
+            "required": ["name"],
+            "oneOf": [
+              {
+                "required": ["spec"],
+                "not": { "required": ["spec_file"] }
+              },
+              {
+                "required": ["spec_file"],
+                "not": { "required": ["spec"] }
+              }
+            ],
+            "properties": {
+              "spec_file": { "type": "string", "minLength": 1 },
+              "spec": { "type": "object" },
+              "auth": { "$ref": "#/$defs/openAPIAuth" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "mcp" } } },
+          "then": {
+            "required": ["server_label", "server_url"],
+            "properties": {
+              "server_label": { "type": "string", "minLength": 1 },
+              "server_url": { "type": "string", "pattern": "^https://" },
+              "require_approval": {
+                "$ref": "#/$defs/mcpApprovalPolicy"
+              },
+              "project_connection_id": { "type": "string", "minLength": 1 },
+              "allowed_tools": {
+                "oneOf": [
+                  { "$ref": "#/$defs/mcpToolNames" },
+                  { "$ref": "#/$defs/mcpToolFilter" }
+                ]
+              },
+              "headers": { "$ref": "#/$defs/mcpHeaders" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "enum": ["a2a_preview", "work_iq_preview"] }
+            }
+          },
+          "then": {
+            "required": ["project_connection_id"],
+            "properties": {
+              "project_connection_id": { "type": "string", "minLength": 1 },
+              "base_url": { "type": "string", "pattern": "^https://" },
+              "require_approval": {
+                "type": "string",
+                "enum": ["always", "never"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "a2a_preview" }
+            }
+          },
+          "then": {
+            "properties": {
+              "agent_card_path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "send_credentials_for_agent_card": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "browser_automation_preview" } } },
+          "then": {
+            "required": ["project_connection_id"],
+            "properties": {
+              "project_connection_id": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "fabric_iq_preview" } } },
+          "then": {
+            "required": ["project_connection_id"],
+            "properties": {
+              "project_connection_id": { "type": "string", "minLength": 1 },
+              "server_label": { "type": "string", "minLength": 1 },
+              "server_url": { "type": "string", "pattern": "^https://" },
+              "require_approval": {
+                "type": "string",
+                "enum": ["always", "never"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "toolboxName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$"
+    },
+    "groundingName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$"
+    },
+    "groundingVectorStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "files"],
+      "properties": {
+        "name": { "$ref": "#/$defs/groundingName" },
+        "description": { "type": "string" },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Manifest-relative document path. Absolute paths, parent traversal, symlinks, and junction escapes are rejected."
+              }
+            }
+          }
+        }
+      }
+    },
+    "toolboxSkill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+        },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "webSearchLocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "country": { "type": "string" },
+        "city": { "type": "string" },
+        "region": { "type": "string" },
+        "timezone": { "type": "string" }
+      }
+    },
+    "customSearchConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_connection_id", "instance_name"],
+      "properties": {
+        "project_connection_id": { "type": "string", "minLength": 1 },
+        "instance_name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "mcpToolNames": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "mcpToolFilter": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "tool_names": { "$ref": "#/$defs/mcpToolNames" },
+        "read_only": { "type": "boolean" }
+      }
+    },
+    "mcpApprovalPolicy": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["always", "never"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "always": {
+              "oneOf": [
+                { "$ref": "#/$defs/mcpToolNames" },
+                { "$ref": "#/$defs/mcpToolFilter" }
+              ]
+            },
+            "never": {
+              "oneOf": [
+                { "$ref": "#/$defs/mcpToolNames" },
+                { "$ref": "#/$defs/mcpToolFilter" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "mcpHeaders": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 8192
+      },
+      "description": "Static non-secret MCP request headers. Credential-bearing headers are rejected; use project_connection_id for authentication."
+    },
+    "structuredInputDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "default_value": true,
+        "schema": {
+          "type": "object"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "bingGroundingConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_connection_id"],
+      "properties": {
+        "project_connection_id": { "type": "string", "minLength": 1 },
+        "count": { "type": "integer", "minimum": 1 },
+        "market": { "type": "string", "minLength": 1 },
+        "set_lang": { "type": "string", "minLength": 1 },
+        "freshness": { "type": "string", "minLength": 1 }
+      }
+    },
+    "bingCustomSearchConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_connection_id", "instance_name"],
+      "properties": {
+        "project_connection_id": { "type": "string", "minLength": 1 },
+        "instance_name": { "type": "string", "minLength": 1 },
+        "count": { "type": "integer", "minimum": 1 },
+        "market": { "type": "string", "minLength": 1 },
+        "set_lang": { "type": "string", "minLength": 1 },
+        "freshness": { "type": "string", "minLength": 1 }
+      }
+    },
+    "aiSearchIndex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_connection_id", "index_name"],
+      "properties": {
+        "project_connection_id": { "type": "string", "minLength": 1 },
+        "index_name": { "type": "string", "minLength": 1 },
+        "top_k": { "type": "integer", "minimum": 1 },
+        "query_type": {
+          "type": "string",
+          "enum": ["simple", "vector", "semantic", "vector_simple_hybrid", "vector_semantic_hybrid"]
+        },
+        "filter": { "type": "string" }
+      }
+    },
+    "functionDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "parameters": { "type": "object" },
+        "strict": { "type": "boolean" }
+      }
+    },
+    "openAPIAuth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["anonymous", "managed_identity", "connection"] },
+        "audience": { "type": "string" },
+        "connection_id": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "managed_identity" } }, "required": ["type"] },
+          "then": { "required": ["audience"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "connection" } }, "required": ["type"] },
+          "then": { "required": ["connection_id"] }
+        }
+      ]
+    },
+    "storageQueue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "service_endpoint"],
+      "properties": {
+        "name": { "type": "string" },
+        "service_endpoint": {
+          "type": "string",
+          "pattern": "^https://",
+          "description": "Queue service endpoint in the selected cloud: *.queue.core.windows.net or *.queue.core.usgovcloudapi.net."
+        }
+      }
+    }
+  }
+}

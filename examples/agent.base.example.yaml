@@ -1,0 +1,43 @@
+# Shared standalone manifest for deploying multiple agents with CLI overrides
+# (Azure public cloud).
+#
+# Validate the base (offline, no Azure, no approvals):
+#   foundry-agent-manager prompt validate -f examples/agent.base.example.yaml
+#
+# Plan two agents from the same structure:
+#   foundry-agent-manager prompt plan -f examples/agent.base.example.yaml \
+#     --name support-agent --model <model-deployment-name> \
+#     --instructions-file instructions/support.md
+#   foundry-agent-manager prompt plan -f examples/agent.base.example.yaml \
+#     --name intake-agent --model <model-deployment-name> \
+#     --instructions-file instructions/intake.md
+#
+# Deploy one of them:
+#   foundry-agent-manager prompt deploy -f examples/agent.base.example.yaml --if-changed \
+#     --name support-agent --model <model-deployment-name> \
+#     --instructions-file instructions/support.md
+#
+# --instructions-file must stay inside this example directory: absolute paths,
+# drive-letter paths, '..' traversal, and symlink or junction escapes are
+# rejected, and the file is size-bounded.
+#
+# No APIM connection and no external tool is declared here, so no destination
+# approval flags are required.
+
+apiVersion: foundry-agent-manager/v1
+
+agent:
+  name: base-agent
+  model: <model-deployment-name>
+  # Optional: a full same-account RAI policy resource ID. Omit to inherit the
+  # model deployment guardrail.
+  # rai_policy_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/sample-account/raiPolicies/custom-policy
+  description: Shared base agent.
+  instructions: |
+    Replace these instructions with --instructions-file for each deployment.
+
+project:
+  resource_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/sample-account/projects/sample-project
+
+tools:
+  - type: code_interpreter
