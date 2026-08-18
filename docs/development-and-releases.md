@@ -64,7 +64,7 @@ packages both `foundry-agent-manager` and the equivalent `fam` executable,
 generates `SHA256SUMS`, conditionally attests build provenance, and creates the
 GitHub release.
 
-The current application version is **0.14.0**
+The current application version is **0.14.1**
 ([`../internal/config/config.go`](../internal/config/config.go)).
 
 ## Repository layout

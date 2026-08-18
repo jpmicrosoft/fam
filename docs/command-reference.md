@@ -1,7 +1,7 @@
 # Command Reference
 
 Complete command listing, global options, exit codes, and output contracts for
-the current source tree (`0.14.0` is the prepared release version).
+the current source tree (`0.14.1` is the prepared release version).
 
 For task-oriented answers and common troubleshooting, start with the
 [`FAQ`](faq.md).
@@ -423,7 +423,7 @@ In text mode the same failure is written to stderr as `error: <message>`.
 
 ```powershell
 foundry-agent-manager version
-# foundry-agent-manager 0.14.0 commit=<commit> built=<timestamp>
+# foundry-agent-manager 0.14.1 commit=<commit> built=<timestamp>
 ```
 
 | Format | Contract |
@@ -434,12 +434,12 @@ foundry-agent-manager version
 
 ```json
 {
-  "version": "0.14.0",
+  "version": "0.14.1",
   "commit": "<commit>",
   "builtAt": "<timestamp>"
 }
 ```
 
-An unstamped `go build` prints `foundry-agent-manager 0.14.0` and `{"version": "0.14.0"}`.
+An unstamped `go build` prints `foundry-agent-manager 0.14.1` and `{"version": "0.14.1"}`.
 `foundry-agent-manager --version` prints only `foundry-agent-manager <version>`; use the
 `version` subcommand when you need commit and build time.
