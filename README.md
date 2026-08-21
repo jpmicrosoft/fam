@@ -13,6 +13,13 @@
   Foundry agents.</strong>
 </p>
 
+<p align="center">
+  <a href="https://github.com/jpmicrosoft/fam/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jpmicrosoft/fam/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
+  <a href="https://github.com/jpmicrosoft/fam/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/jpmicrosoft/fam?sort=semver" /></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/jpmicrosoft/fam" /></a>
+  <a href="https://go.dev/"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/jpmicrosoft/fam" /></a>
+</p>
+
 Foundry Agent Manager (FAM) is a standalone Go CLI that provides a governed
 operations layer between your agent source and Microsoft Foundry. It manages
 **Prompt Agents** directly from YAML or JSON manifests and operates **Hosted
