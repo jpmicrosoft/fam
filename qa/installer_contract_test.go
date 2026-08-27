@@ -31,9 +31,15 @@ func TestShellInstallerContract(t *testing.T) {
 		"set -eu",
 		"$HOME/.local/bin",
 		"--repo must use OWNER/REPO format",
-		"prebuilt foundry-agent-manager",
+		"prebuilt fam",
+		`PREFERRED_ARCHIVE="fam_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"`,
+		`LEGACY_ARCHIVE="foundry-agent-manager_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"`,
+		`grep -Fq "\"${PREFERRED_ARCHIVE}\""`,
+		`grep -Fq "\"${LEGACY_ARCHIVE}\""`,
+		"only fam will be installed",
 		"${INSTALL_DIR}/fam",
-		"'fam -version'",
+		`rm -f "${INSTALL_DIR}/foundry-agent-manager"`,
+		"'fam --version'",
 		"Go is not required",
 	)
 
@@ -49,6 +55,7 @@ func TestShellInstallerContract(t *testing.T) {
 		"echo \"$GH_TOKEN",
 		"go build",
 		"command -v go",
+		"${TMPDIR_INST}/foundry-agent-manager",
 	} {
 		if strings.Contains(script, forbidden) {
 			t.Errorf("shell installer prints token via %q", forbidden)
@@ -93,9 +100,14 @@ func TestPowerShellInstallerContract(t *testing.T) {
 		"[regex]::Escape",
 		".local/bin",
 		"-Repo must use OWNER/REPO format",
-		"prebuilt foundry-agent-manager",
-		"$aliasName",
-		"'fam -version'",
+		"prebuilt fam",
+		`$binaryName = if ($platform -eq "windows") { "fam.exe" } else { "fam" }`,
+		`$preferredArchive = "fam_${versionNum}_${platform}_${architecture}.${extension}"`,
+		`$legacyArchive = "foundry-agent-manager_${versionNum}_${platform}_${architecture}.${extension}"`,
+		"only fam will be installed",
+		`$retiredBinaryName = if ($platform -eq "windows") { "foundry-agent-manager.exe" } else { "foundry-agent-manager" }`,
+		"Remove-Item -LiteralPath $retiredBinaryPath -Force",
+		"'fam --version'",
 		"Go is not required",
 	)
 
@@ -107,6 +119,7 @@ func TestPowerShellInstallerContract(t *testing.T) {
 		"echo $token",
 		"go build",
 		"Get-Command go",
+		"$aliasName",
 	} {
 		if strings.Contains(strings.ToLower(script), strings.ToLower(forbidden)) {
 			t.Errorf("PowerShell installer prints token via %q", forbidden)

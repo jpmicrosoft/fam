@@ -12,7 +12,7 @@ func TestInitCommandHelpSucceeds(t *testing.T) {
 	if run.code != 0 {
 		t.Fatalf("init --help exited %d: %s", run.code, run.stderr)
 	}
-	if !strings.Contains(run.stdout, "Usage:") || !strings.Contains(run.stdout, "foundry-agent-manager init") {
+	if !strings.Contains(run.stdout, "Usage:") || !strings.Contains(run.stdout, "fam init") {
 		t.Fatalf("init --help did not print usage: %q", run.stdout)
 	}
 }

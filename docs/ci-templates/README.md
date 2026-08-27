@@ -1,7 +1,7 @@
 # CI/CD Deployment Templates
 
 Starter GitHub Actions workflow templates for deploying agents with
-`foundry-agent-manager`. These are **inert templates** — they do not run in
+`fam`. These are **inert templates** — they do not run in
 this repository. Copy them into your own repository's `.github/workflows/`
 directory and customise before use.
 
@@ -11,7 +11,7 @@ These templates provide a safe starting point for moving from commands run on
 one developer's machine to a repeatable team deployment process:
 
 - **Consistency:** every run installs the selected
-  `foundry-agent-manager` version and executes the same validation, preflight,
+  `fam` version and executes the same validation, preflight,
   and deployment sequence.
 - **Earlier failures:** invalid manifests, invalid Hosted workspaces,
   authentication problems, and unavailable environments fail before the
@@ -83,7 +83,7 @@ Set these as GitHub Actions **repository variables** (`vars.*`) or
 | `AZURE_AI_PROJECT_ID` | Full existing Foundry project resource ID used by azd project/RBAC diagnostics | `/subscriptions/<subscription>/resourceGroups/<group>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>` |
 | `FOUNDRY_PROJECT_ENDPOINT` | Existing Foundry project endpoint used by Hosted deployment; the template also accepts legacy `AZURE_AI_PROJECT_ENDPOINT` as a fallback | `https://<account>.services.ai.azure.com/api/projects/<project>` |
 | `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Existing model deployment used by the Hosted Agent | `gpt-4.1` |
-| `INSTALLER_REPO` | *(Optional)* Override installer source repository | `myorg/foundry-agent-manager` |
+| `INSTALLER_REPO` | *(Optional)* Override installer source repository | `myorg/fam` |
 | `FAM_VERSION` | *(Optional)* Pin installer to a release tag that includes `install.sh` | `vX.Y.Z` |
 | `FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_ENDPOINT` | *(Optional)* Azure Monitor Logs ingestion endpoint for completed receipts | `https://<name>.<region>-1.ingest.monitor.azure.com` |
 | `FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_DCR_ID` | *(Optional)* Immutable DCR ID paired with the endpoint | `dcr-0123456789abcdef0123456789abcdef` |
@@ -108,7 +108,7 @@ RBAC, retry behavior, and KQL.
 These templates use [GitHub OIDC](https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-azure) federated credentials — no long-lived secrets are stored in GitHub.
 
 1. Create an Azure AD app registration with federated credentials for your repository.
-2. Grant it the minimum Azure RBAC roles required by `foundry-agent-manager`.
+2. Grant it the minimum Azure RBAC roles required by `fam`.
 3. Set the three `AZURE_*` variables above.
 
 ## Environments

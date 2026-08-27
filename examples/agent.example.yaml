@@ -3,13 +3,13 @@
 # Edit the model deployment and project placeholders before deploy.
 #
 # Validate (offline, no Azure, no approvals):
-#   foundry-agent-manager prompt validate -f examples/agent.example.yaml
+#   fam prompt validate -f examples/agent.example.yaml
 # Plan (offline):
-#   foundry-agent-manager prompt plan -f examples/agent.example.yaml
+#   fam prompt plan -f examples/agent.example.yaml
 # Preflight (online, read-only):
-#   foundry-agent-manager prompt preflight -f examples/agent.example.yaml
+#   fam prompt preflight -f examples/agent.example.yaml
 # Deploy:
-#   foundry-agent-manager prompt deploy -f examples/agent.example.yaml --if-changed
+#   fam prompt deploy -f examples/agent.example.yaml --if-changed
 #
 # This manifest declares no APIM connection and no external tool, so preflight
 # and deploy need no destination approvals. Adding an apim section, an openapi

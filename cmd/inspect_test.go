@@ -285,7 +285,7 @@ func TestBuildMetadataIncludesOptionalBuildStamps(t *testing.T) {
 
 	config.BuildCommit, config.BuildDate = "", ""
 	bare := buildMetadata()
-	if bare != "foundry-agent-manager "+config.Version {
+	if bare != "fam "+config.Version {
 		t.Fatalf("unexpected bare metadata: %q", bare)
 	}
 	config.BuildCommit, config.BuildDate = "abc1234", "2026-08-03T12:00:00Z"

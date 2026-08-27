@@ -222,7 +222,7 @@ func runPreflight(cmd *cobra.Command, prepared *preparedAgent, credential azcore
 	} else {
 		if len(managedGroundingNames) > 0 {
 			return state, errs.Config(
-				"managed grounding requires an existing project; create the project, run foundry-agent-manager grounding sync, then deploy the agent",
+				"managed grounding requires an existing project; create the project, run fam grounding sync, then deploy the agent",
 			)
 		}
 		add("foundry-data-plane", "skipped", "the project must be created before its data-plane endpoint can be probed")
@@ -352,7 +352,7 @@ func modelDeploymentNotFound(modelName string, target string) error {
 	return errs.WithNextSteps(
 		errs.NotFound("model deployment %q does not exist in the %s", modelName, target),
 		"Verify agent.model exactly matches a deployment name available to the selected Foundry project.",
-		"Define model_deployment, run foundry-agent-manager model deployment plan -f <manifest>, create it with foundry-agent-manager model deployment create -f <manifest>, then rerun foundry-agent-manager prompt preflight -f <manifest>.",
+		"Define model_deployment, run fam model deployment plan -f <manifest>, create it with fam model deployment create -f <manifest>, then rerun fam prompt preflight -f <manifest>.",
 	)
 }
 

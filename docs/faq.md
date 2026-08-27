@@ -1,10 +1,10 @@
 # Frequently Asked Questions
 
 Practical answers for installing, configuring, deploying, operating, and
-troubleshooting `foundry-agent-manager`.
+troubleshooting `fam`.
 
 Use [`command-reference.md`](command-reference.md) for the complete command and
-flag catalog, and run `foundry-agent-manager help <command>` for focused,
+flag catalog, and run `fam help <command>` for focused,
 copyable examples.
 
 ## Contents
@@ -80,8 +80,8 @@ and `arm64`.
 ### How do I confirm which executable I am running?
 
 ```powershell
-foundry-agent-manager version
-foundry-agent-manager version --output json
+fam version
+fam version --output json
 fam -version
 ```
 
@@ -91,22 +91,22 @@ and build timestamp.
 ### How do I get help for one command without printing the entire catalog?
 
 ```powershell
-foundry-agent-manager help deploy
-foundry-agent-manager hosted preflight --help
+fam help deploy
+fam hosted preflight --help
 ```
 
 Focused help includes that command's usage, examples, flags, and related
-workflow. Bare `foundry-agent-manager help` prints the complete grouped catalog.
+workflow. Bare `fam help` prints the complete grouped catalog.
 
 ### Does the tool support shell completion?
 
 Yes. It generates completion scripts for PowerShell, Bash, Zsh, and Fish:
 
 ```powershell
-foundry-agent-manager completion powershell | Out-String | Invoke-Expression
+fam completion powershell | Out-String | Invoke-Expression
 ```
 
-Run `foundry-agent-manager completion <shell> --help` for persistent
+Run `fam completion <shell> --help` for persistent
 installation guidance.
 
 ### How should I run a downloaded `install.ps1`?
@@ -177,7 +177,7 @@ The installer could not read GitHub's latest-release API. Common causes are:
 Try a known published tag to avoid latest-release discovery:
 
 ```powershell
-.\install.ps1 -Version v0.14.1
+.\install.ps1 -Version v0.15.0
 ```
 
 For a private repository, authenticate `gh` or expose a read-capable token
@@ -191,7 +191,7 @@ the repository and its release assets:
 
 ```powershell
 gh auth status
-.\install.ps1 -Repo owner/repository -Version v0.14.1
+.\install.ps1 -Repo owner/repository -Version v0.15.0
 ```
 
 The installer checks `FAM_INSTALL_TOKEN`, then `GITHUB_TOKEN`, then `GH_TOKEN`,
@@ -204,10 +204,10 @@ Use `latest` or a `v`-prefixed semantic version:
 
 ```powershell
 .\install.ps1 -Version latest
-.\install.ps1 -Version v0.14.1
+.\install.ps1 -Version v0.15.0
 ```
 
-`0.14.1` without the leading `v` is rejected.
+`0.15.0` without the leading `v` is rejected.
 
 ### Why does the archive download return 404?
 
@@ -216,8 +216,8 @@ the detected platform and architecture, or the repository/token might be
 wrong. Confirm the tag and look for the exact expected asset:
 
 ```text
-foundry-agent-manager_<version>_windows_amd64.zip
-foundry-agent-manager_<version>_windows_arm64.zip
+fam_<version>_windows_amd64.zip
+fam_<version>_windows_arm64.zip
 ```
 
 The installer supports only `x64` (`amd64`) and `arm64`.
@@ -243,7 +243,7 @@ treated as incomplete.
 ### Why does installation fail with access denied?
 
 The selected install directory might not be writable, or an existing
-`foundry-agent-manager.exe` may still be running and locked. Close running
+`fam.exe` may still be running and locked. Close running
 instances and choose a user-writable directory:
 
 ```powershell
@@ -253,7 +253,7 @@ instances and choose a user-writable directory:
 Avoid running PowerShell as administrator unless the approved destination
 actually requires administrative access.
 
-### Why does installation finish but `foundry-agent-manager` is not recognized?
+### Why does installation finish but `fam` is not recognized?
 
 The installer does not modify PATH unless `-ModifyProfile` is supplied. Either
 run the full executable path printed by the installer or reinstall with:
@@ -322,7 +322,7 @@ Instructions are part of the immutable Prompt Agent version.
 Yes:
 
 ```powershell
-foundry-agent-manager prompt deploy -f agent.yaml `
+fam prompt deploy -f agent.yaml `
   --instructions-file instructions\support.md `
   --if-changed
 ```
@@ -418,8 +418,8 @@ project or account.
 Yes, through an explicit account-scoped workflow:
 
 ```powershell
-foundry-agent-manager model deployment plan -f agent.yaml
-foundry-agent-manager model deployment create -f agent.yaml
+fam model deployment plan -f agent.yaml
+fam model deployment create -f agent.yaml
 ```
 
 `prompt deploy` never creates a model implicitly. The operator must define the
@@ -541,7 +541,7 @@ If they are equivalent, deployment reports `unchanged` instead of creating a
 duplicate version.
 
 ```powershell
-foundry-agent-manager prompt deploy -f agent.yaml --if-changed
+fam prompt deploy -f agent.yaml --if-changed
 ```
 
 ### Does every deployment immediately receive production traffic?
@@ -554,14 +554,14 @@ stage the new candidate behind the currently active version.
 Review `prompt status`, `prompt versions list`, and `prompt show`, then promote the selected version:
 
 ```powershell
-foundry-agent-manager prompt promote -f agent.yaml --agent-version 3
+fam prompt promote -f agent.yaml --agent-version 3
 ```
 
 Use `prompt rollback` to return traffic to an earlier verified version:
 
 ```powershell
-foundry-agent-manager prompt rollback -f agent.yaml --agent-version 2 --dry-run
-foundry-agent-manager prompt rollback -f agent.yaml --agent-version 2 --yes
+fam prompt rollback -f agent.yaml --agent-version 2 --dry-run
+fam prompt rollback -f agent.yaml --agent-version 2 --yes
 ```
 
 ### Can I modify an existing immutable version?
@@ -586,7 +586,7 @@ Yes. Use an arbitrary string map in `agent.metadata` or repeat the global
 `--metadata key=value` option:
 
 ```powershell
-foundry-agent-manager prompt deploy -f agent.yaml --if-changed `
+fam prompt deploy -f agent.yaml --if-changed `
   --metadata owner=platform-team `
   --metadata environment=production
 ```
@@ -637,7 +637,7 @@ verification query.
 
 The Azure or Foundry operation does not become a false success. The CLI returns
 an error, preserves the terminal local receipt, and prints a retry command.
-Use `foundry-agent-manager receipt upload --file <receipt-path>` with the same
+Use `fam receipt upload --file <receipt-path>` with the same
 `--receipt-log-*` settings. Because a lost POST response can be ambiguous,
 de-duplicate retries by the stable `ReceiptId`.
 
@@ -670,8 +670,8 @@ Preflight intentionally avoids billable invocation.
 Use `prompt versions prune` with a reviewed retention count:
 
 ```powershell
-foundry-agent-manager prompt versions prune -f agent.yaml --keep 3 --dry-run
-foundry-agent-manager prompt versions prune -f agent.yaml --keep 3 --yes
+fam prompt versions prune -f agent.yaml --keep 3 --dry-run
+fam prompt versions prune -f agent.yaml --keep 3 --yes
 ```
 
 Destructive commands require confirmation and protect versions that cannot be
@@ -765,7 +765,7 @@ safely without knowing their agent-construction contract.
 once from the workspace:
 
 ```powershell
-foundry-agent-manager hosted environment create `
+fam hosted environment create `
   --workspace C:\src\hosted-agent --environment prod `
   --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/projects/project `
   --model-deployment support-model --location eastus2
@@ -863,16 +863,16 @@ blueprint with a Prompt or Hosted Agent; manage Foundry account integration
 logging; inspect observability readiness; and plan publication handoff:
 
 ```powershell
-foundry-agent-manager agent365 blueprint validate `
+fam agent365 blueprint validate `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444
 
-foundry-agent-manager agent365 binding status `
+fam agent365 binding status `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444 `
   -f agent.yaml
 
-foundry-agent-manager agent365 identity list
+fam agent365 identity list
 
-foundry-agent-manager agent365 integration status `
+fam agent365 integration status `
   --account-id /subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/foundry-rg/providers/Microsoft.CognitiveServices/accounts/contoso-foundry
 ```
 
@@ -976,7 +976,7 @@ cannot authoritatively distinguish the identity state.
 ### How do I see which tools the manager supports?
 
 ```powershell
-foundry-agent-manager tool-catalog
+fam tool-catalog
 ```
 
 The manifest supports direct tools such as Code Interpreter, File Search,
@@ -1089,10 +1089,10 @@ for the complete table.
 Run the narrowest non-mutating checks first:
 
 ```powershell
-foundry-agent-manager prompt validate -f agent.yaml
-foundry-agent-manager prompt plan -f agent.yaml
-foundry-agent-manager doctor -f agent.yaml --online
-foundry-agent-manager prompt preflight -f agent.yaml
+fam prompt validate -f agent.yaml
+fam prompt plan -f agent.yaml
+fam doctor -f agent.yaml --online
+fam prompt preflight -f agent.yaml
 ```
 
 For Hosted Agents, use `hosted validate`, `hosted plan`,

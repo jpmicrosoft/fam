@@ -1,6 +1,6 @@
 # Agent 365 Blueprints, Identity, Integration, Observability, and Publication
 
-`foundry-agent-manager agent365` is a separate, primarily **read-only and
+`fam agent365` is a separate, primarily **read-only and
 plan-only** command namespace. It inspects Microsoft Entra Agent ID blueprints, identities,
 and blueprint principals through documented Microsoft Graph v1.0 APIs,
 correlates their identifiers with the identity fields returned by Foundry
@@ -126,24 +126,24 @@ documented blueprint list API.
 ## Blueprint commands
 
 ```powershell
-foundry-agent-manager agent365 info
-foundry-agent-manager agent365 blueprint list --limit 100
-foundry-agent-manager agent365 blueprint list --all
-foundry-agent-manager agent365 blueprint show `
+fam agent365 info
+fam agent365 blueprint list --limit 100
+fam agent365 blueprint list --all
+fam agent365 blueprint show `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444
-foundry-agent-manager agent365 blueprint permissions `
+fam agent365 blueprint permissions `
   --blueprint-object-id 08be1f79-37a1-49c0-b444-3075e74d1e8c
-foundry-agent-manager agent365 blueprint permissions `
+fam agent365 blueprint permissions `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444 `
   --resolve-names
-foundry-agent-manager agent365 blueprint validate `
+fam agent365 blueprint validate `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444 `
   --fail-on-invalid
-foundry-agent-manager agent365 blueprint owners `
+fam agent365 blueprint owners `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444
-foundry-agent-manager agent365 blueprint sponsors `
+fam agent365 blueprint sponsors `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444
-foundry-agent-manager agent365 blueprint identities `
+fam agent365 blueprint identities `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444
 ```
 
@@ -188,8 +188,8 @@ the selected blueprint.
 ## Identity commands
 
 ```powershell
-foundry-agent-manager agent365 identity list
-foundry-agent-manager agent365 identity show `
+fam agent365 identity list
+fam agent365 identity show `
   --identity-object-id 22223333-dddd-4444-eeee-5555ffff6666
 ```
 
@@ -200,8 +200,8 @@ the blueprints themselves. Requires `AgentIdentity.Read.All`.
 ## Blueprint principal commands
 
 ```powershell
-foundry-agent-manager agent365 blueprint principal list
-foundry-agent-manager agent365 blueprint principal show `
+fam agent365 blueprint principal list
+fam agent365 blueprint principal show `
   --principal-object-id 33334444-eeee-5555-ffff-6666aaaa7777
 ```
 
@@ -214,20 +214,20 @@ Choose exactly one Foundry target:
 
 ```powershell
 # Prompt Agent
-foundry-agent-manager agent365 binding status -f agent.yaml
-foundry-agent-manager agent365 binding plan `
+fam agent365 binding status -f agent.yaml
+fam agent365 binding plan `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444 `
   -f agent.yaml
 
 # Hosted Agent
-foundry-agent-manager agent365 binding status `
+fam agent365 binding status `
   --workspace C:\src\hosted-agent --environment prod --accept-preview
-foundry-agent-manager agent365 binding plan `
+fam agent365 binding plan `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444 `
   --workspace C:\src\hosted-agent --environment prod --accept-preview
 
 # With identity resolution
-foundry-agent-manager agent365 binding status -f agent.yaml --resolve-identity
+fam agent365 binding status -f agent.yaml --resolve-identity
 ```
 
 `binding status` shows the Foundry response's:
@@ -257,16 +257,16 @@ override. Storage follows the Entra tenant geography.
 
 ```powershell
 # Check current integration state
-foundry-agent-manager agent365 integration status `
+fam agent365 integration status `
   --account-id /subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/foundry-rg/providers/Microsoft.CognitiveServices/accounts/contoso-foundry
 
 # Plan a change
-foundry-agent-manager agent365 integration plan `
+fam agent365 integration plan `
   --account-id /subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/foundry-rg/providers/Microsoft.CognitiveServices/accounts/contoso-foundry `
   --enabled=true
 
 # Apply
-foundry-agent-manager agent365 integration set `
+fam agent365 integration set `
   --account-id /subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/foundry-rg/providers/Microsoft.CognitiveServices/accounts/contoso-foundry `
   --enabled=true --yes
 ```
@@ -293,11 +293,11 @@ workspace without modifying the workspace or assigning any roles.
 
 ```powershell
 # Scan source for instrumentation evidence
-foundry-agent-manager agent365 observability plan `
+fam agent365 observability plan `
   --workspace C:\src\hosted-agent
 
 # Check deployed identity app-role assignment
-foundry-agent-manager agent365 observability status `
+fam agent365 observability status `
   --workspace C:\src\hosted-agent --environment prod --accept-preview
 ```
 
@@ -323,12 +323,12 @@ Publication commands are **read-only and plan-only**. They fail closed: no
 generic registry mutation or arbitrary existing blueprint binding is performed.
 
 ```powershell
-foundry-agent-manager agent365 publication info
-foundry-agent-manager agent365 publication plan -f agent.yaml
-foundry-agent-manager agent365 publication status `
+fam agent365 publication info
+fam agent365 publication plan -f agent.yaml
+fam agent365 publication status `
   --workspace C:\src\hosted-agent --environment prod --accept-preview `
   --resolve-identity
-foundry-agent-manager agent365 publication admin-handoff -f agent.yaml
+fam agent365 publication admin-handoff -f agent.yaml
 ```
 
 The Hosted executable boundary remains only the separately pinned autopilot

@@ -13,7 +13,7 @@ import (
 	"foundry-agent-manager/internal/foundry"
 )
 
-// Desired is the exact agent definition managed by foundry-agent-manager.
+// Desired is the exact agent definition managed by Foundry Agent Manager.
 type Desired struct {
 	Description      string
 	Model            string

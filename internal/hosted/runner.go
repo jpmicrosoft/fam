@@ -647,7 +647,7 @@ func diagnosePreflight(
 		"auth", "status", "--no-prompt",
 	))
 	if authErr != nil {
-		classified := fmt.Errorf("%w; run 'azd auth login' outside foundry-agent-manager: %w", ErrAuthentication, authErr)
+		classified := fmt.Errorf("%w; run 'azd auth login' outside Foundry Agent Manager: %w", ErrAuthentication, authErr)
 		add(PreflightDiagnostic{
 			Name:     "azd-authentication",
 			Status:   "failed",
@@ -657,7 +657,7 @@ func diagnosePreflight(
 			Error:    classified,
 		})
 	} else if strings.Contains(strings.ToLower(authExecution.Stdout+"\n"+authExecution.Stderr), "not logged in") {
-		classified := fmt.Errorf("%w; run 'azd auth login' outside foundry-agent-manager", ErrAuthentication)
+		classified := fmt.Errorf("%w; run 'azd auth login' outside Foundry Agent Manager", ErrAuthentication)
 		add(PreflightDiagnostic{
 			Name:     "azd-authentication",
 			Status:   "failed",
@@ -688,7 +688,7 @@ func diagnosePreflight(
 			"env", "list", "--output", "json", "--no-prompt",
 		))
 		if environmentErr != nil {
-			classified := fmt.Errorf("%w; select or create an azd environment outside foundry-agent-manager: %w", ErrEnvironment, environmentErr)
+			classified := fmt.Errorf("%w; select or create an azd environment outside Foundry Agent Manager: %w", ErrEnvironment, environmentErr)
 			add(PreflightDiagnostic{
 				Name:     "azd-environment",
 				Status:   "failed",
@@ -755,12 +755,12 @@ func requireEnvironment(raw, expected string) error {
 	}
 	if expected == "" {
 		return fmt.Errorf(
-			"%w: no default azd environment exists; select or create one outside foundry-agent-manager",
+			"%w: no default azd environment exists; select or create one outside Foundry Agent Manager",
 			ErrEnvironment,
 		)
 	}
 	return fmt.Errorf(
-		"%w: azd environment %q does not exist; create it outside foundry-agent-manager",
+		"%w: azd environment %q does not exist; create it outside Foundry Agent Manager",
 		ErrEnvironment,
 		expected,
 	)

@@ -55,7 +55,7 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}          # Replace or set as variable
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}  # Replace or set as variable
 
-      - name: Install foundry-agent-manager
+      - name: Install fam
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.FAM_INSTALL_TOKEN || github.token }}
@@ -82,20 +82,20 @@ jobs:
 
       - name: Validate manifest
         run: |
-          foundry-agent-manager prompt validate \
+          fam prompt validate \
             --manifest "$MANIFEST" \
             --output json
 
       - name: Preflight
         run: |
-          foundry-agent-manager prompt preflight \
+          fam prompt preflight \
             --manifest "$MANIFEST" \
             --cloud AzureCloud \
             --output json
 
       - name: Deploy (if changed)
         run: |
-          foundry-agent-manager prompt deploy \
+          fam prompt deploy \
             --manifest "$MANIFEST" \
             --cloud AzureCloud \
             --receipt "$RECEIPT_PATH" \

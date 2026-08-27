@@ -1206,7 +1206,7 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 			Name:           workspace.Selected.AgentName,
 			Action:         "create-version",
 			Status:         "unknown",
-			Reconciliation: "Run foundry-agent-manager hosted status for the same workspace, service, and environment before retrying.",
+			Reconciliation: "Run fam hosted status for the same workspace, service, and environment before retrying.",
 		})
 		_ = store.Complete("unknown", ambiguous)
 		return releaseFailure(store.Path, ambiguous)
@@ -1227,14 +1227,14 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 			Name:           workspace.Selected.AgentName,
 			Action:         "reconcile",
 			Status:         "unknown",
-			Reconciliation: "The deploy command succeeded, but status could not be verified. Run foundry-agent-manager hosted status before another deployment.",
+			Reconciliation: "The deploy command succeeded, but status could not be verified. Run fam hosted status before another deployment.",
 		})
 		_ = store.Complete("unknown", classified)
 		return releaseFailure(store.Path, classified)
 	}
 	if !activeHostedStatus(status.Status) {
 		classified := errs.Transient(
-			"Hosted Agent %s version %s is %s after azd deploy; reconcile with foundry-agent-manager hosted status before retrying",
+			"Hosted Agent %s version %s is %s after azd deploy; reconcile with fam hosted status before retrying",
 			status.Name,
 			status.Version,
 			status.Status,
@@ -1356,39 +1356,39 @@ func hostedCommandError(err error) error {
 	case errors.Is(err, hosted.ErrAuthentication):
 		return errs.WithNextSteps(
 			errs.Auth("%v", err),
-			"Run azd auth login outside foundry-agent-manager.",
-			"Then rerun foundry-agent-manager hosted preflight with the same workspace and environment.",
+			"Run azd auth login outside fam.",
+			"Then rerun fam hosted preflight with the same workspace and environment.",
 		)
 	case errors.Is(err, hosted.ErrEnvironment):
 		return errs.WithNextSteps(
 			errs.Config("%v", err),
-			"Create a missing environment with foundry-agent-manager hosted environment create --workspace <workspace> --environment <environment> --project-id <project-resource-id> --model-deployment <deployment> --location <azure-location>.",
+			"Create a missing environment with fam hosted environment create --workspace <workspace> --environment <environment> --project-id <project-resource-id> --model-deployment <deployment> --location <azure-location>.",
 			"Set required values, including AZURE_LOCATION, with hosted environment create or azd env set, then rerun the Hosted command.",
 		)
 	case errors.Is(err, hosted.ErrProjectEndpoint):
 		return errs.WithNextSteps(
 			errs.Config("%v", err),
-			"Provision the workspace when it owns the project resources, or run foundry-agent-manager hosted environment create --workspace <workspace> --environment <environment> --project-id <project-resource-id> --model-deployment <deployment> --location <azure-location>.",
+			"Provision the workspace when it owns the project resources, or run fam hosted environment create --workspace <workspace> --environment <environment> --project-id <project-resource-id> --model-deployment <deployment> --location <azure-location>.",
 			"Then rerun the Hosted command with the same workspace and environment.",
 		)
 	case errors.Is(err, hosted.ErrProjectID):
 		return errs.WithNextSteps(
 			errs.Config("%v", err),
-			"Configure the full Foundry project resource ID with foundry-agent-manager hosted environment create --workspace <workspace> --environment <environment> --project-id <project-resource-id> --model-deployment <deployment> --location <azure-location>.",
-			"Then rerun foundry-agent-manager hosted preflight; it must verify the azd deployment identity before deploy.",
+			"Configure the full Foundry project resource ID with fam hosted environment create --workspace <workspace> --environment <environment> --project-id <project-resource-id> --model-deployment <deployment> --location <azure-location>.",
+			"Then rerun fam hosted preflight; it must verify the azd deployment identity before deploy.",
 		)
 	case errors.Is(err, hosted.ErrProjectAccess):
 		return errs.WithNextSteps(
 			errs.Authorization("%v", err),
 			"Confirm azd is authenticated to the tenant that owns the Foundry project; when needed, run azd auth logout followed by azd auth login --tenant-id <tenant-id>.",
 			"Assign Foundry Project Manager on the target project to the azd deployment identity.",
-			"Then rerun foundry-agent-manager hosted preflight with the same workspace and environment.",
+			"Then rerun fam hosted preflight with the same workspace and environment.",
 		)
 	case errors.Is(err, hosted.ErrAgentNotDeployed):
 		return errs.WithNextSteps(
 			errs.Config("%v", err),
-			"Verify the selected service and azd environment, then deploy it with foundry-agent-manager hosted deploy.",
-			"Run foundry-agent-manager hosted plan first when you need to review whether provisioning is required.",
+			"Verify the selected service and azd environment, then deploy it with fam hosted deploy.",
+			"Run fam hosted plan first when you need to review whether provisioning is required.",
 		)
 	case errors.Is(err, hosted.ErrHostedUnsupported),
 		errors.Is(err, hosted.ErrMissingAZD),

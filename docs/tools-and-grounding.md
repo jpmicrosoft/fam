@@ -177,10 +177,10 @@ tools:
 ```
 
 ```powershell
-foundry-agent-manager grounding validate -f agent.yaml
-foundry-agent-manager grounding plan -f agent.yaml
-foundry-agent-manager grounding sync -f agent.yaml
-foundry-agent-manager grounding status -f agent.yaml
+fam grounding validate -f agent.yaml
+fam grounding plan -f agent.yaml
+fam grounding sync -f agent.yaml
+fam grounding status -f agent.yaml
 ```
 
 - Files are SHA-256 hashed before upload.
@@ -202,8 +202,8 @@ memory_stores:
 ```
 
 ```powershell
-foundry-agent-manager memory store sync -f agent.yaml --memory-store assistant-memory --accept-preview
-foundry-agent-manager memory search -f agent.yaml --memory-store assistant-memory --scope user-123 --input "query" --accept-preview
+fam memory store sync -f agent.yaml --memory-store assistant-memory --accept-preview
+fam memory search -f agent.yaml --memory-store assistant-memory --scope user-123 --input "query" --accept-preview
 ```
 
 Every online Memory command requires `--accept-preview`. The preview currently
@@ -219,9 +219,9 @@ Skills use `Foundry-Features: Skills=V1Preview`; every command requires
 `--accept-preview`.
 
 ```powershell
-foundry-agent-manager skill create -f agent.yaml --skill summarize --path .\skills\summarize --default --accept-preview
-foundry-agent-manager skill version list -f agent.yaml --skill summarize --accept-preview
-foundry-agent-manager skill version set-default -f agent.yaml --skill summarize --version 2 --accept-preview
+fam skill create -f agent.yaml --skill summarize --path .\skills\summarize --default --accept-preview
+fam skill version list -f agent.yaml --skill summarize --accept-preview
+fam skill version set-default -f agent.yaml --skill summarize --version 2 --accept-preview
 ```
 
 ## Foundry Toolbox lifecycle
@@ -231,13 +231,13 @@ bundle. New versions can be deployed and reviewed while consumers continue
 using the current default, then promoted deliberately.
 
 ```powershell
-foundry-agent-manager toolbox validate -f agent.yaml
-foundry-agent-manager toolbox plan -f agent.yaml
-foundry-agent-manager toolbox deploy -f agent.yaml --toolbox shared-tools --if-changed
-foundry-agent-manager toolbox status -f agent.yaml --toolbox shared-tools
-foundry-agent-manager toolbox versions list -f agent.yaml --toolbox shared-tools
-foundry-agent-manager toolbox promote -f agent.yaml --toolbox shared-tools --toolbox-version <version> --yes
-foundry-agent-manager toolbox versions delete -f agent.yaml --toolbox shared-tools --toolbox-version <non-default-version> --yes
+fam toolbox validate -f agent.yaml
+fam toolbox plan -f agent.yaml
+fam toolbox deploy -f agent.yaml --toolbox shared-tools --if-changed
+fam toolbox status -f agent.yaml --toolbox shared-tools
+fam toolbox versions list -f agent.yaml --toolbox shared-tools
+fam toolbox promote -f agent.yaml --toolbox shared-tools --toolbox-version <version> --yes
+fam toolbox versions delete -f agent.yaml --toolbox shared-tools --toolbox-version <non-default-version> --yes
 ```
 
 The first created version becomes `default_version` automatically. Every later
@@ -251,8 +251,8 @@ deployment. Compatibility data is source-stamped guidance, not a live Azure
 availability promise.
 
 ```powershell
-foundry-agent-manager tool-catalog --cloud AzureCloud --output json
-foundry-agent-manager prompt compatibility -f agent.yaml --model-name gpt-4.1 --region eastus2
+fam tool-catalog --cloud AzureCloud --output json
+fam prompt compatibility -f agent.yaml --model-name gpt-4.1 --region eastus2
 ```
 
 ## Managed MCP connector lifecycle
@@ -265,12 +265,12 @@ waiting, and Toolbox attachment into explicit steps. It prevents broad connector
 access from being treated as one opaque portal action.
 
 ```powershell
-foundry-agent-manager connector list -f agent.yaml --search github --accept-preview
-foundry-agent-manager connector create -f agent.yaml --connection github-actions --connector-name github --accept-preview
-foundry-agent-manager connector consent -f agent.yaml --connection github-actions --object-id <id> --tenant-id <tid> --accept-preview
-foundry-agent-manager connector configure -f agent.yaml --connection github-actions --operation CreateIssue --operation GetIssue --accept-preview
-foundry-agent-manager connector wait -f agent.yaml --connection github-actions --accept-preview
-foundry-agent-manager connector toolbox deploy -f agent.yaml --connection github-actions --toolbox-name operations --if-changed --accept-preview --trusted-tool-host <host>
+fam connector list -f agent.yaml --search github --accept-preview
+fam connector create -f agent.yaml --connection github-actions --connector-name github --accept-preview
+fam connector consent -f agent.yaml --connection github-actions --object-id <id> --tenant-id <tid> --accept-preview
+fam connector configure -f agent.yaml --connection github-actions --operation CreateIssue --operation GetIssue --accept-preview
+fam connector wait -f agent.yaml --connection github-actions --accept-preview
+fam connector toolbox deploy -f agent.yaml --connection github-actions --toolbox-name operations --if-changed --accept-preview --trusted-tool-host <host>
 ```
 
 Non-OAuth2 connectors remain on the separate Logic Apps Standard registration
@@ -284,7 +284,7 @@ worksheet, so an operator knows exactly what must be registered without the CLI
 claiming it completed the external mutation.
 
 ```powershell
-foundry-agent-manager connector logic-apps registration plan -f agent.yaml `
+fam connector logic-apps registration plan -f agent.yaml `
   --connector-name rss --mcp-server-name rss-tools `
   --mcp-server-description "Read approved RSS feeds." `
   --operation ListAllRSSFeedItems --user-parameter ListAllRSSFeedItems/feedUrl `
@@ -300,7 +300,7 @@ whether to configure or trust an integration. It is read-only and does not
 attach the discovered service to an agent.
 
 ```powershell
-foundry-agent-manager connector api-center list -f agent.yaml `
+fam connector api-center list -f agent.yaml `
   --api-center-endpoint https://<service>.data.<region>.azure-apicenter.ms `
   --search orders
 ```

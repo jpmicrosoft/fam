@@ -2,7 +2,7 @@
 
 Testing, CI/CD, repository layout, evaluator calibration, and release workflow.
 
-This page is for maintainers of `foundry-agent-manager`, not for users who only
+This page is for maintainers of `fam`, not for users who only
 install the executable and deploy agents. The release process provides users
 with reproducible binaries, checksums, platform coverage, stable version
 metadata, and evidence that the CLI behavior was qualified before publication.
@@ -10,7 +10,7 @@ metadata, and evidence that the CLI behavior was qualified before publication.
 ## Testing
 
 The complete gate catches failures that a package-level unit test cannot:
-cross-platform compilation, canonical and `fam` executable output contracts,
+cross-platform compilation, the canonical `fam` executable output contract,
 shipped examples, completion generation, installer syntax, negative exit
 codes, and artifact checksums.
 
@@ -60,11 +60,11 @@ executable qualification probes.
 The `release` job in
 [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs only after the
 same tagged source passes the `ci` job. It cross-compiles six CGO-free targets,
-packages both `foundry-agent-manager` and the equivalent `fam` executable,
+packages only the `fam` executable,
 generates `SHA256SUMS`, conditionally attests build provenance, and creates the
 GitHub release.
 
-The current application version is **0.14.1**
+The current application version is **0.15.0**
 ([`../internal/config/config.go`](../internal/config/config.go)).
 
 ## Repository layout

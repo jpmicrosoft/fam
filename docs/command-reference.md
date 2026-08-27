@@ -1,14 +1,13 @@
 # Command Reference
 
 Complete command listing, global options, exit codes, and output contracts for
-the current source tree (`0.14.1` is the prepared release version).
+the current source tree (`0.15.0` is the prepared release version).
 
 For task-oriented answers and common troubleshooting, start with the
 [`FAQ`](faq.md).
 
-Every command can be invoked through either `foundry-agent-manager` or the
-installed `fam` shorthand. The exact root flag `-version` is accepted as a
-compatibility spelling of `--version`.
+Every command is invoked through the canonical `fam` executable. The exact
+root flag `-version` is accepted as a compatibility spelling of `--version`.
 
 Use this page after choosing the Prompt or Hosted path to find the command that
 matches the outcome you need:
@@ -35,26 +34,25 @@ needed for each stage. See [RBAC and Separation of Duties](rbac-and-separation-o
 for the operator, runtime, Graph/Entra, and audit permissions associated with
 each command family.
 
-Bare `foundry-agent-manager help` shows the top-level resource namespaces.
-Use `foundry-agent-manager help <command path>` or
-`foundry-agent-manager <command path> --help` for focused help containing only
+Bare `fam help` shows the top-level resource namespaces.
+Use `fam help <command path>` or
+`fam <command path> --help` for focused help containing only
 the selected namespace or command's subcommands, usage, examples, flags, and
 related workflow. For example:
 
 ```powershell
-foundry-agent-manager help quickstart
-foundry-agent-manager prompt deploy --help
-foundry-agent-manager help hosted deploy
-foundry-agent-manager help hosted session file
-foundry-agent-manager doctor --help
+fam help quickstart
+fam prompt deploy --help
+fam help hosted deploy
+fam help hosted session file
+fam doctor --help
 ```
 
-The same examples can use `fam`, such as `fam hosted deploy --help` or
-`fam -version`.
+For example, use `fam hosted deploy --help` or `fam -version`.
 
 The previous flat names remain executable as hidden compatibility aliases.
-For example, `foundry-agent-manager hosted-deploy` still invokes
-`foundry-agent-manager hosted deploy`, but only the nested path appears in help,
+For example, `fam hosted-deploy` still invokes
+`fam hosted deploy`, but only the nested path appears in help,
 documentation, and completion suggestions.
 
 Every application command includes at least one copyable invocation. Commands
@@ -201,7 +199,7 @@ Prompt-agent lifecycle commands require `-f/--manifest`; for `prompt init`,
 instead take `--workspace`, because the current first-party Hosted Agent source
 of truth is an existing `azure.yaml` workspace. Commands under `autopilot` take
 neither input format: they operate against one pinned upstream sample. Run
-`foundry-agent-manager <command path> --help` for the authoritative flag list.
+`fam <command path> --help` for the authoritative flag list.
 
 Agent 365 blueprint commands use exactly one of `--blueprint-id` (application
 ID) or `--blueprint-object-id` (directory object ID). Binding commands use
@@ -255,7 +253,7 @@ agent:
 ```
 
 ```powershell
-foundry-agent-manager prompt deploy -f agent.yaml --if-changed `
+fam prompt deploy -f agent.yaml --if-changed `
   --metadata owner=operations-team `
   --metadata changeTicket=CHG-0000
 ```
@@ -287,7 +285,7 @@ table, DCR, endpoint, or RBAC. If publishing fails, the operation returns an
 error, keeps the local receipt, and provides a retry command:
 
 ```powershell
-foundry-agent-manager receipt upload `
+fam receipt upload `
   --file artifacts\deploy-receipt.json `
   --receipt-log-endpoint https://my-dce.eastus-1.ingest.monitor.azure.com `
   --receipt-log-dcr-id dcr-0123456789abcdef0123456789abcdef
@@ -348,13 +346,13 @@ file or directory paths. Completion is static and offline; it does not query
 Azure resources.
 
 ```powershell
-foundry-agent-manager completion powershell > foundry-agent-manager.ps1
-foundry-agent-manager completion bash > foundry-agent-manager.bash
-foundry-agent-manager completion zsh > _foundry-agent-manager
-foundry-agent-manager completion fish > foundry-agent-manager.fish
+fam completion powershell > fam.ps1
+fam completion bash > fam.bash
+fam completion zsh > _fam
+fam completion fish > fam.fish
 ```
 
-Run `foundry-agent-manager completion <shell> --help` for shell-specific
+Run `fam completion <shell> --help` for shell-specific
 installation instructions.
 
 ## Exit codes and error envelope
@@ -408,7 +406,7 @@ remediation guidance:
     "message": "Foundry project \"my-project\" does not exist",
     "exitCode": 6,
     "nextSteps": [
-      "Create the project with: foundry-agent-manager project create -f agent.yaml",
+      "Create the project with: fam project create -f agent.yaml",
       "Or add --ensure-project to the deploy command"
     ]
   }
@@ -422,24 +420,24 @@ In text mode the same failure is written to stderr as `error: <message>`.
 ## `version` output contract
 
 ```powershell
-foundry-agent-manager version
-# foundry-agent-manager 0.14.1 commit=<commit> built=<timestamp>
+fam version
+# fam 0.15.0 commit=<commit> built=<timestamp>
 ```
 
 | Format | Contract |
 |---|---|
-| `text` | `foundry-agent-manager <version>`, then ` commit=<commit>` and ` built=<builtAt>` only when those values were stamped at build time. |
+| `text` | `fam <version>`, then ` commit=<commit>` and ` built=<builtAt>` only when those values were stamped at build time. |
 | `json` | Object with `version`, `commit`, `builtAt`. `commit` and `builtAt` are **omitted** when empty. |
 | `yaml` | Keys `version`, `commit`, `builtAt`, with the same omission rule. |
 
 ```json
 {
-  "version": "0.14.1",
+  "version": "0.15.0",
   "commit": "<commit>",
   "builtAt": "<timestamp>"
 }
 ```
 
-An unstamped `go build` prints `foundry-agent-manager 0.14.1` and `{"version": "0.14.1"}`.
-`foundry-agent-manager --version` prints only `foundry-agent-manager <version>`; use the
+An unstamped `go build` prints `fam 0.15.0` and `{"version": "0.15.0"}`.
+`fam --version` prints only `fam <version>`; use the
 `version` subcommand when you need commit and build time.

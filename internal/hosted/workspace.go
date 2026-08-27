@@ -1022,7 +1022,7 @@ func contractWarnings(
 			if _, found := service["network"]; found {
 				warnings = append(
 					warnings,
-					"first-party private-networking schemas currently disagree; foundry-agent-manager passes the project network block to the pinned azd extension without interpreting it",
+					"first-party private-networking schemas currently disagree; Foundry Agent Manager passes the project network block to the pinned azd extension without interpreting it",
 				)
 				break
 			}

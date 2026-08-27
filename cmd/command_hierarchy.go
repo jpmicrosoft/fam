@@ -297,7 +297,7 @@ func ensureNamespace(root *cobra.Command, path []string) *cobra.Command {
 				Short:        metadata.Short,
 				GroupID:      metadata.GroupID,
 				SilenceUsage: true,
-				Example:      "  foundry-agent-manager help " + fullPath,
+				Example:      "  fam help " + fullPath,
 			}
 			parent.AddCommand(namespace)
 		}
@@ -431,8 +431,8 @@ func cloneStringSliceMap(source map[string][]string) map[string][]string {
 func rewriteCommandExamples(example, legacy string, canonical []string) string {
 	return strings.ReplaceAll(
 		example,
-		"foundry-agent-manager "+legacy,
-		"foundry-agent-manager "+strings.Join(canonical, " "),
+		"fam "+legacy,
+		"fam "+strings.Join(canonical, " "),
 	)
 }
 
@@ -466,7 +466,7 @@ func canonicalCommandArgs(legacy string) []string {
 }
 
 func canonicalCommandText(legacy string) string {
-	return "foundry-agent-manager " + strings.Join(canonicalCommandArgs(legacy), " ")
+	return "fam " + strings.Join(canonicalCommandArgs(legacy), " ")
 }
 
 func commandPathArgs(command *cobra.Command) []string {

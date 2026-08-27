@@ -5,17 +5,17 @@
 # or configure APIM, its APIs, or its policies.
 #
 # Validate (offline, no Azure, no approvals):
-#   foundry-agent-manager prompt validate -f examples/agent.apim.example.yaml
+#   fam prompt validate -f examples/agent.apim.example.yaml
 # Plan (offline, no approvals):
-#   foundry-agent-manager prompt plan -f examples/agent.apim.example.yaml
+#   fam prompt plan -f examples/agent.apim.example.yaml
 #
 # Preflight (online, read-only; requires the gateway host approval):
-#   foundry-agent-manager prompt preflight -f examples/agent.apim.example.yaml `
+#   fam prompt preflight -f examples/agent.apim.example.yaml `
 #     --trusted-apim-host <apim-name>.azure-api.net
 #
 # Deploy:
 #   $env:FOUNDRY_AGENT_MANAGER_APIM_SUBSCRIPTION_KEY = "<subscription-key>"
-#   foundry-agent-manager prompt deploy -f examples/agent.apim.example.yaml --if-changed `
+#   fam prompt deploy -f examples/agent.apim.example.yaml --if-changed `
 #     --trusted-apim-host <apim-name>.azure-api.net
 #
 # preflight and deploy refuse to send the APIM subscription key (or the project

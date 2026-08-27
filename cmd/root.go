@@ -16,10 +16,7 @@ import (
 )
 
 func rootCmd() *cobra.Command {
-	return rootCmdFor("foundry-agent-manager")
-}
-
-func rootCmdFor(executableName string) *cobra.Command {
+	const executableName = "fam"
 	root := &cobra.Command{
 		Use:   executableName,
 		Short: "Deploy and manage Microsoft Foundry Prompt and Hosted Agents.",
@@ -1277,9 +1274,9 @@ With no command path, help prints the top-level resource catalog. With a
 namespace or command path, it prints only that target's description, usage,
 subcommands or examples, flags, and related workflow commands.`,
 		Example: strings.Join([]string{
-			"  foundry-agent-manager help quickstart",
-			"  foundry-agent-manager help prompt deploy",
-			"  foundry-agent-manager help hosted session file",
+			"  fam help quickstart",
+			"  fam help prompt deploy",
+			"  fam help hosted session file",
 		}, "\n"),
 		RunE: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -1291,8 +1288,8 @@ subcommands or examples, flags, and related workflow commands.`,
 				topic := strings.Join(args, " ")
 				return errs.WithNextSteps(
 					errs.Config("unknown help topic %q", topic),
-					"Run foundry-agent-manager help to see all available commands.",
-					"Use foundry-agent-manager help <command path> with an exact namespace or command path.",
+					"Run fam help to see all available commands.",
+					"Use fam help <command path> with an exact namespace or command path.",
 				)
 			}
 			return target.Help()
@@ -1401,7 +1398,7 @@ func writeRelatedCommandHelp(command *cobra.Command) {
 		_, _ = fmt.Fprintf(
 			out,
 			"  %-43s %s\n",
-			"foundry-agent-manager help "+strings.Join(path, " "),
+			"fam help "+strings.Join(path, " "),
 			related.Short,
 		)
 	}
@@ -1627,5 +1624,5 @@ func buildMetadata() string {
 	if config.BuildDate != "" {
 		parts = append(parts, "built="+config.BuildDate)
 	}
-	return fmt.Sprintf("foundry-agent-manager %s", strings.Join(parts, " "))
+	return fmt.Sprintf("fam %s", strings.Join(parts, " "))
 }

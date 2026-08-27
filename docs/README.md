@@ -18,7 +18,7 @@ This page helps you find the right documentation for where you are right now.
 |---|---|
 | I have a Foundry account and model, and I want the simplest agent | [Quick start: Prompt Agent](../README.md#quick-start-prompt-agent) |
 | I need to run custom code (Python/.NET/container) | [Quick start: Hosted Agent](../README.md#quick-start-hosted-agent) |
-| I just want to explore offline, no Azure account yet | Run `foundry-agent-manager quickstart --type prompt`, or choose Hosted and answer **no** to environment bootstrap; then validate and plan the generated files |
+| I just want to explore offline, no Azure account yet | Run `fam quickstart --type prompt`, or choose Hosted and answer **no** to environment bootstrap; then validate and plan the generated files |
 
 ## Reference guides (read when you need them)
 

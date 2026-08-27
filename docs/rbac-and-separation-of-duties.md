@@ -1,6 +1,6 @@
 # RBAC and Separation of Duties
 
-Use the same `foundry-agent-manager` executable with different Microsoft Entra
+Use the same `fam` executable with different Microsoft Entra
 identities and narrowly scoped role assignments. The CLI does not elevate the
 active principal, grant Azure roles, or make `--yes` a substitute for
 authorization.

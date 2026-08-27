@@ -29,7 +29,7 @@ type initResult struct {
 // entirely offline: no credential, network call, or existing manifest is
 // required. The generated file is validated against the embedded schema
 // before it is kept, so init never leaves behind a manifest that
-// `foundry-agent-manager prompt validate` would reject.
+// `fam prompt validate` would reject.
 func cmdInit(cmd *cobra.Command, _ []string) error {
 	result, err := createPromptScaffold(cmd)
 	if err != nil {

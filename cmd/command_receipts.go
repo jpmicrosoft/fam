@@ -295,7 +295,7 @@ func receiptLogRetryError(
 		steps,
 		fmt.Sprintf("The local receipt remains available at %s.", receiptPath),
 		fmt.Sprintf(
-			"Retry command: foundry-agent-manager receipt upload --file <receipt-path> --receipt-log-endpoint %s --receipt-log-dcr-id %s --receipt-log-stream %s",
+			"Retry command: fam receipt upload --file <receipt-path> --receipt-log-endpoint %s --receipt-log-dcr-id %s --receipt-log-stream %s",
 			options.Endpoint,
 			options.DCRImmutableID,
 			options.StreamName,

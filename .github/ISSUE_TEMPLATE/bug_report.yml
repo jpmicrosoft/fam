@@ -12,8 +12,8 @@ body:
     id: version
     attributes:
       label: FAM version
-      description: Output from `foundry-agent-manager version`.
-      placeholder: 0.14.1
+      description: Output from `fam version`.
+      placeholder: 0.15.0
     validations:
       required: true
   - type: dropdown

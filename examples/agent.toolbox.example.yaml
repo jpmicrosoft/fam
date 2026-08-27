@@ -2,23 +2,23 @@
 # Replace every placeholder before a real deployment.
 #
 # Offline:
-#   foundry-agent-manager toolbox validate -f examples/agent.toolbox.example.yaml
-#   foundry-agent-manager toolbox plan -f examples/agent.toolbox.example.yaml
+#   fam toolbox validate -f examples/agent.toolbox.example.yaml
+#   fam toolbox plan -f examples/agent.toolbox.example.yaml
 #
 # Create an immutable Toolbox version. Skills are a preview sub-contract, so
 # this example requires explicit preview acceptance:
-#   foundry-agent-manager toolbox deploy -f examples/agent.toolbox.example.yaml `
+#   fam toolbox deploy -f examples/agent.toolbox.example.yaml `
 #     --toolbox shared-tools --if-changed --accept-preview
 #
 # The first version becomes default automatically. Later versions stay staged:
-#   foundry-agent-manager toolbox versions list -f examples/agent.toolbox.example.yaml `
+#   fam toolbox versions list -f examples/agent.toolbox.example.yaml `
 #     --toolbox shared-tools
-#   foundry-agent-manager toolbox promote -f examples/agent.toolbox.example.yaml `
+#   fam toolbox promote -f examples/agent.toolbox.example.yaml `
 #     --toolbox shared-tools --toolbox-version <version> --yes
 #
 # Deploying the prompt agent is a separate operation. The remote-tool project
 # connection below must already target this Toolbox's same-project MCP endpoint:
-#   foundry-agent-manager prompt deploy -f examples/agent.toolbox.example.yaml --if-changed
+#   fam prompt deploy -f examples/agent.toolbox.example.yaml --if-changed
 
 apiVersion: foundry-agent-manager/v1
 

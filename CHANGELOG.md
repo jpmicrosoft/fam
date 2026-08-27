@@ -5,13 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Version status.** `0.14.1` is the version compiled into the executable
+> **Version status.** `0.15.0` is the version compiled into the executable
 > ([`internal/config/config.go`](internal/config/config.go)) and reported by
-> `foundry-agent-manager version`. Release archives plus a GitHub Release are
-> produced only after the matching `v0.14.1` tag is pushed; see
+> `fam version`. Release archives plus a GitHub Release are
+> produced only after the matching `v0.15.0` tag is pushed; see
 > [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## [Unreleased]
+
+## [0.15.0] - 2026-08-27
+
+### Changed
+
+- **Breaking:** Starting with `0.15.0`, release archives and installers
+  provide only the `fam` executable (`fam.exe` on Windows). Scripts invoking
+  `foundry-agent-manager` must change those invocations to `fam`. The product
+  remains named Foundry Agent Manager. The installers remove the retired
+  executable from the selected install directory during an upgrade and remain
+  able to install releases that use the historical archive filenames.
 
 ## [0.14.1] - 2026-08-18
 

@@ -126,7 +126,7 @@ gate. All 15 cases must pass and no evaluator error is allowed.
 
 ## Product boundary
 
-These scripts remain release tooling rather than a `foundry-agent-manager`
+These scripts remain release tooling rather than a Foundry Agent Manager
 command. They depend on Python SDKs, consume billed evaluation capacity, and
 use a fixed maintainer-owned gold set. The supported CLI remains a
 single-binary deployment and lifecycle manager. A future user-facing

@@ -1,17 +1,17 @@
 <#
 .SYNOPSIS
-    Verified installer for foundry-agent-manager (PowerShell, Windows/macOS/Linux).
+    Verified installer for fam (PowerShell, Windows/macOS/Linux).
 
 .DESCRIPTION
     Downloads a prebuilt release archive from GitHub, verifies the SHA256
-    checksum, and installs the foundry-agent-manager binary plus its fam
-    shorthand into a configurable directory. The installer does not compile
+    checksum, and installs the fam binary into a configurable directory.
+    The installer does not compile
     source code, and Go is not required to install or run the downloaded CLI.
     Private repositories can use FAM_INSTALL_TOKEN, GITHUB_TOKEN, GH_TOKEN, or
     an authenticated gh CLI.
 
 .PARAMETER Version
-    Specific published version tag to install (e.g. v0.14.1). Omit for latest release.
+    Specific published version tag to install (e.g. v0.15.0). Omit for latest release.
 
 .PARAMETER InstallDir
     Destination directory. Defaults to $env:LOCALAPPDATA\foundry-agent-manager
@@ -26,7 +26,7 @@
     Without this switch, the installer never modifies profiles.
 
 .EXAMPLE
-    ./scripts/install.ps1 -Version v0.14.1
+    ./scripts/install.ps1 -Version v0.15.0
     ./scripts/install.ps1 -InstallDir C:\tools
     ./scripts/install.ps1 -Repo myorg/my-repo -ModifyProfile
 #>
@@ -88,7 +88,8 @@ if ($token) {
     $authHeaders["Authorization"] = "token $token"
 }
 
-# --- Resolve version ---
+# --- Resolve version and release assets ---
+$release = $null
 if ([string]::IsNullOrWhiteSpace($Version) -or $Version -eq "latest") {
     Write-Host "Resolving latest release..."
     $releaseUrl = "https://api.github.com/repos/$Repo/releases/latest"
@@ -104,13 +105,35 @@ if ([string]::IsNullOrWhiteSpace($Version) -or $Version -eq "latest") {
 if ($Version -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9_.-]+)?$') {
     throw "-Version must be 'latest' or a v-prefixed semantic version tag."
 }
+if ($null -eq $release) {
+    $releaseUrl = "https://api.github.com/repos/$Repo/releases/tags/$Version"
+    $headers = @{ "Accept" = "application/vnd.github+json" } + $authHeaders
+    try {
+        $release = Invoke-RestMethod -Uri $releaseUrl -Headers $headers -ErrorAction Stop
+    }
+    catch {
+        throw "Could not resolve release $Version for $Repo`: $_"
+    }
+}
 
 $versionNum = $Version.TrimStart("v")
 $extension = if ($platform -eq "windows") { "zip" } else { "tar.gz" }
-$archive = "foundry-agent-manager_${versionNum}_${platform}_${architecture}.${extension}"
+$preferredArchive = "fam_${versionNum}_${platform}_${architecture}.${extension}"
+$legacyArchive = "foundry-agent-manager_${versionNum}_${platform}_${architecture}.${extension}"
+$assetNames = @($release.assets | ForEach-Object { $_.name })
+if ($assetNames -contains $preferredArchive) {
+    $archive = $preferredArchive
+}
+elseif ($assetNames -contains $legacyArchive) {
+    $archive = $legacyArchive
+    Write-Host "Using the historical archive name for pre-transition release $Version; only fam will be installed."
+}
+else {
+    throw "Release $Version does not contain $preferredArchive or its supported historical equivalent."
+}
 $baseUrl = "https://github.com/$Repo/releases/download/$Version"
 
-Write-Host "Installing prebuilt foundry-agent-manager $Version ($platform/$architecture)..."
+Write-Host "Installing prebuilt fam $Version ($platform/$architecture)..."
 Write-Host "Go is not required; this installer downloads a compiled release binary."
 
 # --- Download ---
@@ -144,8 +167,7 @@ try {
     Write-Host "Checksum verified."
 
     # --- Extract ---
-    $binaryName = if ($platform -eq "windows") { "foundry-agent-manager.exe" } else { "foundry-agent-manager" }
-    $aliasName = if ($platform -eq "windows") { "fam.exe" } else { "fam" }
+    $binaryName = if ($platform -eq "windows") { "fam.exe" } else { "fam" }
 
     if ($extension -eq "zip") {
         Expand-Archive -Path (Join-Path $tmpDir $archive) -DestinationPath $tmpDir -Force
@@ -156,21 +178,20 @@ try {
     # --- Install ---
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
     $destPath = Join-Path $InstallDir $binaryName
-    $aliasPath = Join-Path $InstallDir $aliasName
     Move-Item -Path (Join-Path $tmpDir $binaryName) -Destination $destPath -Force
-    $archiveAliasPath = Join-Path $tmpDir $aliasName
-    if (Test-Path $archiveAliasPath) {
-        Move-Item -Path $archiveAliasPath -Destination $aliasPath -Force
-    }
-    else {
-        Copy-Item -Path $destPath -Destination $aliasPath -Force
-    }
 
     if ($platform -ne "windows") {
-        chmod +x $destPath $aliasPath
+        chmod +x $destPath
     }
 
-    Write-Host "Installed foundry-agent-manager and fam to $InstallDir"
+    # Remove the executable name installed by releases before the fam-only transition.
+    $retiredBinaryName = if ($platform -eq "windows") { "foundry-agent-manager.exe" } else { "foundry-agent-manager" }
+    $retiredBinaryPath = Join-Path $InstallDir $retiredBinaryName
+    if (Test-Path -LiteralPath $retiredBinaryPath -PathType Leaf) {
+        Remove-Item -LiteralPath $retiredBinaryPath -Force
+    }
+
+    Write-Host "Installed fam to $InstallDir"
 
     # --- Optionally modify profile ---
     if ($ModifyProfile) {
@@ -195,7 +216,7 @@ try {
         }
     }
 
-    Write-Host "Done. Run 'fam -version' or 'foundry-agent-manager --version' to verify."
+    Write-Host "Done. Run 'fam --version' to verify."
 }
 finally {
     Remove-Item -Recurse -Force -Path $tmpDir -ErrorAction SilentlyContinue

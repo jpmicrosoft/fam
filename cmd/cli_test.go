@@ -124,7 +124,7 @@ func TestEveryCommandHelpSucceeds(t *testing.T) {
 				t.Fatalf("%s --help exited %d: %s", name, legacy.code, legacy.stderr)
 			}
 			if !strings.Contains(legacy.stdout, "Usage:") ||
-				!strings.Contains(legacy.stdout, "foundry-agent-manager "+name) {
+				!strings.Contains(legacy.stdout, "fam "+name) {
 				t.Fatalf("%s --help did not print compatibility usage: %q", name, legacy.stdout)
 			}
 
@@ -136,7 +136,7 @@ func TestEveryCommandHelpSucceeds(t *testing.T) {
 			if canonical.code != 0 {
 				t.Fatalf("%s --help exited %d: %s", strings.Join(canonicalArgs, " "), canonical.code, canonical.stderr)
 			}
-			expectedUsage := "foundry-agent-manager " + strings.Join(canonicalArgs, " ")
+			expectedUsage := "fam " + strings.Join(canonicalArgs, " ")
 			if !strings.Contains(canonical.stdout, "Usage:") ||
 				!strings.Contains(canonical.stdout, expectedUsage) {
 				t.Fatalf("%s --help did not print canonical usage: %q", name, canonical.stdout)
@@ -147,7 +147,7 @@ func TestEveryCommandHelpSucceeds(t *testing.T) {
 
 func TestVersionOutputFormatsAreStable(t *testing.T) {
 	textRun := runCLI(t, "", "version")
-	if textRun.code != 0 || !strings.HasPrefix(textRun.stdout, "foundry-agent-manager ") {
+	if textRun.code != 0 || !strings.HasPrefix(textRun.stdout, "fam ") {
 		t.Fatalf("unexpected text version output: %q", textRun.stdout)
 	}
 	rootFlag := runCLI(t, "", "--version")
@@ -184,9 +184,9 @@ func TestVersionOutputFormatsAreStable(t *testing.T) {
 	}
 }
 
-func TestFamExecutableAlias(t *testing.T) {
+func TestFamExecutableContract(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := executeNamed("fam.exe", []string{"-version"}, strings.NewReader(""), &stdout, &stderr)
+	code := execute([]string{"-version"}, strings.NewReader(""), &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("fam -version exited %d: %s", code, stderr.String())
 	}
@@ -196,13 +196,14 @@ func TestFamExecutableAlias(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	code = executeNamed("fam", []string{"--help"}, strings.NewReader(""), &stdout, &stderr)
+	code = execute([]string{"--help"}, strings.NewReader(""), &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("fam --help exited %d: %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "Usage:\n  fam") {
-		t.Fatalf("fam --help omitted alias usage: %q", stdout.String())
+		t.Fatalf("fam --help omitted canonical usage: %q", stdout.String())
 	}
+
 }
 
 func TestSingleDashVersionNormalizationIsRootOnly(t *testing.T) {

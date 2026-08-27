@@ -1020,7 +1020,7 @@ func TestGlobalDebugWritesSafeDiagnosticsToStderr(t *testing.T) {
 	if run.code != 0 {
 		t.Fatalf("version --debug failed: %s", run.stderr)
 	}
-	if !strings.Contains(run.stderr, "debug: command=foundry-agent-manager version") ||
+	if !strings.Contains(run.stderr, "debug: command=fam version") ||
 		!strings.Contains(run.stderr, "request-timeout=") {
 		t.Fatalf("debug diagnostics are missing: %q", run.stderr)
 	}
@@ -1041,7 +1041,7 @@ func TestCommonCommandHelpIncludesExamples(t *testing.T) {
 				t.Fatalf("%s --help failed: %s", strings.Join(command, " "), run.stderr)
 			}
 			if !strings.Contains(run.stdout, "Examples:") ||
-				!strings.Contains(run.stdout, "foundry-agent-manager "+strings.Join(command, " ")) {
+				!strings.Contains(run.stdout, "fam "+strings.Join(command, " ")) {
 				t.Fatalf("%s help is missing copyable examples:\n%s", strings.Join(command, " "), run.stdout)
 			}
 		})
@@ -1059,12 +1059,12 @@ func TestHelpCommandTargetsSelectedCommand(t *testing.T) {
 		}
 		for _, expected := range []string{
 			"Usage:",
-			"foundry-agent-manager quickstart",
+			"fam quickstart",
 			"Examples:",
 			"--type string",
 			"Related workflow:",
-			"foundry-agent-manager help doctor",
-			"foundry-agent-manager help hosted validate",
+			"fam help doctor",
+			"fam help hosted validate",
 		} {
 			if !strings.Contains(run.stdout, expected) {
 				t.Errorf("%v help missing %q:\n%s", args, expected, run.stdout)
@@ -1093,7 +1093,7 @@ func TestUnknownHelpTopicIsActionable(t *testing.T) {
 		t.Fatalf("unknown help topic printed the root catalog:\n%s", run.stdout)
 	}
 	if !strings.Contains(run.stderr, `unknown help topic "does-not-exist"`) ||
-		!strings.Contains(run.stderr, "foundry-agent-manager help") {
+		!strings.Contains(run.stderr, "fam help") {
 		t.Fatalf("unknown help topic is not actionable:\n%s", run.stderr)
 	}
 }

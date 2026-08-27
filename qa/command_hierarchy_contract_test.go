@@ -46,7 +46,7 @@ func TestUserDocumentationUsesCanonicalCommandPaths(t *testing.T) {
 		content := string(data)
 		for _, match := range matches {
 			legacy := match[1]
-			needle := "foundry-agent-manager " + legacy
+			needle := "fam " + legacy
 			if !strings.Contains(content, needle) {
 				continue
 			}

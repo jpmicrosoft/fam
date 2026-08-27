@@ -245,7 +245,7 @@ $env:FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_ENDPOINT = $LogsIngestionEndpoint
 $env:FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_DCR_ID = $DcrImmutableId
 $env:FOUNDRY_AGENT_MANAGER_RECEIPT_LOG_STREAM = "Custom-FoundryAgentReceipts"
 
-foundry-agent-manager receipt upload `
+fam receipt upload `
   --file "<path-to-an-existing-manager-receipt.json>"
 ```
 
@@ -267,7 +267,7 @@ misconfigured; confirm the assignment scope and retry after propagation.
 Pass the destination as global options on any command that writes a receipt:
 
 ```powershell
-foundry-agent-manager prompt deploy -f agent.yaml --if-changed `
+fam prompt deploy -f agent.yaml --if-changed `
   --receipt-log-endpoint https://my-dce.eastus-1.ingest.monitor.azure.com `
   --receipt-log-dcr-id dcr-0123456789abcdef0123456789abcdef `
   --receipt-log-stream Custom-FoundryAgentReceipts
@@ -291,7 +291,7 @@ Use the standalone command when automatic publishing failed or when importing
 an earlier manager-generated receipt:
 
 ```powershell
-foundry-agent-manager receipt upload `
+fam receipt upload `
   --file artifacts\deploy-receipt.json `
   --receipt-log-endpoint https://my-dce.eastus-1.ingest.monitor.azure.com `
   --receipt-log-dcr-id dcr-0123456789abcdef0123456789abcdef

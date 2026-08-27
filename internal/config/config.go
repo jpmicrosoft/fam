@@ -1,4 +1,4 @@
-// Package config loads, validates, and resolves foundry-agent-manager manifests.
+// Package config loads, validates, and resolves Foundry Agent Manager manifests.
 package config
 
 import (
@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	Version     = "0.14.1"
+	Version     = "0.15.0"
 	BuildCommit = ""
 	BuildDate   = ""
 )

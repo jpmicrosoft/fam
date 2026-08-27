@@ -57,7 +57,7 @@ manifest.
 | Managed-identity audience | `--trusted-managed-identity-audience` | `FOUNDRY_AGENT_MANAGER_TRUSTED_MANAGED_IDENTITY_AUDIENCES` |
 
 ```powershell
-foundry-agent-manager prompt deploy -f agent.yaml --if-changed `
+fam prompt deploy -f agent.yaml --if-changed `
   --trusted-apim-host contoso.azure-api.net `
   --trusted-tool-host api.contoso.com
 ```
@@ -75,7 +75,7 @@ audiences:
 ```
 
 ```powershell
-foundry-agent-manager prompt deploy -f agent.yaml --if-changed --trust-file trust-policy.yaml
+fam prompt deploy -f agent.yaml --if-changed --trust-file trust-policy.yaml
 ```
 
 - Same three categories, same validation.
@@ -312,12 +312,12 @@ resources.
 these options can cause broad deletion of project uploads.
 
 ```powershell
-foundry-agent-manager model deployment delete -f agent.yaml --dry-run
-foundry-agent-manager model deployment delete -f agent.yaml --yes
-foundry-agent-manager prompt versions prune -f agent.yaml --keep 3 --dry-run
-foundry-agent-manager prompt versions prune -f agent.yaml --keep 3 --yes
-foundry-agent-manager prompt versions delete -f agent.yaml --agent-version 7 --yes
-foundry-agent-manager prompt decommission -f agent.yaml --yes
+fam model deployment delete -f agent.yaml --dry-run
+fam model deployment delete -f agent.yaml --yes
+fam prompt versions prune -f agent.yaml --keep 3 --dry-run
+fam prompt versions prune -f agent.yaml --keep 3 --yes
+fam prompt versions delete -f agent.yaml --agent-version 7 --yes
+fam prompt decommission -f agent.yaml --yes
 ```
 
 - `--dry-run` prints what would be deleted without Azure mutation.
@@ -415,7 +415,7 @@ also includes `error.nextSteps` for automation and UI surfaces.
 | `regional capacity ... requests ...` (exit `7`) | Azure does not currently advertise enough placement capacity for the exact model version/SKU | Select an available version/SKU/region under your architecture rules or retry planning later |
 | `already exists with different configuration` (exit `7`) | The deployment name is occupied by drifted managed state | Inspect with `model deployment show`; choose a new name or deliberately delete and recreate it |
 | `model deployment "..." is not ready` (exit `7`) | The parent-account deployment exists but ARM reports a provisioning state other than `Succeeded` | Repair or wait for the deployment in Azure, then rerun `prompt preflight` |
-| `azd environment "..." does not exist` (exit `3`) | Hosted environment was never created for the workspace | Run `foundry-agent-manager hosted environment create --workspace <workspace> --environment <environment>` or rerun Hosted quickstart with `--bootstrap-environment` |
+| `azd environment "..." does not exist` (exit `3`) | Hosted environment was never created for the workspace | Run `fam hosted environment create --workspace <workspace> --environment <environment>` or rerun Hosted quickstart with `--bootstrap-environment` |
 | `Hosted Agent Foundry project endpoint could not be resolved` or azd reports `FOUNDRY_PROJECT_ENDPOINT` is not set (exit `3`) | Provisioning did not populate the environment, or bootstrap was never run | Provision intentionally or rerun `hosted environment create` with `--project-id` and `--model-deployment`; it derives and configures both the canonical azd value and compatibility alias |
 | azd doctor skips `Developer has required role on Foundry project` because `AZURE_AI_PROJECT_ID` is not set | Environment was not configured with the project resource ID | Rerun `hosted environment create` with `--project-id <project-resource-id>`; the manager validates and stores the full project resource ID for azd diagnostics |
 | `Hosted Agent Foundry project access check failed` with HTTP 403 (exit `5`) | azd is authenticated to the wrong tenant, or its identity lacks deployment RBAC | Reauthenticate azd with `azd auth login --tenant-id <tenant-id>` and assign `Foundry Project Manager` on the target project |

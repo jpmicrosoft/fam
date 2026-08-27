@@ -1,7 +1,7 @@
 # Hosted Agents
 
 Complete reference for Foundry Hosted Agent validation, deployment, and
-lifecycle management with `foundry-agent-manager`.
+lifecycle management with `fam`.
 
 Hosted Agents and the required extension are **preview features** available only
 in AzureCloud. All online commands under `hosted` require `--accept-preview`.
@@ -81,7 +81,7 @@ Non-interactive quickstart preserves the previous files-only behavior unless
 `--bootstrap-environment` is explicit:
 
 ```powershell
-foundry-agent-manager quickstart --type hosted `
+fam quickstart --type hosted `
   --destination hosted-agent --name support-agent --environment prod `
   --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/projects/project `
   --model support-model `
@@ -265,29 +265,29 @@ without making validation itself a deployment.
 
 ```powershell
 # No azd execution or authentication:
-foundry-agent-manager hosted info
-foundry-agent-manager hosted validate --workspace C:\src\hosted-agent
-foundry-agent-manager hosted plan --workspace C:\src\hosted-agent --environment prod
+fam hosted info
+fam hosted validate --workspace C:\src\hosted-agent
+fam hosted plan --workspace C:\src\hosted-agent --environment prod
 
 # One-time local azd environment setup and existing-project context:
-foundry-agent-manager hosted environment create `
+fam hosted environment create `
   --workspace C:\src\hosted-agent --environment prod `
   --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/projects/project `
   --model-deployment support-model --location eastus2
 
 # Read-only online checks:
-foundry-agent-manager hosted preflight --workspace C:\src\hosted-agent `
+fam hosted preflight --workspace C:\src\hosted-agent `
   --environment prod --accept-preview
 # Add --no-guardrail only when azure.yaml intentionally has no policies block.
 
 # Deploy into already provisioned resources:
-foundry-agent-manager hosted deploy --workspace C:\src\hosted-agent `
+fam hosted deploy --workspace C:\src\hosted-agent `
   --environment prod --accept-preview
 # The same explicit --no-guardrail acknowledgement is required for a
 # policy-less workspace.
 
 # Provision only with explicit operator intent:
-foundry-agent-manager hosted deploy --workspace C:\src\hosted-agent `
+fam hosted deploy --workspace C:\src\hosted-agent `
   --environment prod --accept-preview --provision --preview-provision
 ```
 
@@ -299,7 +299,7 @@ Provisioning is a trust decision, not just a convenience switch.
 environment. If the selected name does not exist, create it once with:
 
 ```powershell
-foundry-agent-manager hosted environment create `
+fam hosted environment create `
   --workspace <workspace> --environment <environment> `
   --project-id <project-resource-id> `
   --model-deployment <deployment> --location <azure-location>
@@ -330,15 +330,15 @@ the agent. This is the fastest way to distinguish drift from a failed rollout.
 ### `hosted show`
 
 ```powershell
-foundry-agent-manager hosted show --workspace C:\src\hosted-agent --environment prod --accept-preview
-foundry-agent-manager hosted show --workspace C:\src\hosted-agent --environment prod --accept-preview --agent-version 3
+fam hosted show --workspace C:\src\hosted-agent --environment prod --accept-preview
+fam hosted show --workspace C:\src\hosted-agent --environment prod --accept-preview --agent-version 3
 ```
 
 ### `hosted versions list`
 
 ```powershell
-foundry-agent-manager hosted versions list --workspace C:\src\hosted-agent --environment prod --accept-preview
-foundry-agent-manager hosted versions list --workspace C:\src\hosted-agent --environment prod --accept-preview --include-drafts
+fam hosted versions list --workspace C:\src\hosted-agent --environment prod --accept-preview
+fam hosted versions list --workspace C:\src\hosted-agent --environment prod --accept-preview --include-drafts
 ```
 
 ### `hosted diff`
@@ -356,20 +356,20 @@ version. File commands move bounded inputs and outputs through the session
 sandbox while enforcing local and remote path containment.
 
 ```powershell
-foundry-agent-manager hosted session create --workspace C:\src\hosted-agent --environment prod --accept-preview
-foundry-agent-manager hosted session list --workspace C:\src\hosted-agent --environment prod --accept-preview
-foundry-agent-manager hosted session show --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id>
-foundry-agent-manager hosted session stop --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id>
-foundry-agent-manager hosted session delete --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --yes
+fam hosted session create --workspace C:\src\hosted-agent --environment prod --accept-preview
+fam hosted session list --workspace C:\src\hosted-agent --environment prod --accept-preview
+fam hosted session show --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id>
+fam hosted session stop --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id>
+fam hosted session delete --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --yes
 ```
 
 ### Session files
 
 ```powershell
-foundry-agent-manager hosted session file upload --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --file data/input.csv --remote-path uploads/input.csv
-foundry-agent-manager hosted session file list --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id>
-foundry-agent-manager hosted session file download --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --remote-path outputs/result.csv --output-file downloads/result.csv
-foundry-agent-manager hosted session file delete --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --remote-path uploads/input.csv --yes
+fam hosted session file upload --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --file data/input.csv --remote-path uploads/input.csv
+fam hosted session file list --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id>
+fam hosted session file download --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --remote-path outputs/result.csv --output-file downloads/result.csv
+fam hosted session file delete --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --remote-path uploads/input.csv --yes
 ```
 
 ## Hosted Agent logs
@@ -378,7 +378,7 @@ Logs provide bounded evidence for one version and session, which makes incident
 diagnosis possible without downloading an unbounded service stream.
 
 ```powershell
-foundry-agent-manager hosted logs --workspace C:\src\hosted-agent `
+fam hosted logs --workspace C:\src\hosted-agent `
   --environment prod --accept-preview `
   --agent-version 5 --session-id <session-id>
 ```
@@ -393,7 +393,7 @@ protocol can return a response. It is an online, billable invocation rather
 than a substitute for local validation.
 
 ```powershell
-foundry-agent-manager hosted smoke --workspace C:\src\hosted-agent `
+fam hosted smoke --workspace C:\src\hosted-agent `
   --environment prod --accept-preview --prompt "Reply with READY."
 ```
 
@@ -407,9 +407,9 @@ and prune commands keep cleanup explicit and protect routed or latest versions
 from accidental removal.
 
 ```powershell
-foundry-agent-manager hosted promote --workspace C:\src\hosted-agent --environment prod --accept-preview --agent-version 5
-foundry-agent-manager hosted promote --workspace C:\src\hosted-agent --environment prod --accept-preview --latest
-foundry-agent-manager hosted rollback --workspace C:\src\hosted-agent --environment prod --accept-preview --agent-version 3
+fam hosted promote --workspace C:\src\hosted-agent --environment prod --accept-preview --agent-version 5
+fam hosted promote --workspace C:\src\hosted-agent --environment prod --accept-preview --latest
+fam hosted rollback --workspace C:\src\hosted-agent --environment prod --accept-preview --agent-version 3
 ```
 
 Both route **100% of Hosted endpoint traffic** to a single version. Draft versions
@@ -418,14 +418,14 @@ cannot receive endpoint traffic.
 ### `hosted versions prune`
 
 ```powershell
-foundry-agent-manager hosted versions prune --workspace C:\src\hosted-agent --environment prod --accept-preview --keep 3 --yes
+fam hosted versions prune --workspace C:\src\hosted-agent --environment prod --accept-preview --keep 3 --yes
 ```
 
 ### `hosted versions delete` / `hosted delete`
 
 ```powershell
-foundry-agent-manager hosted versions delete --workspace C:\src\hosted-agent --environment prod --accept-preview --agent-version 2 --yes
-foundry-agent-manager hosted delete --workspace C:\src\hosted-agent --environment prod --accept-preview --yes
+fam hosted versions delete --workspace C:\src\hosted-agent --environment prod --accept-preview --agent-version 2 --yes
+fam hosted delete --workspace C:\src\hosted-agent --environment prod --accept-preview --yes
 ```
 
 ## Draft deployment
@@ -434,7 +434,7 @@ Drafts let teams validate a code or prebuilt-image package against the preview
 service without making that version eligible for endpoint traffic.
 
 ```powershell
-foundry-agent-manager hosted draft deploy --workspace C:\src\hosted-agent --environment prod --accept-preview
+fam hosted draft deploy --workspace C:\src\hosted-agent --environment prod --accept-preview
 ```
 
 Docker context mode is rejected. Code archives are deterministic ZIP with
@@ -460,14 +460,14 @@ source, dependency, environment, and ignore files. It accelerates local setup
 without authenticating, provisioning, or hiding the generated code.
 
 ```powershell
-foundry-agent-manager hosted init --destination my-agent --name support-agent `
+fam hosted init --destination my-agent --name support-agent `
   --protocol responses --metadata owner=platform-team
 
-foundry-agent-manager hosted init --destination my-bing-agent `
+fam hosted init --destination my-bing-agent `
   --name current-events-agent --protocol responses `
   --bing-grounding-connection bing-search
 
-foundry-agent-manager hosted init --destination my-tool-agent `
+fam hosted init --destination my-tool-agent `
   --name operations-agent --protocol responses `
   --toolbox-name operations
 ```
@@ -511,17 +511,17 @@ with a deployed Hosted Agent; check observability readiness; and plan
 publication without provisioning or modifying anything:
 
 ```powershell
-foundry-agent-manager agent365 binding status `
+fam agent365 binding status `
   --workspace C:\src\hosted-agent --environment prod --accept-preview
 
-foundry-agent-manager agent365 binding plan `
+fam agent365 binding plan `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444 `
   --workspace C:\src\hosted-agent --environment prod --accept-preview
 
-foundry-agent-manager agent365 observability plan `
+fam agent365 observability plan `
   --workspace C:\src\hosted-agent
 
-foundry-agent-manager agent365 observability status `
+fam agent365 observability status `
   --workspace C:\src\hosted-agent --environment prod --accept-preview
 ```
 
@@ -545,8 +545,8 @@ Disable temporarily removes endpoint service without deleting versions, which
 supports incident containment and maintenance with a reversible operation.
 
 ```powershell
-foundry-agent-manager hosted disable --workspace C:\src\hosted-agent --environment prod --accept-preview
-foundry-agent-manager hosted enable --workspace C:\src\hosted-agent --environment prod --accept-preview
+fam hosted disable --workspace C:\src\hosted-agent --environment prod --accept-preview
+fam hosted enable --workspace C:\src\hosted-agent --environment prod --accept-preview
 ```
 
 Takes the endpoint offline or restores service without deleting the agent or versions.

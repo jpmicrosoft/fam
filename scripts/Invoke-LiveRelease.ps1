@@ -34,10 +34,10 @@ if ($null -eq $matrix.scenarios -or @($matrix.scenarios).Count -eq 0) {
 if ([string]::IsNullOrWhiteSpace($Binary)) {
     $hostOS = (& go env GOOS).Trim()
     $binaryName = if ($hostOS -eq "windows") {
-        "foundry-agent-manager.exe"
+        "fam.exe"
     }
     else {
-        "foundry-agent-manager"
+        "fam"
     }
     $Binary = Join-Path (Join-Path $repoRoot "bin") $binaryName
 }

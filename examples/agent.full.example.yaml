@@ -4,24 +4,24 @@
 # Replace all placeholders before a real deployment.
 #
 # Validate (offline, no Azure, no approvals):
-#   foundry-agent-manager prompt validate -f examples/agent.full.example.yaml
+#   fam prompt validate -f examples/agent.full.example.yaml
 # Plan (offline, no approvals):
-#   foundry-agent-manager prompt plan -f examples/agent.full.example.yaml
+#   fam prompt plan -f examples/agent.full.example.yaml
 # Synchronize the managed File Search documents before deploy:
-#   foundry-agent-manager grounding sync -f examples/agent.full.example.yaml
+#   fam grounding sync -f examples/agent.full.example.yaml
 #
 # validate and plan are offline structural checks only; they report destination
 # trust as "not-evaluated". preflight and deploy additionally require every
 # effective external tool destination to be approved by the operator, as an
 # exact host, outside the manifest:
 #
-#   foundry-agent-manager prompt preflight -f examples/agent.full.example.yaml `
+#   fam prompt preflight -f examples/agent.full.example.yaml `
 #     --accept-preview `
 #     --trusted-tool-host api.example.com `
 #     --trusted-tool-host mcp.example.com `
 #     --trusted-tool-host interpreter.example.com
 #
-#   foundry-agent-manager prompt deploy -f examples/agent.full.example.yaml --if-changed `
+#   fam prompt deploy -f examples/agent.full.example.yaml --if-changed `
 #     --accept-preview `
 #     --trusted-tool-host api.example.com `
 #     --trusted-tool-host mcp.example.com `
@@ -227,10 +227,10 @@ tools:
 # new immutable version behind whatever version is currently active, and only
 # `promote`/`rollback` move traffic. Apply endpoint changes without touching
 # routing with:
-#   foundry-agent-manager prompt endpoint configure -f examples/agent.full.example.yaml
+#   fam prompt endpoint configure -f examples/agent.full.example.yaml
 # Inspect the effective endpoint (including instance identity and current
 # routing) with:
-#   foundry-agent-manager prompt endpoint show -f examples/agent.full.example.yaml
+#   fam prompt endpoint show -f examples/agent.full.example.yaml
 endpoint:
   protocols:
     - responses # always preserved even if omitted here

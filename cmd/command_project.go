@@ -79,7 +79,7 @@ func cmdProjectCreate(cmd *cobra.Command, _ []string) error {
 				Action:       "ensure",
 				Status:       "unknown",
 				CreatedByRun: false,
-				Reconciliation: "Rerun foundry-agent-manager project create with the same manifest; " +
+				Reconciliation: "Rerun fam project create with the same manifest; " +
 					"the operation is idempotent and will reconcile the current ARM state.",
 			})
 		}
@@ -109,7 +109,7 @@ func cmdProjectCreate(cmd *cobra.Command, _ []string) error {
 			endpoint,
 			created,
 			errs.Conflict(
-				"Foundry project %q was not visible through ARM after the ensure operation; rerun foundry-agent-manager project create to reconcile",
+				"Foundry project %q was not visible through ARM after the ensure operation; rerun fam project create to reconcile",
 				cfg.Project.Name,
 			),
 		)
@@ -225,12 +225,12 @@ func recordProjectCreateFailure(
 ) error {
 	status := "failed"
 	resourceStatus := "unavailable"
-	reconciliation := "Correct the reported error and rerun foundry-agent-manager project create."
+	reconciliation := "Correct the reported error and rerun fam project create."
 	if created {
 		status = "failed-partial"
 		resourceStatus = "created-reconciliation-required"
 		reconciliation = "The project was created through ARM but readiness was not fully verified. " +
-			"Rerun foundry-agent-manager project create with the same manifest to reconcile without creating a duplicate."
+			"Rerun fam project create with the same manifest to reconcile without creating a duplicate."
 	}
 	resourceErr := store.AddResource(receipt.ResourceChange{
 		Kind:           "foundryProject",

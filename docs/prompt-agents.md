@@ -1,7 +1,7 @@
 # Prompt Agents
 
 Complete reference for Foundry Prompt agent manifest authoring, deployment,
-and lifecycle management with `foundry-agent-manager`.
+and lifecycle management with `fam`.
 
 ## Why use the Prompt Agent path
 
@@ -180,7 +180,7 @@ Use `prompt init` to avoid starting from a blank file. It writes a starter manif
 adds safe defaults, and validates the result against the embedded schema:
 
 ```powershell
-foundry-agent-manager prompt init -f agent.yaml --name support-agent --model gpt-4o \
+fam prompt init -f agent.yaml --name support-agent --model gpt-4o \
   --project-resource-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/contoso/projects/support
 ```
 
@@ -208,7 +208,7 @@ agent deployment, making failures easier to diagnose and the project reusable
 across later deployments:
 
 ```powershell
-foundry-agent-manager project create -f agent.yaml
+fam project create -f agent.yaml
 ```
 
 The manifest must provide `project.resource_id` (the target project resource ID).
@@ -244,10 +244,10 @@ model_deployment:
 Run the live read-only gate before mutation:
 
 ```powershell
-foundry-agent-manager model deployment list -f agent.yaml
-foundry-agent-manager model deployment plan -f agent.yaml
-foundry-agent-manager model deployment create -f agent.yaml
-foundry-agent-manager prompt preflight -f agent.yaml
+fam model deployment list -f agent.yaml
+fam model deployment plan -f agent.yaml
+fam model deployment create -f agent.yaml
+fam prompt preflight -f agent.yaml
 ```
 
 Planning checks the exact account and regional model catalogs, SKU constraints,
@@ -256,9 +256,9 @@ Create is idempotent only for an exact `Succeeded` match. Existing drift fails
 closed; replacement requires an explicit delete and recreate decision.
 
 ```powershell
-foundry-agent-manager model deployment show -f agent.yaml
-foundry-agent-manager model deployment delete -f agent.yaml --dry-run
-foundry-agent-manager model deployment delete -f agent.yaml --yes
+fam model deployment show -f agent.yaml
+fam model deployment delete -f agent.yaml --dry-run
+fam model deployment delete -f agent.yaml --yes
 ```
 
 Hosted/azd-managed model deployments remain declared under the applicable
@@ -328,8 +328,8 @@ clean failure from one that needs reconciliation.
 ### Change-aware deployment
 
 ```powershell
-foundry-agent-manager prompt diff -f agent.yaml --output json
-foundry-agent-manager prompt deploy -f agent.yaml --if-changed
+fam prompt diff -f agent.yaml --output json
+fam prompt deploy -f agent.yaml --if-changed
 ```
 
 `prompt diff` compares only the fields this tool manages: description, prompt kind,
@@ -381,9 +381,9 @@ promote or roll back without rebuilding the agent.
 Moving traffic is always a separate, explicit step:
 
 ```powershell
-foundry-agent-manager prompt promote -f agent.yaml --agent-version 7
-foundry-agent-manager prompt promote -f agent.yaml --latest
-foundry-agent-manager prompt rollback -f agent.yaml --agent-version 6 --yes
+fam prompt promote -f agent.yaml --agent-version 7
+fam prompt promote -f agent.yaml --latest
+fam prompt rollback -f agent.yaml --agent-version 6 --yes
 ```
 
 ## Stable endpoint configuration
@@ -393,8 +393,8 @@ card independently from version rollout. This avoids coupling a metadata or
 access change to a production traffic change.
 
 ```powershell
-foundry-agent-manager prompt endpoint show -f agent.yaml
-foundry-agent-manager prompt endpoint configure -f agent.yaml
+fam prompt endpoint show -f agent.yaml
+fam prompt endpoint configure -f agent.yaml
 ```
 
 `prompt endpoint configure` applies the manifest's `endpoint` section and **never
@@ -419,8 +419,8 @@ rather than treating migration guidance that describes portal-only
 publication as the current automation boundary.
 
 ```powershell
-foundry-agent-manager prompt promote -f agent.yaml --agent-version 7
-foundry-agent-manager prompt m365 publish -f agent.yaml --publication examples\publication.example.yaml
+fam prompt promote -f agent.yaml --agent-version 7
+fam prompt m365 publish -f agent.yaml --publication examples\publication.example.yaml
 ```
 
 Prerequisites: the agent is pinned to one concrete active version and has a
@@ -452,9 +452,9 @@ Agent 365 blueprint and identity inspection is separate from Prompt deployment
 and Microsoft 365 publishing:
 
 ```powershell
-foundry-agent-manager agent365 binding status -f agent.yaml
-foundry-agent-manager agent365 binding status -f agent.yaml --resolve-identity
-foundry-agent-manager agent365 binding plan `
+fam agent365 binding status -f agent.yaml
+fam agent365 binding status -f agent.yaml --resolve-identity
+fam agent365 binding plan `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444 `
   -f agent.yaml
 ```
@@ -479,10 +479,10 @@ compatibility-only** operations (AzureCloud only). Uses ARM API
 `2026-05-15-preview`.
 
 ```powershell
-foundry-agent-manager prompt legacy status -f agent.yaml --application-name legacy-app --deployment-name legacy-deploy
-foundry-agent-manager prompt legacy deploy -f agent.yaml --application-name legacy-app --deployment-name legacy-deploy `
+fam prompt legacy status -f agent.yaml --application-name legacy-app --deployment-name legacy-deploy
+fam prompt legacy deploy -f agent.yaml --application-name legacy-app --deployment-name legacy-deploy `
   --agent-version 7 --route --yes
-foundry-agent-manager prompt legacy delete -f agent.yaml --application-name legacy-app --deployment-name legacy-deploy `
+fam prompt legacy delete -f agent.yaml --application-name legacy-app --deployment-name legacy-deploy `
   --application --yes
 ```
 
@@ -526,7 +526,7 @@ of relying on portal-only edits. Secret material remains external to the
 non-secret connection definition.
 
 ```powershell
-foundry-agent-manager project connection create -f agent.yaml `
+fam project connection create -f agent.yaml `
   --connection bing-grounding `
   --connection-type ApiKey `
   --target https://<service-endpoint> `
@@ -541,8 +541,8 @@ respond through the expected Foundry API now? They complement validation and
 preflight, but they invoke the model and therefore incur normal service cost.
 
 ```powershell
-foundry-agent-manager prompt deploy -f agent.yaml --smoke-test
-foundry-agent-manager prompt smoke -f agent.yaml --prompt "Reply with READY."
+fam prompt deploy -f agent.yaml --smoke-test
+fam prompt smoke -f agent.yaml --prompt "Reply with READY."
 ```
 
 A smoke test sends one **billable** request through the Foundry Responses API.

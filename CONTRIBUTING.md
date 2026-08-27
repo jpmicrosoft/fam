@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for improving `foundry-agent-manager`. This is a security-sensitive deployment
+Thanks for improving `fam`. This is a security-sensitive deployment
 tool: a bug can send an Azure credential or agent data to the wrong host. The
 checks below are not ceremony.
 
@@ -32,9 +32,9 @@ No linter beyond `gofmt` and `go vet` is required, and none is configured in CI.
 ```powershell
 git clone https://github.com/jpmicrosoft/fam.git
 cd fam
-go build -trimpath -o bin\foundry-agent-manager.exe .\cmd
-bin\foundry-agent-manager.exe validate -f examples\agent.example.yaml
-bin\foundry-agent-manager.exe plan -f examples\agent.full.example.yaml
+go build -trimpath -o bin\fam.exe .\cmd
+bin\fam.exe validate -f examples\agent.example.yaml
+bin\fam.exe plan -f examples\agent.full.example.yaml
 ```
 
 `bin/` and `*.exe` are ignored by [`.gitignore`](.gitignore). Never commit a
@@ -129,8 +129,8 @@ Every shipped agent manifest example must pass both offline commands:
 
 ```powershell
 Get-ChildItem examples\agent*.example.yaml | ForEach-Object {
-  bin\foundry-agent-manager.exe validate -f $_.FullName
-  bin\foundry-agent-manager.exe plan     -f $_.FullName
+  bin\fam.exe validate -f $_.FullName
+  bin\fam.exe plan     -f $_.FullName
 }
 ```
 
@@ -282,7 +282,7 @@ If a release run fails because of the workflow rather than the tagged source,
 fix the workflow on `main`, then use its manual `workflow_dispatch` input with
 the existing tag. Never move a published release tag to pick up a workflow fix.
 
-Verify a release by running `foundry-agent-manager version` from the archive and
+Verify a release by running `fam version` from the archive and
 confirming `version`, `commit`, and `builtAt` match the tag.
 
 ## Code style

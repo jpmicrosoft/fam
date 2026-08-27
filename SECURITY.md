@@ -1,6 +1,6 @@
 # Security
 
-This document describes the security model of `foundry-agent-manager`, the guarantees it
+This document describes the security model of `fam`, the guarantees it
 does and does not make, and how to operate and report issues against it.
 
 - [Supported versions](#supported-versions)
@@ -19,13 +19,13 @@ does and does not make, and how to operate and report issues against it.
 
 | Version | Status |
 |---|---|
-| `0.14.x` (current application version) | Supported. Fixes land here. |
+| `0.15.x` (current application version) | Supported. Fixes land here. |
 | Current `main` | Supported. This is where fixes are developed. |
 | Anything older | Not supported. |
 
-`0.14.1` is the version compiled into the binary
+`0.15.0` is the version compiled into the binary
 ([`internal/config/config.go`](internal/config/config.go)). Release assets are
-created only after the matching `v0.14.1` tag is pushed.
+created only after the matching `v0.15.0` tag is pushed.
 
 Always report against the current `main` if you can reproduce there.
 
@@ -372,7 +372,7 @@ unauthenticated channel.
 
 Please include:
 
-- affected version (`foundry-agent-manager version` output) and commit;
+- affected version (`fam version` output) and commit;
 - operating system and architecture;
 - the exact command line, with secrets and real hostnames redacted;
 - a minimal manifest that reproduces the problem;

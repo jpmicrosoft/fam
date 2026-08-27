@@ -2,18 +2,18 @@
 # (Azure public cloud).
 #
 # Validate the base (offline, no Azure, no approvals):
-#   foundry-agent-manager prompt validate -f examples/agent.base.example.yaml
+#   fam prompt validate -f examples/agent.base.example.yaml
 #
 # Plan two agents from the same structure:
-#   foundry-agent-manager prompt plan -f examples/agent.base.example.yaml \
+#   fam prompt plan -f examples/agent.base.example.yaml \
 #     --name support-agent --model <model-deployment-name> \
 #     --instructions-file instructions/support.md
-#   foundry-agent-manager prompt plan -f examples/agent.base.example.yaml \
+#   fam prompt plan -f examples/agent.base.example.yaml \
 #     --name intake-agent --model <model-deployment-name> \
 #     --instructions-file instructions/intake.md
 #
 # Deploy one of them:
-#   foundry-agent-manager prompt deploy -f examples/agent.base.example.yaml --if-changed \
+#   fam prompt deploy -f examples/agent.base.example.yaml --if-changed \
 #     --name support-agent --model <model-deployment-name> \
 #     --instructions-file instructions/support.md
 #

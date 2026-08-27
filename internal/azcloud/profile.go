@@ -1,4 +1,4 @@
-// Package azcloud defines the AzureCloud environment supported by foundry-agent-manager.
+// Package azcloud defines the AzureCloud environment supported by Foundry Agent Manager.
 package azcloud
 
 import (

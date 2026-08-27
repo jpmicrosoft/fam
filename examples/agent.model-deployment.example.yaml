@@ -1,11 +1,11 @@
 # Prompt Agent manifest with an explicitly managed account model deployment.
 #
 # Replace every placeholder, then run:
-#   foundry-agent-manager prompt validate -f examples/agent.model-deployment.example.yaml
-#   foundry-agent-manager model deployment plan -f examples/agent.model-deployment.example.yaml
-#   foundry-agent-manager model deployment create -f examples/agent.model-deployment.example.yaml
-#   foundry-agent-manager prompt preflight -f examples/agent.model-deployment.example.yaml
-#   foundry-agent-manager prompt deploy -f examples/agent.model-deployment.example.yaml --if-changed
+#   fam prompt validate -f examples/agent.model-deployment.example.yaml
+#   fam model deployment plan -f examples/agent.model-deployment.example.yaml
+#   fam model deployment create -f examples/agent.model-deployment.example.yaml
+#   fam prompt preflight -f examples/agent.model-deployment.example.yaml
+#   fam prompt deploy -f examples/agent.model-deployment.example.yaml --if-changed
 #
 # Model creation is never implicit in prompt deploy. The live model plan checks
 # exact catalog availability, SKU capacity shape, quota, and regional capacity.

@@ -198,15 +198,8 @@ try {
 
     $hostBuildDirectory = Join-Path $OutputDirectory "host"
     New-Item -ItemType Directory -Force -Path $hostBuildDirectory | Out-Null
-    $hostBinaryName = if ($goos -eq "windows") {
-        "foundry-agent-manager.exe"
-    }
-    else {
-        "foundry-agent-manager"
-    }
+    $hostBinaryName = if ($goos -eq "windows") { "fam.exe" } else { "fam" }
     $hostBinary = Join-Path $hostBuildDirectory $hostBinaryName
-    $hostAliasName = if ($goos -eq "windows") { "fam.exe" } else { "fam" }
-    $hostAlias = Join-Path $hostBuildDirectory $hostAliasName
     Invoke-GateStep "host build" {
         Invoke-CheckedNative -Command "go" -Arguments @(
             "build",
@@ -215,7 +208,6 @@ try {
             $hostBinary,
             "./cmd"
         ) -LogName "go-build.log"
-        Copy-Item -Path $hostBinary -Destination $hostAlias -Force
     }
 
     Invoke-GateStep "executable metadata" {
@@ -226,11 +218,9 @@ try {
         Save-StructuredProbe -Binary $hostBinary -Arguments @("version", "--output", "yaml") `
             -OutputPath (Join-Path $OutputDirectory "version.yaml")
         Save-StructuredProbe -Binary $hostBinary -Arguments @("--help") `
-            -OutputPath (Join-Path $OutputDirectory "root-help.txt")
-        Save-StructuredProbe -Binary $hostAlias -Arguments @("-version") `
-            -OutputPath (Join-Path $OutputDirectory "fam-version.txt")
-        Save-StructuredProbe -Binary $hostAlias -Arguments @("--help") `
             -OutputPath (Join-Path $OutputDirectory "fam-root-help.txt")
+        Save-StructuredProbe -Binary $hostBinary -Arguments @("-version") `
+            -OutputPath (Join-Path $OutputDirectory "fam-version.txt")
     }
 
     Invoke-GateStep "shell completions" {
@@ -238,8 +228,6 @@ try {
         New-Item -ItemType Directory -Force -Path $completionDirectory | Out-Null
         foreach ($shell in @("bash", "zsh", "fish", "powershell")) {
             Save-StructuredProbe -Binary $hostBinary -Arguments @("completion", $shell) `
-                -OutputPath (Join-Path $completionDirectory "foundry-agent-manager.$shell")
-            Save-StructuredProbe -Binary $hostAlias -Arguments @("completion", $shell) `
                 -OutputPath (Join-Path $completionDirectory "fam.$shell")
         }
     }
@@ -360,15 +348,12 @@ try {
                     $env:GOOS = $target[0]
                     $env:GOARCH = $target[1]
                     $extension = if ($env:GOOS -eq "windows") { ".exe" } else { "" }
-                    $name = "foundry-agent-manager_$($env:GOOS)_$($env:GOARCH)$extension"
+                    $name = "fam_$($env:GOOS)_$($env:GOARCH)$extension"
                     $output = Join-Path $crossDirectory $name
                     & go build -trimpath -o $output ./cmd
                     if ($LASTEXITCODE -ne 0) {
                         throw "Cross-compilation failed for $($env:GOOS)/$($env:GOARCH)"
                     }
-                    Copy-Item -Path $output -Destination (
-                        Join-Path $crossDirectory "fam_$($env:GOOS)_$($env:GOARCH)$extension"
-                    ) -Force
                 }
             }
             finally {

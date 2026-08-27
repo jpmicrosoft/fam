@@ -1,12 +1,12 @@
 #!/bin/sh
-# install.sh — verified installer for foundry-agent-manager (POSIX shell)
+# install.sh — verified installer for fam (POSIX shell)
 #
-# Downloads a prebuilt release binary and its fam shorthand. It does not compile
-# source code, and Go is not required to install or run the downloaded CLI.
+# Downloads the prebuilt fam release binary. It does not compile source code,
+# and Go is not required to install or run the downloaded CLI.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/REPO/main/scripts/install.sh | sh
-#   ./scripts/install.sh --version v0.14.1 --install-dir "$HOME/.local/bin"
+#   ./scripts/install.sh --version v0.15.0 --install-dir "$HOME/.local/bin"
 #
 # Environment:
 #   FAM_INSTALL_TOKEN / GITHUB_TOKEN / GH_TOKEN
@@ -27,11 +27,11 @@ usage() {
   cat <<EOF
 Usage: install.sh [OPTIONS]
 
-Downloads and installs prebuilt foundry-agent-manager and fam release binaries.
+Downloads and installs the prebuilt fam release binary.
 Go is not required; this script does not compile source code.
 
 Options:
-  --version VERSION     Install a specific published tag (e.g. v0.14.1).
+  --version VERSION     Install a specific published tag (e.g. v0.15.0).
                         Omit for latest release.
   --install-dir DIR     Destination directory (default: \$HOME/.local/bin)
   --repo OWNER/REPO    GitHub repository (default: $DEFAULT_REPO)
@@ -118,10 +118,12 @@ api_get() {
   fi
 }
 
-# --- Resolve version ---
+# --- Resolve version and release assets ---
+RELEASE_JSON=""
 if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
   echo "Resolving latest release..."
-  VERSION="$(api_get "https://api.github.com/repos/${REPO}/releases/latest" | \
+  RELEASE_JSON="$(api_get "https://api.github.com/repos/${REPO}/releases/latest")"
+  VERSION="$(printf '%s' "$RELEASE_JSON" | \
     sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
   if [ -z "$VERSION" ]; then
     echo "ERROR: Could not determine latest release for ${REPO}" >&2
@@ -132,12 +134,25 @@ if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
     exit 1
   fi
 fi
+if [ -z "$RELEASE_JSON" ]; then
+  RELEASE_JSON="$(api_get "https://api.github.com/repos/${REPO}/releases/tags/${VERSION}")"
+fi
 
 VERSION_NUM="${VERSION#v}"
-ARCHIVE="foundry-agent-manager_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"
+PREFERRED_ARCHIVE="fam_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"
+LEGACY_ARCHIVE="foundry-agent-manager_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"
+if printf '%s' "$RELEASE_JSON" | grep -Fq "\"${PREFERRED_ARCHIVE}\""; then
+  ARCHIVE="$PREFERRED_ARCHIVE"
+elif printf '%s' "$RELEASE_JSON" | grep -Fq "\"${LEGACY_ARCHIVE}\""; then
+  ARCHIVE="$LEGACY_ARCHIVE"
+  echo "Using the historical archive name for pre-transition release ${VERSION}; only fam will be installed."
+else
+  echo "ERROR: Release ${VERSION} does not contain ${PREFERRED_ARCHIVE} or its supported historical equivalent." >&2
+  exit 1
+fi
 BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 
-echo "Installing prebuilt foundry-agent-manager ${VERSION} (${OS}/${ARCH})..."
+echo "Installing prebuilt fam ${VERSION} (${OS}/${ARCH})..."
 echo "Go is not required; this installer downloads a compiled release binary."
 
 # --- Download archive and checksums ---
@@ -182,15 +197,13 @@ echo "Checksum verified."
 tar -xzf "${TMPDIR_INST}/${ARCHIVE}" -C "${TMPDIR_INST}"
 
 mkdir -p "$INSTALL_DIR"
-mv "${TMPDIR_INST}/foundry-agent-manager" "${INSTALL_DIR}/foundry-agent-manager"
-if [ -f "${TMPDIR_INST}/fam" ]; then
-  mv "${TMPDIR_INST}/fam" "${INSTALL_DIR}/fam"
-else
-  cp "${INSTALL_DIR}/foundry-agent-manager" "${INSTALL_DIR}/fam"
-fi
-chmod +x "${INSTALL_DIR}/foundry-agent-manager" "${INSTALL_DIR}/fam"
+mv "${TMPDIR_INST}/fam" "${INSTALL_DIR}/fam"
+chmod +x "${INSTALL_DIR}/fam"
 
-echo "Installed foundry-agent-manager and fam to ${INSTALL_DIR}"
+# Remove the executable name installed by releases before the fam-only transition.
+rm -f "${INSTALL_DIR}/foundry-agent-manager"
+
+echo "Installed fam to ${INSTALL_DIR}"
 
 # --- Optionally modify profile ---
 if [ "$MODIFY_PROFILE" = true ]; then
@@ -206,4 +219,4 @@ if [ "$MODIFY_PROFILE" = true ]; then
   done
 fi
 
-echo "Done. Run 'fam -version' or 'foundry-agent-manager --version' to verify."
+echo "Done. Run 'fam --version' to verify."

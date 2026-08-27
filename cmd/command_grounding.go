@@ -296,7 +296,7 @@ func cmdGroundingSync(cmd *cobra.Command, _ []string) (returnErr error) {
 	staleRemoved := removedManagedAttachments(runtime.definition, attachments)
 	if len(staleRemoved) > 0 && !getBoolFlag(cmd, "prune") {
 		return errs.Conflict(
-			"managed vector store %q contains %d managed file(s) removed from the manifest; rerun with --prune --yes or use foundry-agent-manager grounding file delete",
+			"managed vector store %q contains %d managed file(s) removed from the manifest; rerun with --prune --yes or use fam grounding file delete",
 			runtime.definition.Name,
 			len(staleRemoved),
 		)
@@ -1068,7 +1068,7 @@ func resolveManagedVectorStoreIDs(
 		}
 		if remote == nil {
 			return nil, errs.NotFound(
-				"managed vector store %q does not exist; run foundry-agent-manager grounding sync first",
+				"managed vector store %q does not exist; run fam grounding sync first",
 				definition.Name,
 			)
 		}
@@ -1079,7 +1079,7 @@ func resolveManagedVectorStoreIDs(
 		status := evaluateGroundingStatus(definition, remote, files)
 		if !status.InSync {
 			return nil, errs.Conflict(
-				"managed vector store %q is not synchronized to desired hash %s; run foundry-agent-manager grounding sync before deploying",
+				"managed vector store %q is not synchronized to desired hash %s; run fam grounding sync before deploying",
 				definition.Name,
 				definition.DesiredHash,
 			)

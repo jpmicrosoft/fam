@@ -1,4 +1,4 @@
-// foundry-agent-manager: deploy and manage Microsoft Foundry prompt agents from standalone manifests.
+// fam: deploy and manage Microsoft Foundry prompt agents from standalone manifests.
 package main
 
 import (
@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -16,25 +15,15 @@ import (
 )
 
 func main() {
-	os.Exit(executeNamed(os.Args[0], os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+	os.Exit(execute(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
 func execute(args []string, in io.Reader, out, errOut io.Writer) int {
-	return executeNamed("foundry-agent-manager", args, in, out, errOut)
-}
-
-func executeNamed(
-	executablePath string,
-	args []string,
-	in io.Reader,
-	out,
-	errOut io.Writer,
-) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	args = normalizeRootArgs(args)
-	root := rootCmdFor(executableName(executablePath))
+	root := rootCmd()
 	primeOutputFlag(root, args)
 	root.SetArgs(args)
 	root.SetIn(in)
@@ -59,14 +48,6 @@ func executeNamed(
 		return code
 	}
 	return 0
-}
-
-func executableName(path string) string {
-	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	if strings.EqualFold(name, "fam") {
-		return "fam"
-	}
-	return "foundry-agent-manager"
 }
 
 func normalizeRootArgs(args []string) []string {

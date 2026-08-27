@@ -13,7 +13,7 @@
   redacted summary report with passed/skipped/failed steps.
 
 .PARAMETER Binary
-  Path to a built foundry-agent-manager CLI binary.
+  Path to a built fam CLI binary.
 
 .PARAMETER BlueprintAppId
   Optional Agent 365 blueprint application (client) ID.

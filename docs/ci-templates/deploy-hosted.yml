@@ -72,7 +72,7 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}          # Replace or set as variable
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}  # Replace or set as variable
 
-      - name: Install foundry-agent-manager
+      - name: Install fam
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.FAM_INSTALL_TOKEN || github.token }}
@@ -122,13 +122,13 @@ jobs:
 
       - name: Validate Hosted workspace
         run: |
-          foundry-agent-manager hosted validate \
+          fam hosted validate \
             --workspace "$WORKSPACE" \
             --output json
 
       - name: Plan Hosted deployment
         run: |
-          foundry-agent-manager hosted plan \
+          fam hosted plan \
             --workspace "$WORKSPACE" \
             --environment "$AZD_ENVIRONMENT" \
             --cloud AzureCloud \
@@ -136,7 +136,7 @@ jobs:
 
       - name: Preflight Hosted deployment
         run: |
-          foundry-agent-manager hosted preflight \
+          fam hosted preflight \
             --workspace "$WORKSPACE" \
             --environment "$AZD_ENVIRONMENT" \
             --accept-preview \
@@ -160,7 +160,7 @@ jobs:
           if [ "$PROVISION" = "true" ]; then
             args+=(--provision --preview-provision)
           fi
-          foundry-agent-manager "${args[@]}"
+          fam "${args[@]}"
 
       - name: Upload receipt
         if: always()

@@ -193,7 +193,7 @@ func quickstartPrompt(
 		Name: name,
 		OperatorActions: []string{
 			fmt.Sprintf(
-				"Confirm the Foundry project and model deployment %q already exist. If the child project is missing, add project.location to the manifest, then run foundry-agent-manager project-create before foundry-agent-manager preflight.",
+				"Confirm the Foundry project and model deployment %q already exist. If the child project is missing, add project.location to the manifest, then run fam project-create before fam preflight.",
 				model,
 			),
 		},
@@ -1122,7 +1122,7 @@ func addHostedCoverageChecks(result *doctorResult) {
 		result,
 		"hosted-smoke-test",
 		"agent invocation is intentionally skipped because it can create billable usage",
-		"Run foundry-agent-manager hosted smoke explicitly after deployment when billable invocation is approved.",
+		"Run fam hosted smoke explicitly after deployment when billable invocation is approved.",
 	)
 }
 

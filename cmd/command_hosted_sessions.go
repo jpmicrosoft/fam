@@ -230,7 +230,7 @@ func hostedSmokeProtocol(runtime *hostedRESTRuntime, requested string) (string, 
 	if requested != "" {
 		if requested == "invocations_ws" {
 			return "", errs.Config(
-				"invocations_ws uses a developer-defined WebSocket framing contract and is not supported by foundry-agent-manager hosted smoke",
+				"invocations_ws uses a developer-defined WebSocket framing contract and is not supported by fam hosted smoke",
 			)
 		}
 		if requested != "responses" && requested != "invocations" {

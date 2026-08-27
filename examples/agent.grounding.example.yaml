@@ -1,12 +1,12 @@
 # Managed document grounding example.
 #
 # Offline:
-#   foundry-agent-manager grounding validate -f examples/agent.grounding.example.yaml
-#   foundry-agent-manager grounding plan -f examples/agent.grounding.example.yaml
+#   fam grounding validate -f examples/agent.grounding.example.yaml
+#   fam grounding plan -f examples/agent.grounding.example.yaml
 #
 # Online:
-#   foundry-agent-manager grounding sync -f examples/agent.grounding.example.yaml
-#   foundry-agent-manager prompt deploy -f examples/agent.grounding.example.yaml --if-changed
+#   fam grounding sync -f examples/agent.grounding.example.yaml
+#   fam prompt deploy -f examples/agent.grounding.example.yaml --if-changed
 #
 # Deploy resolves the logical name only after grounding sync has completed and
 # the remote desired hash matches this local document set.
@@ -27,7 +27,7 @@ project:
 grounding:
   vector_stores:
     - name: product-docs
-      description: Product guidance managed by foundry-agent-manager.
+      description: Product guidance managed by fam.
       files:
         - path: knowledge/product-guide.md
 

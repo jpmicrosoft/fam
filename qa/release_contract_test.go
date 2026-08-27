@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -36,7 +37,6 @@ func TestOfflineReleaseRunnerKeepsEveryGate(t *testing.T) {
 		`@("test", "-count=1", "./...")`,
 		`@("test", "-count=1", "-race", "./...")`,
 		`@("completion", $shell)`,
-		`$hostAlias`,
 		`@("-version")`,
 		`"fam_$($env:GOOS)_$($env:GOARCH)$extension"`,
 		`-Filter "agent*.example.yaml"`,
@@ -197,12 +197,96 @@ func TestCIAndReleaseInvokeExecutableQualification(t *testing.T) {
 		"needs: ci",
 		"cp scripts/install.sh dist/install.sh",
 		"cp scripts/install.ps1 dist/install.ps1",
-		`cp "dist/${bin}${ext}" "dist/fam${ext}"`,
-		`"fam${ext}"`,
+		`bin="fam"`,
+		`archive="fam_${VERSION}_${os}_${arch}"`,
+		`-o "dist/${bin}${ext}"`,
+		`zip "../dist/${archive}.zip" "${bin}${ext}" LICENSE THIRD_PARTY_NOTICES.txt`,
+		`tar -czf "dist/${archive}.tar.gz" -C dist "${bin}" LICENSE THIRD_PARTY_NOTICES.txt`,
 		"sha256sum *.tar.gz *.zip install.sh install.ps1",
 		".release-tooling/scripts/Generate-ThirdPartyNotices.ps1",
 		"-SourceRoot",
 	)
+	for name, pattern := range map[string]string{
+		"Windows": `(?m)^\s+\(cd dist && zip "\.\./dist/\$\{archive\}\.zip" "\$\{bin\}\$\{ext\}" LICENSE THIRD_PARTY_NOTICES\.txt && rm "\$\{bin\}\$\{ext\}"\)$`,
+		"POSIX":   `(?m)^\s+tar -czf "dist/\$\{archive\}\.tar\.gz" -C dist "\$\{bin\}" LICENSE THIRD_PARTY_NOTICES\.txt && rm "dist/\$\{bin\}"$`,
+	} {
+		if !regexp.MustCompile(pattern).MatchString(ci) {
+			t.Errorf("%s archive command must contain exactly fam, LICENSE, and THIRD_PARTY_NOTICES.txt", name)
+		}
+	}
+	for _, forbidden := range []string{
+		`bin="foundry-agent-manager"`,
+		`archive="foundry-agent-manager_`,
+		`cp "dist/${bin}${ext}" "dist/fam${ext}"`,
+		`$hostAlias`,
+	} {
+		if strings.Contains(ci, forbidden) || strings.Contains(repositoryFile(t, "scripts", "Test-Release.ps1"), forbidden) {
+			t.Errorf("release tooling still contains retired executable/alias logic %q", forbidden)
+		}
+	}
+}
+
+func TestCurrentDocumentationUsesCanonicalFamCommand(t *testing.T) {
+	currentFiles := [][]string{
+		{"README.md"},
+		{"CONTRIBUTING.md"},
+		{"SECURITY.md"},
+		{".github", "ISSUE_TEMPLATE", "bug_report.yml"},
+		{"docs", "README.md"},
+		{"docs", "agent365.md"},
+		{"docs", "command-reference.md"},
+		{"docs", "development-and-releases.md"},
+		{"docs", "faq.md"},
+		{"docs", "hosted-agents.md"},
+		{"docs", "log-analytics-receipts.md"},
+		{"docs", "prompt-agents.md"},
+		{"docs", "rbac-and-separation-of-duties.md"},
+		{"docs", "security-and-operations.md"},
+		{"docs", "tools-and-grounding.md"},
+		{"docs", "ci-templates", "README.md"},
+		{"docs", "ci-templates", "deploy-hosted.yml"},
+		{"docs", "ci-templates", "deploy-prompt.yml"},
+	}
+	for _, elements := range currentFiles {
+		content := repositoryFile(t, elements...)
+		for _, forbidden := range []string{
+			"`foundry-agent-manager ",
+			"\nfoundry-agent-manager ",
+			"foundry-agent-manager.exe",
+			"foundry-agent-manager_<version>",
+			"bin\\foundry-agent-manager",
+		} {
+			if strings.Contains(content, forbidden) {
+				t.Errorf("%s contains retired command/distribution reference %q", filepath.Join(elements...), forbidden)
+			}
+		}
+	}
+}
+
+func TestBreakingRenameIsProminentAndArchivesAreDocumented(t *testing.T) {
+	for _, elements := range [][]string{{"README.md"}, {"CHANGELOG.md"}} {
+		content := repositoryFile(t, elements...)
+		requireText(t, content,
+			"Starting with `0.15.0`",
+			"`foundry-agent-manager` must change",
+			"remains named",
+			"Foundry Agent Manager",
+		)
+	}
+
+	readme := repositoryFile(t, "README.md")
+	requireText(t, readme,
+		"provide only `fam`",
+		"`fam_<version>_linux_amd64.tar.gz`",
+		"`fam_<version>_linux_arm64.tar.gz`",
+		"`fam_<version>_darwin_amd64.tar.gz`",
+		"`fam_<version>_darwin_arm64.tar.gz`",
+		"`fam_<version>_windows_amd64.zip`",
+		"`fam_<version>_windows_arm64.zip`",
+		"exactly one executable named `fam` or `fam.exe`",
+		"`LICENSE` and `THIRD_PARTY_NOTICES.txt`",
+	)
+	requireText(t, repositoryFile(t, "CHANGELOG.md"), "provide only the `fam` executable")
 }
 
 func TestLiveEvaluatorCalibrationWorkflowIsManualAndProtected(t *testing.T) {

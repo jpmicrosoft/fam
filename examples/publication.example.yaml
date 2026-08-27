@@ -9,7 +9,7 @@
 # prompt m365 publish requires:
 #   - cloud: AzureCloud, the only supported cloud;
 #   - the agent already deployed, with exactly one active (pinned) version
-#     (run `foundry-agent-manager prompt promote` first if the agent still routes to
+#     (run `fam prompt promote` first if the agent still routes to
 #     @latest);
 #   - the agent to have a system-assigned instance identity with a principal ID
 #     (instance_identity.principal_id), which Foundry assigns automatically to
@@ -33,8 +33,8 @@
 # without retrying. Inspect the receipt and the Foundry agent's publication
 # state before ever re-running prompt m365 publish for the same version.
 #
-# Example invocation (run after `foundry-agent-manager prompt promote` has pinned a version):
-#   foundry-agent-manager prompt m365 publish -f agent.yaml --publication examples\publication.example.yaml
+# Example invocation (run after `fam prompt promote` has pinned a version):
+#   fam prompt m365 publish -f agent.yaml --publication examples\publication.example.yaml
 #
 # A Bot Service identity/tenant/endpoint change on an existing bot is refused
 # unless you also pass --allow-bot-update, after reviewing the impact.

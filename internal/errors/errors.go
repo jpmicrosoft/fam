@@ -1,4 +1,4 @@
-// Package errors defines typed errors for foundry-agent-manager.
+// Package errors defines typed errors for Foundry Agent Manager.
 package errors
 
 import (
@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// FoundryAgentManagerError is the base error type for all foundry-agent-manager failures.
+// FoundryAgentManagerError is the base error type for all Foundry Agent Manager failures.
 type FoundryAgentManagerError struct {
 	Kind      string
 	Message   string
@@ -187,7 +187,7 @@ func Remediation(err error) []string {
 	switch KindOf(err) {
 	case "manifest":
 		return []string{
-			"Run foundry-agent-manager prompt validate -f <manifest> after correcting the reported field or contained file.",
+			"Run fam prompt validate -f <manifest> after correcting the reported field or contained file.",
 		}
 	case "auth":
 		return []string{
@@ -213,13 +213,13 @@ func Remediation(err error) []string {
 		if strings.Contains(message, "model deployment") {
 			return []string{
 				"Verify agent.model exactly matches a deployment name available to the selected Foundry project.",
-				"Define model_deployment, run foundry-agent-manager model deployment plan -f <manifest>, create it with foundry-agent-manager model deployment create -f <manifest>, then rerun foundry-agent-manager prompt preflight -f <manifest>.",
+				"Define model_deployment, run fam model deployment plan -f <manifest>, create it with fam model deployment create -f <manifest>, then rerun fam prompt preflight -f <manifest>.",
 			}
 		}
 		if strings.Contains(message, "project") {
 			return []string{
 				"Verify project.name and the Foundry account coordinates in the manifest.",
-				"Create the child project with foundry-agent-manager project create, or use foundry-agent-manager prompt deploy --ensure-project with complete ARM coordinates.",
+				"Create the child project with fam project create, or use fam prompt deploy --ensure-project with complete ARM coordinates.",
 			}
 		}
 	case "config":
@@ -245,32 +245,32 @@ func Remediation(err error) []string {
 			(strings.Contains(message, "does not exist") ||
 				strings.Contains(message, "no default azd environment exists")):
 			return []string{
-				"Run foundry-agent-manager hosted environment create --workspace <workspace> --environment <environment>, or rerun with an existing environment name.",
-				"Then rerun foundry-agent-manager hosted preflight with the same --environment value.",
+				"Run fam hosted environment create --workspace <workspace> --environment <environment>, or rerun with an existing environment name.",
+				"Then rerun fam hosted preflight with the same --environment value.",
 			}
 		case strings.Contains(message, "azd") || strings.Contains(message, "extension"):
 			return []string{
-				"Run foundry-agent-manager hosted info to see the required Azure Developer CLI and Hosted Agent extension versions.",
-				"Install or select the required tooling, then rerun foundry-agent-manager hosted preflight.",
+				"Run fam hosted info to see the required Azure Developer CLI and Hosted Agent extension versions.",
+				"Install or select the required tooling, then rerun fam hosted preflight.",
 			}
 		case strings.Contains(message, "requires project.subscription_id") ||
 			strings.Contains(message, "requires complete project arm coordinates") ||
 			strings.Contains(message, "require subscription_id, resource_group, account_name"):
 			return []string{
 				"Add project.subscription_id, project.resource_group, project.account_name, and project.name to the manifest.",
-				"Run foundry-agent-manager prompt validate -f <manifest>, then retry the project or APIM operation.",
+				"Run fam prompt validate -f <manifest>, then retry the project or APIM operation.",
 			}
 		case strings.Contains(message, "--manifest is required"):
 			return []string{
-				"Pass -f <manifest>, or run foundry-agent-manager quickstart to create one.",
+				"Pass -f <manifest>, or run fam quickstart to create one.",
 			}
 		case strings.Contains(message, "unknown command"):
 			return []string{
-				"Run foundry-agent-manager --help to see all available commands.",
+				"Run fam --help to see all available commands.",
 			}
 		case strings.Contains(message, "unknown flag") || strings.Contains(message, "unknown shorthand flag"):
 			return []string{
-				"Check the flag name with foundry-agent-manager <command path> --help.",
+				"Check the flag name with fam <command path> --help.",
 			}
 		case strings.Contains(message, "preview") && strings.Contains(message, "accept"):
 			return []string{
@@ -280,7 +280,7 @@ func Remediation(err error) []string {
 	case "tool":
 		if strings.Contains(message, "azd") || strings.Contains(message, "hosted") {
 			return []string{
-				"Run foundry-agent-manager hosted preflight to verify the pinned tooling contract before retrying.",
+				"Run fam hosted preflight to verify the pinned tooling contract before retrying.",
 			}
 		}
 	}

@@ -171,7 +171,7 @@ func cmdModelDeploymentPlan(cmd *cobra.Command, _ []string) error {
 		return errs.WithNextSteps(
 			err,
 			"Review the exact model version, SKU, capacity, regional capacity, and quota returned by Azure.",
-			"Run foundry-agent-manager model deployment list -f <manifest> to inspect existing deployment names before retrying.",
+			"Run fam model deployment list -f <manifest> to inspect existing deployment names before retrying.",
 		)
 	}
 	result := modelDeploymentPlanResult{
@@ -204,7 +204,7 @@ func cmdModelDeploymentCreate(cmd *cobra.Command, _ []string) error {
 		return errs.WithNextSteps(
 			err,
 			"Correct the live model, SKU, capacity, quota, or regional-capacity failure before retrying create.",
-			"Run foundry-agent-manager model deployment plan -f <manifest> with the same flags.",
+			"Run fam model deployment plan -f <manifest> with the same flags.",
 		)
 	}
 	store, err := newModelDeploymentOperationStore(
@@ -241,7 +241,7 @@ func cmdModelDeploymentCreate(cmd *cobra.Command, _ []string) error {
 			CreatedByRun: false,
 			Reconciliation: reconciliationForMutation(
 				err,
-				"Inspect the deployment with foundry-agent-manager model deployment show before retrying; Azure may have accepted the create request.",
+				"Inspect the deployment with fam model deployment show before retrying; Azure may have accepted the create request.",
 			),
 		})
 		return completeModelDeploymentFailure(store, err)
@@ -361,7 +361,7 @@ func cmdModelDeploymentDelete(cmd *cobra.Command, _ []string) error {
 			CreatedByRun: false,
 			Reconciliation: reconciliationForMutation(
 				err,
-				"Inspect the deployment with foundry-agent-manager model deployment show before retrying; Azure may have accepted the delete request.",
+				"Inspect the deployment with fam model deployment show before retrying; Azure may have accepted the delete request.",
 			),
 		})
 		return completeModelDeploymentFailure(store, err)

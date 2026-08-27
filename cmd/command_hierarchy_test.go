@@ -49,11 +49,11 @@ func TestEveryFlatCommandMapsToEquivalentCanonicalCommand(t *testing.T) {
 				}
 			}
 
-			canonicalInvocation := "foundry-agent-manager " + strings.Join(route.Path, " ")
+			canonicalInvocation := "fam " + strings.Join(route.Path, " ")
 			if !strings.Contains(canonical.Example, canonicalInvocation) {
 				t.Fatalf("canonical examples do not use %q:\n%s", canonicalInvocation, canonical.Example)
 			}
-			if !strings.Contains(legacy.Example, "foundry-agent-manager "+route.Legacy) {
+			if !strings.Contains(legacy.Example, "fam "+route.Legacy) {
 				t.Fatalf("compatibility examples do not use the flat command:\n%s", legacy.Example)
 			}
 		})

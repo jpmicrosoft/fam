@@ -144,10 +144,10 @@ func cmdConnectionUpsert(cmd *cobra.Command, _ []string, requireExisting bool) e
 		return err
 	}
 	if requireExisting && !current.Exists {
-		return errs.NotFound("connection %q does not exist; use foundry-agent-manager project connection create", name)
+		return errs.NotFound("connection %q does not exist; use fam project connection create", name)
 	}
 	if !requireExisting && current.Exists {
-		return errs.Config("connection %q already exists; use foundry-agent-manager project connection update", name)
+		return errs.Config("connection %q already exists; use fam project connection update", name)
 	}
 	definition, secrets, err := connectionDefinitionFromFlags(cmd, runtime.Resolved.BaseDir)
 	if err != nil {
@@ -294,7 +294,7 @@ func cmdConnectorCreate(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	if current.Exists {
-		return errs.Config("connection %q already exists; use foundry-agent-manager connector status or foundry-agent-manager connector configure", connectionName)
+		return errs.Config("connection %q already exists; use fam connector status or fam connector configure", connectionName)
 	}
 	catalog, err := connection.GetConnectorCatalogContext(
 		ctx,

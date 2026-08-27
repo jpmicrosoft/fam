@@ -23,10 +23,10 @@ if (-not (Test-Path -LiteralPath $Manifest -PathType Leaf)) {
 
 if ([string]::IsNullOrWhiteSpace($Binary)) {
     $executableName = if ($IsWindows) {
-        "foundry-agent-manager.exe"
+        "fam.exe"
     }
     else {
-        "foundry-agent-manager"
+        "fam"
     }
     $candidate = Join-Path $repoRoot (Join-Path "bin" $executableName)
     if (Test-Path -LiteralPath $candidate -PathType Leaf) {
@@ -41,7 +41,7 @@ elseif (-not [IO.Path]::IsPathRooted($Binary)) {
 }
 $Binary = [IO.Path]::GetFullPath($Binary)
 if (-not (Test-Path -LiteralPath $Binary -PathType Leaf)) {
-    throw "foundry-agent-manager binary does not exist: $Binary"
+    throw "fam binary does not exist: $Binary"
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {

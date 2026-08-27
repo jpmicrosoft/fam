@@ -335,7 +335,7 @@ func TestGlobalFeatureFlags(t *testing.T) {
 
 func TestRootMetadata(t *testing.T) {
 	root := rootCmd()
-	if root.Use != "foundry-agent-manager" {
+	if root.Use != "fam" {
 		t.Fatalf("unexpected executable name: %s", root.Use)
 	}
 	if root.Version != config.Version {

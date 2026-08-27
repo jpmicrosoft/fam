@@ -194,7 +194,7 @@ func TestSecurityRemediationOnlyTargetsExplicitApprovals(t *testing.T) {
 }
 
 func TestRemediationForUnknownCommandAndFlag(t *testing.T) {
-	unknownCmd := Config("unknown command %q for %q", "foobar", "foundry-agent-manager")
+	unknownCmd := Config("unknown command %q for %q", "foobar", "fam")
 	if got := Remediation(unknownCmd); len(got) == 0 || !strings.Contains(got[0], "--help") {
 		t.Fatalf("unknown command should suggest --help, got %#v", got)
 	}
@@ -227,7 +227,7 @@ func TestRemediationForProjectEndpointShape(t *testing.T) {
 
 func TestMissingAZDEnvironmentRemediationIsSpecific(t *testing.T) {
 	got := Remediation(Config(
-		`Azure Developer CLI environment check failed: azd environment "dev" does not exist; create it outside foundry-agent-manager`,
+		`Azure Developer CLI environment check failed: azd environment "dev" does not exist; create it outside Foundry Agent Manager`,
 	))
 	if len(got) != 2 ||
 		!strings.Contains(got[0], "hosted environment create") ||

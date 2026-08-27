@@ -141,7 +141,7 @@ func EnsureProjectContext(ctx context.Context, project *config.ProjectSpec, cred
 		"identity": map[string]interface{}{"type": "SystemAssigned"},
 		"properties": map[string]interface{}{
 			"displayName": defaultStr(project.DisplayName, project.Name),
-			"description": defaultStr(project.Description, "Provisioned by foundry-agent-manager."),
+			"description": defaultStr(project.Description, "Provisioned by Foundry Agent Manager."),
 		},
 	}
 	bodyJSON, err := json.Marshal(body)

@@ -26,10 +26,8 @@ operations layer between your agent source and Microsoft Foundry. It manages
 Agents** through validated `azure.yaml` workspaces and a pinned `azd ai agent`
 contract. Infrastructure provisioning remains explicit.
 
-The installed `fam` executable is an equivalent shorthand for
-`foundry-agent-manager`; commands, flags, exit codes, and structured output are
-the same. The CLI requires no runtime language dependency or external state
-backend.
+The installed executable and canonical command are both named `fam`. The CLI
+requires no runtime language dependency or external state backend.
 
 > **Independent project.** FAM is independently maintained and is not an
 > official Microsoft product or supported Microsoft offering.
@@ -81,7 +79,7 @@ auditable deployment evidence.
 - **AzureCloud only.** Azure Government is rejected before credential
   acquisition or network access until dedicated qualification is complete.
 
-> **Preview status.** This tool is version 0.14.1. Hosted Agents require
+> **Preview status.** This tool is version 0.15.0. Hosted Agents require
 > `--accept-preview`. See [Support status](#support-status-and-release-boundaries)
 > for the full boundary table.
 
@@ -123,7 +121,7 @@ Answer one question: **Does your agent need custom application code?**
 | **No** — my agent is instructions + a model + declarative tools | **[Prompt Agent](#quick-start-prompt-agent)** | A Foundry account, an existing or explicitly planned model deployment, and a supported Azure identity such as an applicable developer credential or managed identity |
 | **Yes** — I need Python, .NET, or a container runtime | **[Hosted Agent](#quick-start-hosted-agent)** | A Foundry account plus `azd` 1.27.1+ and the pinned Hosted extension; model infrastructure remains declared in `azure.yaml` |
 | **I already have an Agent 365 blueprint** | **[Inspect and correlate it](#agent-365-blueprint-inspection)** | Microsoft Graph `AgentIdentityBlueprint.Read.All`; this path does not deploy source or bind the blueprint |
-| **I'm not sure yet** | Run `foundry-agent-manager quickstart` | The CLI is enough for Prompt or files-only Hosted scaffolding; accepting Hosted environment bootstrap also requires `azd` |
+| **I'm not sure yet** | Run `fam quickstart` | The CLI is enough for Prompt or files-only Hosted scaffolding; accepting Hosted environment bootstrap also requires `azd` |
 
 > **Want to explore without Azure?** You can validate and plan a generated
 > Prompt manifest or Hosted workspace offline, without Azure credentials or
@@ -211,17 +209,23 @@ deployment never creates a model implicitly.
 
 ## Install
 
+> [!IMPORTANT]
+> **Breaking command rename:** Starting with `0.15.0`, release archives
+> and installers provide only `fam` (`fam.exe` on Windows). Scripts that invoke
+> `foundry-agent-manager` must change those invocations to `fam`. The product
+> remains named **Foundry Agent Manager**.
+
 > **Most users do not need Go, a compiler, or a clone of this repository.**
 > Downloading a published release gives you the complete, self-contained CLI
 > executable for your operating system.
 
-This installs the **`foundry-agent-manager` command-line application** on your
+This installs the **`fam` command-line application** on your
 computer:
 
-- Windows receives one executable named `foundry-agent-manager.exe`.
-- macOS and Linux receive one executable named `foundry-agent-manager`.
+- Windows receives one executable named `fam.exe`.
+- macOS and Linux receive one executable named `fam`.
 - The executable is the CLI used by every example in this documentation, such
-  as `foundry-agent-manager quickstart` and `foundry-agent-manager prompt deploy`.
+  as `fam quickstart` and `fam prompt deploy`.
 
 Installing the CLI does **not** deploy an agent, create Azure resources, install
 Go, or install Azure Developer CLI (`azd`). Prompt Agent users can run the
@@ -248,13 +252,13 @@ Download [`scripts/install.ps1`](scripts/install.ps1), save it as
 .\install.ps1
 
 # Pin a specific version:
-.\install.ps1 -Version v0.14.1
+.\install.ps1 -Version v0.15.0
 
 # Override install directory and add to PATH:
 .\install.ps1 -InstallDir C:\tools -ModifyProfile
 
 # Private repository (token from environment):
-.\install.ps1 -Repo myorg/foundry-agent-manager
+.\install.ps1 -Repo myorg/fam
 ```
 
 **POSIX shell:**
@@ -264,10 +268,10 @@ Download [`scripts/install.ps1`](scripts/install.ps1), save it as
 curl -fsSL https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/install.sh | sh
 
 # Pin a specific version and install directory:
-./scripts/install.sh --version v0.14.1 --install-dir "$HOME/.local/bin"
+./scripts/install.sh --version v0.15.0 --install-dir "$HOME/.local/bin"
 
 # Override repository (private repo uses GITHUB_TOKEN / GH_TOKEN automatically):
-./scripts/install.sh --repo myorg/foundry-agent-manager
+./scripts/install.sh --repo myorg/fam
 
 # Add to PATH in shell profile:
 ./scripts/install.sh --modify-profile
@@ -276,7 +280,9 @@ curl -fsSL https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/instal
 Both installers:
 - Download the release archive matching your OS/architecture.
 - Verify the **SHA256 checksum** against the published `SHA256SUMS` file.
-- Install both `foundry-agent-manager` and its equivalent `fam` shorthand.
+- Install only `fam` (`fam.exe` on Windows).
+- Remove the retired `foundry-agent-manager` executable from the selected
+  install directory when upgrading from an earlier release.
 - Install to a configurable directory (default: `$LOCALAPPDATA\foundry-agent-manager` on Windows, `$HOME/.local/bin` on POSIX).
 - **Never modify PATH** unless `--ModifyProfile` / `--modify-profile` is explicitly passed.
 - Support private repositories via `GITHUB_TOKEN` / `GH_TOKEN` environment variable or `FAM_INSTALL_TOKEN` secret (token is used only as an HTTP authorization header and never printed).
@@ -286,10 +292,9 @@ After installation, open a new terminal if PATH was modified and confirm the
 CLI is available:
 
 ```powershell
-foundry-agent-manager version
-foundry-agent-manager doctor
-fam -version
+fam version
 fam doctor
+fam --version
 ```
 
 If PATH modification was not requested, use the full executable path printed
@@ -301,7 +306,7 @@ by the installer.
 |---|---|
 | `running scripts is disabled` | After reviewing the downloaded script, use `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`; do not weaken machine-wide policy |
 | Script is blocked or not digitally signed | Review its source, then run `Unblock-File .\install.ps1` |
-| `Could not determine latest release` | Check GitHub access/private-repo authentication, or pass a known tag such as `-Version v0.14.1` |
+| `Could not determine latest release` | Check GitHub access/private-repo authentication, or pass a known tag such as `-Version v0.15.0` |
 | Release or asset download returns 404 | Verify `-Repo OWNER/REPO`, the `v`-prefixed tag, token access, and the platform archive exists |
 | Checksum missing or mismatched | Stop and retry from the intended release; never bypass checksum verification |
 | Access denied while installing | Close a running executable or select a user-writable `-InstallDir` |
@@ -315,21 +320,22 @@ PowerShell requirements.
 ### 2. Download a prebuilt release archive
 
 Open the
-[`foundry-agent-manager` Releases page](https://github.com/jpmicrosoft/fam/releases)
+[`fam` Releases page](https://github.com/jpmicrosoft/fam/releases)
 and download the archive matching your computer:
 
 | Computer | Release archive |
 |---|---|
-| Windows x64 | `foundry-agent-manager_<version>_windows_amd64.zip` |
-| Windows Arm64 | `foundry-agent-manager_<version>_windows_arm64.zip` |
-| macOS Intel | `foundry-agent-manager_<version>_darwin_amd64.tar.gz` |
-| macOS Apple silicon | `foundry-agent-manager_<version>_darwin_arm64.tar.gz` |
-| Linux x64 | `foundry-agent-manager_<version>_linux_amd64.tar.gz` |
-| Linux Arm64 | `foundry-agent-manager_<version>_linux_arm64.tar.gz` |
+| Windows x64 | `fam_<version>_windows_amd64.zip` |
+| Windows Arm64 | `fam_<version>_windows_arm64.zip` |
+| macOS Intel | `fam_<version>_darwin_amd64.tar.gz` |
+| macOS Apple silicon | `fam_<version>_darwin_arm64.tar.gz` |
+| Linux x64 | `fam_<version>_linux_amd64.tar.gz` |
+| Linux Arm64 | `fam_<version>_linux_arm64.tar.gz` |
 
-Also download `SHA256SUMS`, confirm the archive checksum, extract the single
-executable, and place it in a directory on PATH. This path requires no source
-code and no Go installation.
+Each archive contains exactly one executable named `fam` or `fam.exe`, plus
+`LICENSE` and `THIRD_PARTY_NOTICES.txt`. Also download `SHA256SUMS`, confirm
+the archive checksum, extract the executable, and place it in a directory on
+PATH. This path requires no source code and no Go installation.
 
 ### 3. Build from source (optional)
 
@@ -339,8 +345,8 @@ CLI themselves. It is not required for normal installation.
 ```powershell
 git clone https://github.com/jpmicrosoft/fam.git
 cd fam
-go build -trimpath -o bin\foundry-agent-manager.exe .\cmd
-bin\foundry-agent-manager.exe version
+go build -trimpath -o bin\fam.exe .\cmd
+bin\fam.exe version
 ```
 
 ### 4. Enable shell completion
@@ -352,10 +358,10 @@ enum values, and relevant file or directory paths without contacting Azure.
 Load PowerShell completion for the current session:
 
 ```powershell
-foundry-agent-manager completion powershell | Out-String | Invoke-Expression
+fam completion powershell | Out-String | Invoke-Expression
 ```
 
-Run `foundry-agent-manager completion <shell> --help` for persistent
+Run `fam completion <shell> --help` for persistent
 installation instructions for your shell.
 
 ### How the downloadable binaries are produced
@@ -370,11 +376,11 @@ The CLI is one executable organized into resource namespaces. Root help stays
 small and points to focused areas:
 
 ```powershell
-foundry-agent-manager help
-foundry-agent-manager help prompt
-foundry-agent-manager help hosted session
-foundry-agent-manager help project connection
-foundry-agent-manager help memory item
+fam help
+fam help prompt
+fam help hosted session
+fam help project connection
+fam help memory item
 ```
 
 Commands use noun-first paths such as `prompt deploy`, `hosted deploy`,
@@ -382,7 +388,7 @@ Commands use noun-first paths such as `prompt deploy`, `hosted deploy`,
 the same hierarchy.
 
 The earlier flat names remain supported as hidden compatibility aliases, so
-existing automation such as `foundry-agent-manager hosted-deploy` continues to
+existing automation such as `fam hosted-deploy` continues to
 run. They are intentionally omitted from root help and completion suggestions;
 new scripts and documentation should use the nested command paths.
 
@@ -396,25 +402,25 @@ receipt for mutation evidence.
 
 ```powershell
 # Scaffold a Prompt manifest interactively and see what to run next:
-foundry-agent-manager quickstart --type prompt
+fam quickstart --type prompt
 # Expected: creates the Prompt manifest and prints validation/deployment steps.
 
 # Or manually:
-foundry-agent-manager prompt init -f agent.yaml --name support-agent --model my-model `
+fam prompt init -f agent.yaml --name support-agent --model my-model `
   --project-resource-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/contoso/projects/support
 # Expected: writes a schema-valid starter manifest to agent.yaml.
 
 # Optional: override the model deployment guardrail with a same-account policy:
-foundry-agent-manager prompt init -f guarded-agent.yaml --name support-agent --model my-model `
+fam prompt init -f guarded-agent.yaml --name support-agent --model my-model `
   --project-resource-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/contoso/projects/support `
   --guardrail-policy-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/contoso/raiPolicies/my-policy
 
 # Validate offline (no Azure):
-foundry-agent-manager prompt validate -f agent.yaml
+fam prompt validate -f agent.yaml
 # Expected: confirms the manifest and local references are valid. Exit 0 = valid.
 
 # Plan offline:
-foundry-agent-manager prompt plan -f agent.yaml
+fam prompt plan -f agent.yaml
 # Expected: shows the resolved deployment intent without contacting Azure.
 ```
 
@@ -439,25 +445,25 @@ Then continue with the online resource workflow:
 ```powershell
 
 # The Foundry account must already exist. If the child project is missing, run:
-foundry-agent-manager project create -f agent.yaml
+fam project create -f agent.yaml
 
 # If the model deployment is missing, add the model_deployment desired state to
 # the manifest. Validate the exact live model/SKU/quota/capacity, then create:
-foundry-agent-manager model deployment plan -f agent.yaml
-foundry-agent-manager model deployment create -f agent.yaml
+fam model deployment plan -f agent.yaml
+fam model deployment create -f agent.yaml
 
 # Online preflight (read-only — nothing is created or changed):
-foundry-agent-manager prompt preflight -f agent.yaml
+fam prompt preflight -f agent.yaml
 # Expected: checks credentials, project access, and the exact agent.model deployment.
 
 # Deploy (creates an immutable agent version):
-foundry-agent-manager prompt deploy -f agent.yaml --if-changed
+fam prompt deploy -f agent.yaml --if-changed
 # Expected: the first deploy activates the initial version.
 # Later deploys stage a new version behind the current active version.
 # A redacted receipt is written under .foundry-agent-manager/receipts/.
 
 # Promote to production:
-foundry-agent-manager prompt promote -f agent.yaml --agent-version 1
+fam prompt promote -f agent.yaml --agent-version 1
 # Expected: routes all stable-endpoint traffic to version 1.
 ```
 
@@ -472,7 +478,7 @@ Infrastructure provisioning remains a separate operator decision.
 ```powershell
 # Interactive quickstart scaffolds the workspace and defaults to configuring
 # its workspace-scoped azd environment for an existing Foundry project:
-foundry-agent-manager quickstart --type hosted
+fam quickstart --type hosted
 # Expected: optionally adopts an existing Python source folder, then prompts
 # for the project resource ID, model deployment, location, and tenant;
 # derives endpoint, subscription, and the Microsoft.DefaultV2 policy ID;
@@ -496,7 +502,7 @@ fam hosted adopt --source .\existing-python-agent `
   --in-place --name support-agent
 
 # Non-interactive bootstrap is explicit:
-foundry-agent-manager quickstart --type hosted `
+fam quickstart --type hosted `
   --destination my-agent --name support-agent --environment prod `
   --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/my-account/projects/support `
   --model support-model `
@@ -505,14 +511,14 @@ foundry-agent-manager quickstart --type hosted `
   --bootstrap-environment --non-interactive
 
 # Or manually scaffold:
-foundry-agent-manager hosted init --destination my-agent --name support-agent --protocol responses
+fam hosted init --destination my-agent --name support-agent --protocol responses
 # Expected: creates my-agent/ with a validated starter workspace whose
 # deployment metadata references Microsoft.DefaultV2. No Azure contact.
 
 # Optional: use a custom same-account policy, or explicitly omit agent-level filtering:
-foundry-agent-manager hosted init --destination custom-agent --name custom-agent `
+fam hosted init --destination custom-agent --name custom-agent `
   --guardrail-policy-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/my-account/raiPolicies/my-policy
-foundry-agent-manager hosted init --destination unguarded-agent --name unguarded-agent --no-guardrail
+fam hosted init --destination unguarded-agent --name unguarded-agent --no-guardrail
 # Policy-less workspaces must repeat --no-guardrail on hosted preflight,
 # hosted deploy, and hosted draft deploy as an explicit online acknowledgement.
 
@@ -521,24 +527,24 @@ azd extension install azure.ai.agents --version 1.0.0-beta.8
 azd auth login --tenant-id <tenant-id>
 
 # Create/select and configure the local azd environment when quickstart did not:
-foundry-agent-manager hosted environment create `
+fam hosted environment create `
   --workspace my-agent --environment prod `
   --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/my-account/projects/support `
   --model-deployment support-model --location eastus2
 
 # Validate offline:
-foundry-agent-manager hosted validate --workspace my-agent
+fam hosted validate --workspace my-agent
 # Expected: confirms azure.yaml and referenced files are valid. Exit 0 = valid.
 
 # Deploy (provisioning is explicit and OFF by default):
-foundry-agent-manager hosted deploy --workspace my-agent `
+fam hosted deploy --workspace my-agent `
   --environment prod --accept-preview --provision --preview-provision
 # Expected: provisions through the pinned preview contract, deploys the service, and writes a receipt.
 # Without --provision, deploys into already-provisioned resources only.
 # If this workspace was created with --no-guardrail, add --no-guardrail here.
 
 # Check status:
-foundry-agent-manager hosted status --workspace my-agent --environment prod --accept-preview
+fam hosted status --workspace my-agent --environment prod --accept-preview
 # Expected: shows the deployed version, endpoint routing, and agent state.
 ```
 
@@ -562,8 +568,8 @@ offline commands and work your way down.
 Use each command's `--help` before a mutation. Commands such as `prompt versions prune` that
 support `--dry-run` can preview their deletion scope. See the full
 [Command Reference](docs/command-reference.md) for every command and flag.
-Bare `foundry-agent-manager help` shows the complete catalog, while
-`foundry-agent-manager help quickstart` and other `help <command path>` requests
+Bare `fam help` shows the complete catalog, while
+`fam help quickstart` and other `help <command path>` requests
 show only that namespace or command's subcommands, usage, examples, flags, and
 related workflow.
 
@@ -577,23 +583,23 @@ Agent; manage Foundry account integration logging; inspect observability
 readiness; and plan publication handoff:
 
 ```powershell
-foundry-agent-manager agent365 blueprint show `
+fam agent365 blueprint show `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444
 
-foundry-agent-manager agent365 blueprint permissions `
+fam agent365 blueprint permissions `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444 `
   --resolve-names
 
-foundry-agent-manager agent365 identity list
+fam agent365 identity list
 
-foundry-agent-manager agent365 binding plan `
+fam agent365 binding plan `
   --blueprint-id 00001111-aaaa-2222-bbbb-3333cccc4444 `
   -f agent.yaml
 
-foundry-agent-manager agent365 integration status `
+fam agent365 integration status `
   --account-id /subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/foundry-rg/providers/Microsoft.CognitiveServices/accounts/contoso-foundry
 
-foundry-agent-manager agent365 observability plan `
+fam agent365 observability plan `
   --workspace C:\src\hosted-agent
 ```
 
@@ -613,7 +619,7 @@ be planned and created explicitly before Prompt preflight; it is never created
 as a side effect of Prompt deployment.
 
 ```powershell
-foundry-agent-manager prompt init -f agent.yaml `
+fam prompt init -f agent.yaml `
   --name support-agent `
   --model my-model-deployment `
   --metadata owner=platform-team `
@@ -621,13 +627,13 @@ foundry-agent-manager prompt init -f agent.yaml `
   --project-resource-id /subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/my-resource-group/providers/Microsoft.CognitiveServices/accounts/my-foundry-account/projects/support-project `
   --location eastus
 
-foundry-agent-manager prompt validate -f agent.yaml
-foundry-agent-manager project create -f agent.yaml
-foundry-agent-manager model deployment plan -f agent.yaml
-foundry-agent-manager model deployment create -f agent.yaml
-foundry-agent-manager prompt preflight -f agent.yaml
-foundry-agent-manager prompt deploy -f agent.yaml --if-changed
-foundry-agent-manager prompt status -f agent.yaml
+fam prompt validate -f agent.yaml
+fam project create -f agent.yaml
+fam model deployment plan -f agent.yaml
+fam model deployment create -f agent.yaml
+fam prompt preflight -f agent.yaml
+fam prompt deploy -f agent.yaml --if-changed
+fam prompt status -f agent.yaml
 ```
 
 Custom metadata is an optional string map. Put durable values under
@@ -646,27 +652,27 @@ not a deployed Azure resource, so teams can review the code and infrastructure
 contract before accepting preview behavior or provisioning.
 
 ```powershell
-foundry-agent-manager hosted init `
+fam hosted init `
   --destination support-hosted `
   --name support-agent `
   --protocol responses
 
-foundry-agent-manager hosted validate --workspace support-hosted
-foundry-agent-manager hosted plan --workspace support-hosted --environment prod
+fam hosted validate --workspace support-hosted
+fam hosted plan --workspace support-hosted --environment prod
 
 # One-time local azd environment setup and existing-project context:
-foundry-agent-manager hosted environment create `
+fam hosted environment create `
   --workspace support-hosted --environment prod `
   --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/projects/project `
   --model-deployment support-model
 
-foundry-agent-manager hosted preflight --workspace support-hosted `
+fam hosted preflight --workspace support-hosted `
   --environment prod --accept-preview
 
-foundry-agent-manager hosted deploy --workspace support-hosted `
+fam hosted deploy --workspace support-hosted `
   --environment prod --accept-preview --provision --preview-provision
 
-foundry-agent-manager hosted status --workspace support-hosted `
+fam hosted status --workspace support-hosted `
   --environment prod --accept-preview
 ```
 
@@ -677,17 +683,17 @@ validation, preflight, change detection, receipts, and lifecycle management
 without regenerating or replacing the application.
 
 ```powershell
-foundry-agent-manager hosted validate --workspace C:\src\hosted-agent
-foundry-agent-manager hosted plan --workspace C:\src\hosted-agent --environment prod
-foundry-agent-manager hosted environment create `
+fam hosted validate --workspace C:\src\hosted-agent
+fam hosted plan --workspace C:\src\hosted-agent --environment prod
+fam hosted environment create `
   --workspace C:\src\hosted-agent --environment prod `
   --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/projects/project `
   --model-deployment support-model
-foundry-agent-manager hosted preflight --workspace C:\src\hosted-agent `
+fam hosted preflight --workspace C:\src\hosted-agent `
   --environment prod --accept-preview
-foundry-agent-manager hosted deploy --workspace C:\src\hosted-agent `
+fam hosted deploy --workspace C:\src\hosted-agent `
   --environment prod --accept-preview --if-changed
-foundry-agent-manager hosted status --workspace C:\src\hosted-agent `
+fam hosted status --workspace C:\src\hosted-agent `
   --environment prod --accept-preview
 ```
 
@@ -707,8 +713,8 @@ results. Stable JSON fields go to stdout, diagnostics go to stderr, and the
 receipt preserves redacted mutation evidence for later review.
 
 ```powershell
-foundry-agent-manager prompt preflight -f agent.yaml --output json
-foundry-agent-manager prompt deploy -f agent.yaml `
+fam prompt preflight -f agent.yaml --output json
+fam prompt deploy -f agent.yaml `
   --if-changed --output json --receipt artifacts\deploy-receipt.json
 ```
 
@@ -719,13 +725,13 @@ To publish each completed receipt to Log Analytics, configure an existing Logs
 ingestion endpoint and DCR:
 
 ```powershell
-foundry-agent-manager prompt deploy -f agent.yaml --if-changed `
+fam prompt deploy -f agent.yaml --if-changed `
   --receipt-log-endpoint https://my-dce.eastus-1.ingest.monitor.azure.com `
   --receipt-log-dcr-id dcr-0123456789abcdef0123456789abcdef
 ```
 
 The local file is always written first. If ingestion fails, retry it with
-`foundry-agent-manager receipt upload --file <receipt-path>`. See
+`fam receipt upload --file <receipt-path>`. See
 [Log Analytics Receipts](docs/log-analytics-receipts.md) for the stream schema,
 RBAC, metadata migration, environment variables, and KQL.
 
@@ -738,24 +744,24 @@ a CI runner is ready without changing Azure resources.
 
 ```powershell
 # Check the binary and AzureCloud boundary:
-foundry-agent-manager doctor
+fam doctor
 
 # Validate one Prompt manifest locally:
-foundry-agent-manager doctor -f agent.yaml
+fam doctor -f agent.yaml
 
 # Validate one Hosted workspace locally:
-foundry-agent-manager doctor --workspace hosted-agent
+fam doctor --workspace hosted-agent
 
 # Add read-only Prompt authentication and project checks:
-foundry-agent-manager doctor -f agent.yaml --online --fail-on-not-ready
+fam doctor -f agent.yaml --online --fail-on-not-ready
 
 # Add Hosted tooling, authentication, environment, project-access, and
 # provision-contract checks:
-foundry-agent-manager doctor --workspace hosted-agent --environment prod `
+fam doctor --workspace hosted-agent --environment prod `
   --online --accept-preview --check-provision
 
 # Add detailed redacted support diagnostics on stderr:
-foundry-agent-manager doctor -f agent.yaml --online --debug
+fam doctor -f agent.yaml --online --debug
 ```
 
 `doctor` **never mutates resources**. It reports every independent check it can
