@@ -129,10 +129,10 @@ if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
     echo "ERROR: Could not determine latest release for ${REPO}" >&2
     exit 1
   fi
-  if ! printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-+][A-Za-z0-9_.-]+)?$'; then
-    echo "ERROR: --version must be 'latest' or a v-prefixed semantic version tag" >&2
-    exit 1
-  fi
+fi
+if ! printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-+][A-Za-z0-9_.-]+)?$'; then
+  echo "ERROR: --version must be 'latest' or a v-prefixed semantic version tag" >&2
+  exit 1
 fi
 if [ -z "$RELEASE_JSON" ]; then
   RELEASE_JSON="$(api_get "https://api.github.com/repos/${REPO}/releases/tags/${VERSION}")"

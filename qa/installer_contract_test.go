@@ -1,6 +1,8 @@
 package qa
 
 import (
+	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -124,5 +126,23 @@ func TestPowerShellInstallerContract(t *testing.T) {
 		if strings.Contains(strings.ToLower(script), strings.ToLower(forbidden)) {
 			t.Errorf("PowerShell installer prints token via %q", forbidden)
 		}
+	}
+}
+
+func TestShellInstallerRejectsExplicitVersionWithoutVPrefix(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX installer behavior is exercised by CI")
+	}
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("sh is unavailable")
+	}
+	command := exec.Command(sh, "../scripts/install.sh", "--version", "0.15.0")
+	output, err := command.CombinedOutput()
+	if err == nil {
+		t.Fatal("install.sh accepted an explicit version without the required v prefix")
+	}
+	if !strings.Contains(string(output), "--version must be 'latest' or a v-prefixed semantic version tag") {
+		t.Fatalf("install.sh returned the wrong explicit-version error: %s", output)
 	}
 }
