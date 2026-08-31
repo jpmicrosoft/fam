@@ -5,13 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Version status.** `0.15.0` is the version compiled into the executable
+> **Version status.** `0.15.1` is the version compiled into the executable
 > ([`internal/config/config.go`](internal/config/config.go)) and reported by
 > `fam version`. Release archives plus a GitHub Release are
-> produced only after the matching `v0.15.0` tag is pushed; see
+> produced only after the matching `v0.15.1` tag is pushed; see
 > [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## [Unreleased]
+
+## [0.15.1] - 2026-08-31
+
+### Fixed
+
+- Prompt and Hosted preflight now discover account-level RAI policies through
+  the ARM collection endpoint. This correctly recognizes system-managed
+  policies such as `Microsoft.DefaultV2`, which ARM lists but returns `404` for
+  when requested through an individual policy URL.
 
 ## [0.15.0] - 2026-08-27
 

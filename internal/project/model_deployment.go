@@ -1187,25 +1187,67 @@ func InspectRAIPolicyContext(
 	cred azcore.TokenCredential,
 	httpClient HTTPClient,
 ) error {
-	requestURL, err := modelRAIPolicyURL(project, name)
+	if err := validateModelAccount(project, "RAI policy inspection"); err != nil {
+		return err
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errs.Config("RAI policy inspection requires a policy name")
+	}
+	requestURL, err := modelRAIPoliciesURL(project)
 	if err != nil {
 		return err
 	}
-	resp, err := doModelARM(ctx, httpClient, http.MethodGet, requestURL, nil, nil, project, cred)
-	if err != nil {
-		return errs.FoundryWrap(err, "RAI policy %q inspection failed", name)
+	items := 0
+	for page := 0; requestURL != ""; page++ {
+		if page >= maxModelDeploymentPages {
+			return errs.Foundry(
+				"RAI policy inspection exceeded %d pages",
+				maxModelDeploymentPages,
+			)
+		}
+		resp, err := doModelARM(ctx, httpClient, http.MethodGet, requestURL, nil, nil, project, cred)
+		if err != nil {
+			return errs.FoundryWrap(err, "RAI policy %q inspection failed", name)
+		}
+		data, err := readModelARMResponse(resp, "RAI policy inspection")
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode != http.StatusOK {
+			return httpx.ResponseError("ARM", "RAI policy inspection", resp, data)
+		}
+		var payload struct {
+			Value []struct {
+				Name string `json:"name"`
+			} `json:"value"`
+			NextLink string `json:"nextLink"`
+		}
+		if err := json.Unmarshal(data, &payload); err != nil {
+			return errs.FoundryWrap(err, "failed to parse RAI policy list response")
+		}
+		for _, policy := range payload.Value {
+			policyName := strings.TrimSpace(policy.Name)
+			if policyName == "" {
+				return errs.Foundry("RAI policy list response omitted a policy name")
+			}
+			items++
+			if items > maxModelDeploymentItems {
+				return errs.Foundry(
+					"RAI policy inspection exceeded %d items",
+					maxModelDeploymentItems,
+				)
+			}
+			if strings.EqualFold(policyName, name) {
+				return nil
+			}
+		}
+		requestURL, err = validateRAIPolicyARMNextLink(project, payload.NextLink)
+		if err != nil {
+			return err
+		}
 	}
-	data, err := readModelARMResponse(resp, "RAI policy inspection")
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode == http.StatusNotFound {
-		return errs.NotFound("RAI policy %q does not exist on the Foundry account", name)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return httpx.ResponseError("ARM", "RAI policy inspection", resp, data)
-	}
-	return nil
+	return errs.NotFound("RAI policy %q does not exist on the Foundry account", name)
 }
 
 func waitForModelDeployment(
@@ -1362,14 +1404,14 @@ func modelCapacityURL(
 	return parsed.String(), nil
 }
 
-func modelRAIPolicyURL(project *config.ProjectSpec, name string) (string, error) {
+func modelRAIPoliciesURL(project *config.ProjectSpec) (string, error) {
 	return modelARMURL(
 		project,
 		"subscriptions", project.SubscriptionID,
 		"resourceGroups", project.ResourceGroup,
 		"providers", "Microsoft.CognitiveServices",
 		"accounts", project.AccountName,
-		"raiPolicies", name,
+		"raiPolicies",
 	)
 }
 
@@ -1640,6 +1682,14 @@ func validateModelARMNextLink(project *config.ProjectSpec, raw string) (string, 
 	next, err := arm.ValidateNextLink(project.ARMEndpoint, raw)
 	if err != nil {
 		return "", errs.Security("model deployment pagination %v", err)
+	}
+	return next, nil
+}
+
+func validateRAIPolicyARMNextLink(project *config.ProjectSpec, raw string) (string, error) {
+	next, err := arm.ValidateNextLink(project.ARMEndpoint, raw)
+	if err != nil {
+		return "", errs.Security("RAI policy pagination %v", err)
 	}
 	return next, nil
 }

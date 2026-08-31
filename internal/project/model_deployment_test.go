@@ -67,6 +67,82 @@ func TestInspectModelDeploymentContextReportsMissing(t *testing.T) {
 	}
 }
 
+func TestInspectRAIPolicyContextListsSystemManagedPolicies(t *testing.T) {
+	httpClient := &recordingHTTPClient{responses: []*http.Response{
+		response(http.StatusOK, map[string]interface{}{
+			"value": []interface{}{
+				map[string]interface{}{"name": "Microsoft.Default"},
+				map[string]interface{}{"name": "Microsoft.DefaultV2"},
+			},
+		}),
+	}}
+	err := InspectRAIPolicyContext(
+		context.Background(),
+		baseProject(),
+		"Microsoft.DefaultV2",
+		&recordingCredential{},
+		httpClient,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httpClient.requests[0]
+	if request.Method != http.MethodGet ||
+		!strings.HasSuffix(request.URL.Path, "/accounts/acct/raiPolicies") ||
+		request.URL.Query().Get("api-version") != modelDeploymentAPIVersion {
+		t.Fatalf("unexpected RAI policy list request: %s %s", request.Method, request.URL)
+	}
+}
+
+func TestInspectRAIPolicyContextFollowsPagination(t *testing.T) {
+	httpClient := &recordingHTTPClient{responses: []*http.Response{
+		response(http.StatusOK, map[string]interface{}{
+			"value": []interface{}{
+				map[string]interface{}{"name": "Microsoft.Default"},
+			},
+			"nextLink": "https://management.azure.com/subscriptions/sub/resourceGroups/rg%20with%20space/providers/Microsoft.CognitiveServices/accounts/acct/raiPolicies?api-version=2025-06-01&$skiptoken=next",
+		}),
+		response(http.StatusOK, map[string]interface{}{
+			"value": []interface{}{
+				map[string]interface{}{"name": "microsoft.defaultv2"},
+			},
+		}),
+	}}
+	err := InspectRAIPolicyContext(
+		context.Background(),
+		baseProject(),
+		"Microsoft.DefaultV2",
+		&recordingCredential{},
+		httpClient,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(httpClient.requests) != 2 ||
+		httpClient.requests[1].URL.Query().Get("$skiptoken") != "next" {
+		t.Fatalf("unexpected RAI policy pagination requests: %#v", httpClient.requests)
+	}
+}
+
+func TestInspectRAIPolicyContextReportsMissing(t *testing.T) {
+	err := InspectRAIPolicyContext(
+		context.Background(),
+		baseProject(),
+		"custom",
+		&recordingCredential{},
+		&recordingHTTPClient{responses: []*http.Response{
+			response(http.StatusOK, map[string]interface{}{
+				"value": []interface{}{
+					map[string]interface{}{"name": "Microsoft.DefaultV2"},
+				},
+			}),
+		}},
+	)
+	if err == nil || !errs.IsKind(err, "not_found") {
+		t.Fatalf("missing RAI policy must return not_found, got %v", err)
+	}
+}
+
 func TestInspectModelDeploymentContextRejectsMalformedAndOversizedResponses(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -266,7 +342,11 @@ func TestPlanModelDeploymentContextValidatesOptionalDependencies(t *testing.T) {
 	responses := modelPlanResponses(10, 0, 20, 15)
 	responses = append(
 		responses,
-		response(http.StatusOK, map[string]interface{}{"name": "StrictPolicy"}),
+		response(http.StatusOK, map[string]interface{}{
+			"value": []interface{}{
+				map[string]interface{}{"name": "StrictPolicy"},
+			},
+		}),
 		response(http.StatusOK, deploymentPayload(
 			"support-spillover",
 			"gpt-5-mini",

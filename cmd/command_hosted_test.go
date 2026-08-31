@@ -79,9 +79,9 @@ func TestHostedCommandSurface(t *testing.T) {
 func TestValidateHostedRAIPolicyVerifiesAccountPolicy(t *testing.T) {
 	const policyID = "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/raiPolicies/custom"
 	httpClient := &scriptedHTTP{routes: map[string]scriptedRoute{
-		"/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/raiPolicies/custom": route(
+		"/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/raiPolicies": route(
 			http.StatusOK,
-			`{"name":"custom"}`,
+			`{"value":[{"name":"custom"}]}`,
 		),
 	}}
 	stubCredentialAndHTTP(t, httpClient)
@@ -131,6 +131,12 @@ func TestValidateHostedRAIPolicyVerifiesAccountPolicy(t *testing.T) {
 	}
 	if len(httpClient.requests) != 1 {
 		t.Fatalf("expected one RAI policy ARM request, got %d", len(httpClient.requests))
+	}
+	request := httpClient.requests[0]
+	if request.Method != http.MethodGet ||
+		!strings.HasSuffix(request.URL.Path, "/accounts/account/raiPolicies") ||
+		request.URL.Query().Get("api-version") != "2025-06-01" {
+		t.Fatalf("unexpected RAI policy list request: %s %s", request.Method, request.URL)
 	}
 }
 

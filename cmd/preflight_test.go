@@ -169,10 +169,13 @@ project:
 `)
 	command := commandWithApprovals(t, "preflight", manifest, nil, nil)
 	httpClient := &routedHTTPClient{routes: map[string]*http.Response{
-		"/deployments/model":         jsonResponse(http.StatusOK, promptModelDeploymentResponse),
-		"/projects/project":          jsonResponse(http.StatusOK, preflightProjectResponse),
-		"/agents":                    jsonResponse(http.StatusOK, `{"data":[]}`),
-		"/raiPolicies/custom-policy": jsonResponse(http.StatusOK, `{"name":"custom-policy"}`),
+		"/deployments/model": jsonResponse(http.StatusOK, promptModelDeploymentResponse),
+		"/projects/project":  jsonResponse(http.StatusOK, preflightProjectResponse),
+		"/agents":            jsonResponse(http.StatusOK, `{"data":[]}`),
+		"/raiPolicies": jsonResponse(
+			http.StatusOK,
+			`{"value":[{"name":"custom-policy"}]}`,
+		),
 	}}
 	state, err := runPreflight(command, prepareForTest(t, command), transactionCredential{}, httpClient)
 	if err != nil {
