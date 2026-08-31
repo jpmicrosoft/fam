@@ -195,6 +195,30 @@ identity performs online operations. Model deployment creation is a separate,
 explicit workflow with live quota and capacity validation; Prompt Agent
 deployment never creates a model implicitly.
 
+### Tooling prerequisites
+
+| Workflow | Required local tooling |
+|---|---|
+| Offline validation, planning, and scaffolding | The `fam` executable only |
+| Online Prompt, project, model, connection, or Agent 365 operations | `fam` plus an identity that `DefaultAzureCredential` can resolve. Azure CLI (`az`) is one optional developer credential source, not a universal requirement. |
+| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.27.1 or later, and the `azure.ai.agents` azd extension at exactly `1.0.0-beta.8` |
+| Optional source build | Go 1.25 or later |
+
+Install the pinned Hosted Agent extension explicitly:
+
+```powershell
+azd extension install azure.ai.agents --version 1.0.0-beta.8
+```
+
+Azure CLI and Azure Developer CLI maintain separate authentication context.
+Use `az login` only when Azure CLI should provide the local developer
+credential for FAM. Authenticate `azd` separately before an online Hosted
+workflow:
+
+```powershell
+azd auth login --tenant-id <tenant-id>
+```
+
 | Requirement | Detail |
 |---|---|
 | Foundry account | Must already exist |
@@ -208,8 +232,7 @@ deployment never creates a model implicitly.
 > **Source dependency scope:** `go mod download` downloads only the Go modules
 > declared in `go.mod`. It does not install the `fam` executable, Azure CLI
 > (`az`), Azure Developer CLI (`azd`), or the Hosted Agent
-> `azure.ai.agents` extension. Install any required command-line tools
-> separately.
+> `azure.ai.agents` extension described above.
 
 `prompt validate` and `prompt plan` are fully offline and need no Azure identity.
 

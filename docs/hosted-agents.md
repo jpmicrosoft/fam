@@ -3,8 +3,27 @@
 Complete reference for Foundry Hosted Agent validation, deployment, and
 lifecycle management with `fam`.
 
-Hosted Agents and the required extension are **preview features** available only
-in AzureCloud. All online commands under `hosted` require `--accept-preview`.
+Hosted Agents and the required **`azure.ai.agents` Azure Developer CLI
+extension** are **preview features** available only in AzureCloud. All online
+commands under `hosted` require `--accept-preview`.
+
+## Tooling prerequisites
+
+Online Hosted Agent operations require all of the following:
+
+- The `fam` executable
+- Azure Developer CLI (`azd`) 1.27.1 or later
+- The `azure.ai.agents` azd extension at exactly `1.0.0-beta.8`
+- A separate authenticated `azd` session for the target tenant
+
+```powershell
+azd extension install azure.ai.agents --version 1.0.0-beta.8
+azd auth login --tenant-id <tenant-id>
+```
+
+Azure CLI (`az`) is not a replacement for `azd`. It is optional unless it is
+the selected developer credential source for FAM or is needed for a separate
+administrative procedure.
 
 ## Why use the Hosted Agent path
 

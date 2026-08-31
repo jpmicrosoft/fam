@@ -67,6 +67,32 @@ qualified end to end in a dedicated Government subscription.
 
 ## Installation and command-line usage
 
+### What tooling must I install?
+
+The answer depends on the workflow:
+
+| Workflow | Tooling |
+|---|---|
+| Offline validation, planning, and scaffolding | The published `fam` executable only |
+| Online Prompt and other direct Foundry operations | `fam` plus a supported Azure identity. Azure CLI (`az`) is optional and can provide a local developer credential through `DefaultAzureCredential`. |
+| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.27.1 or later, and the **`azure.ai.agents`** azd extension at exactly **`1.0.0-beta.8`** |
+| Building from source | Go 1.25 or later |
+
+The Hosted extension is named `azure.ai.agents`. Install the required version
+with:
+
+```powershell
+azd extension install azure.ai.agents --version 1.0.0-beta.8
+```
+
+Azure CLI and `azd` do not share authentication automatically. Run `az login`
+when Azure CLI should supply FAM's local developer credential, and authenticate
+`azd` separately for Hosted deployment:
+
+```powershell
+azd auth login --tenant-id <tenant-id>
+```
+
 ### Do users need Go installed?
 
 No. Published releases contain a standalone executable. Go 1.25 or later is
@@ -83,10 +109,8 @@ the Go module cache. It does not install:
 - The Hosted Agent `azure.ai.agents` extension
 
 Install those command-line tools separately when the selected workflow requires
-them. Azure CLI is not required for every FAM command; online operations need a
-supported identity that `DefaultAzureCredential` can resolve. Online Hosted
-Agent operations additionally require the supported `azd` version and pinned
-extension listed in the project requirements.
+them. The tooling table above identifies which dependencies apply to each
+workflow.
 
 ### Which operating systems and architectures are published?
 
