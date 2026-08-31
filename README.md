@@ -96,7 +96,7 @@ documentation.
 - [Which path do I need?](#which-path-do-i-need)
 - [Frequently asked questions](docs/faq.md)
 - [Support status and release boundaries](#support-status-and-release-boundaries)
-- [Requirements](#requirements)
+- [Prerequisites](#prerequisites)
 - [RBAC and separation of duties](docs/rbac-and-separation-of-duties.md)
 - [Install](#install)
 - [Command organization](#command-organization)
@@ -187,7 +187,7 @@ long-term support promise when an upstream service is still preview.
   only with explicit same-host HTTPS credential sending and exact trust
   approval for any absolute card URL.
 
-## Requirements
+## Prerequisites
 
 The CLI intentionally builds on resources and identities you already control.
 It does not create a parent Foundry account and does not hide which Azure
@@ -219,20 +219,20 @@ workflow:
 azd auth login --tenant-id <tenant-id>
 ```
 
-| Requirement | Detail |
+> **Source dependency scope:** `go mod download` downloads only the Go modules
+> declared in `go.mod`. It does not install the `fam` executable, Azure CLI
+> (`az`), Azure Developer CLI (`azd`), or the Hosted Agent
+> `azure.ai.agents` extension described above.
+
+### Azure resources and access prerequisites
+
+| Prerequisite | Detail |
 |---|---|
 | Foundry account | Must already exist |
 | Model deployment | May already exist or be explicitly created with `model deployment plan` followed by `model deployment create`; `agent.model` is the deployment name |
 | Azure identity | Any `DefaultAzureCredential` can resolve (online commands only) |
 | RBAC model | Assign separate operator, infrastructure, publication, governance, runtime, and audit identities; see [RBAC and Separation of Duties](docs/rbac-and-separation-of-duties.md) |
-| Hosted Agent tooling | `azd` 1.27.1+, extension `azure.ai.agents` `1.0.0-beta.8` |
 | Agent 365 inspection | Microsoft Graph `AgentIdentityBlueprint.Read.All`, `AgentIdentity.Read.All`, `AgentIdentityBlueprintPrincipal.Read.All`; `Application.Read.All` for sponsors, friendly names, and observability assignment inspection; delegated non-owners also need the Agent ID Administrator role |
-| Go | **Not required to install or use the CLI.** Go 1.25+ is needed only for an optional source build. |
-
-> **Source dependency scope:** `go mod download` downloads only the Go modules
-> declared in `go.mod`. It does not install the `fam` executable, Azure CLI
-> (`az`), Azure Developer CLI (`azd`), or the Hosted Agent
-> `azure.ai.agents` extension described above.
 
 `prompt validate` and `prompt plan` are fully offline and need no Azure identity.
 
@@ -259,7 +259,7 @@ computer:
 Installing the CLI does **not** deploy an agent, create Azure resources, install
 Go, or install Azure Developer CLI (`azd`). Prompt Agent users can run the
 offline commands immediately. Hosted Agent users must also install the
-versioned `azd` tooling listed under [Requirements](#requirements).
+versioned `azd` tooling listed under [Prerequisites](#prerequisites).
 
 Choose one installation path:
 
