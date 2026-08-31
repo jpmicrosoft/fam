@@ -205,6 +205,12 @@ deployment never creates a model implicitly.
 | Agent 365 inspection | Microsoft Graph `AgentIdentityBlueprint.Read.All`, `AgentIdentity.Read.All`, `AgentIdentityBlueprintPrincipal.Read.All`; `Application.Read.All` for sponsors, friendly names, and observability assignment inspection; delegated non-owners also need the Agent ID Administrator role |
 | Go | **Not required to install or use the CLI.** Go 1.25+ is needed only for an optional source build. |
 
+> **Source dependency scope:** `go mod download` downloads only the Go modules
+> declared in `go.mod`. It does not install the `fam` executable, Azure CLI
+> (`az`), Azure Developer CLI (`azd`), or the Hosted Agent
+> `azure.ai.agents` extension. Install any required command-line tools
+> separately.
+
 `prompt validate` and `prompt plan` are fully offline and need no Azure identity.
 
 ## Install

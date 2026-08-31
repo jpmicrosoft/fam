@@ -72,6 +72,22 @@ qualified end to end in a dedicated Government subscription.
 No. Published releases contain a standalone executable. Go 1.25 or later is
 needed only to build or test the project from source.
 
+### Does `go mod download` install Azure CLI or `azd`?
+
+No. `go mod download` only downloads the Go modules declared in `go.mod` into
+the Go module cache. It does not install:
+
+- The `fam` executable
+- Azure CLI (`az`)
+- Azure Developer CLI (`azd`)
+- The Hosted Agent `azure.ai.agents` extension
+
+Install those command-line tools separately when the selected workflow requires
+them. Azure CLI is not required for every FAM command; online operations need a
+supported identity that `DefaultAzureCredential` can resolve. Online Hosted
+Agent operations additionally require the supported `azd` version and pinned
+extension listed in the project requirements.
+
 ### Which operating systems and architectures are published?
 
 Release archives are produced for Windows, macOS, and Linux on both `amd64`
