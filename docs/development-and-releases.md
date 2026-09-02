@@ -67,6 +67,36 @@ GitHub release.
 The current application version is **0.16.2**
 ([`../internal/config/config.go`](../internal/config/config.go)).
 
+## Weekly Foundry capability review
+
+[`../.github/workflows/weekly-foundry-capability-review.md`](../.github/workflows/weekly-foundry-capability-review.md)
+defines a GitHub Agentic Workflow that runs every Wednesday at 10:00 AM
+`America/New_York` and can also be started manually. Its compiled, executable
+workflow is
+[`../.github/workflows/weekly-foundry-capability-review.lock.yml`](../.github/workflows/weekly-foundry-capability-review.lock.yml).
+
+The agent job has read-only repository permissions. It compares FAM with
+allowlisted Microsoft Learn pages and Microsoft-owned REST, SDK, and sample
+repositories. It may edit only FAM implementation, tests, schemas, examples,
+and documentation. Only the generated `safe_outputs` job can push a branch and
+open one draft pull request against `main`; it cannot merge or publish a
+release. Runs without a validated high-confidence change do not create an empty
+pull request.
+
+The repository requires these Actions secrets:
+
+| Secret | Purpose | Minimum scope |
+|---|---|---|
+| `COPILOT_GITHUB_TOKEN` | Copilot inference | Fine-grained PAT with account-level **Copilot Requests: Read** |
+| `GH_AW_CI_TRIGGER_TOKEN` | Trigger normal CI for the generated PR | Fine-grained PAT limited to this repository with **Contents: Read and write** |
+
+The repository Actions settings must also allow GitHub Actions to create pull
+requests. Recompile after editing the Markdown source:
+
+```powershell
+gh aw compile weekly-foundry-capability-review --strict --approve --validate
+```
+
 ## Repository layout
 
 ```text
