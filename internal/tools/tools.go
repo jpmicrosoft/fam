@@ -17,6 +17,7 @@ import (
 
 // SupportedToolTypes enumerates all direct prompt-agent tool types the manager understands.
 var SupportedToolTypes = []string{
+	"a2a",
 	"a2a_preview",
 	"azure_ai_search",
 	"azure_function",
@@ -200,14 +201,24 @@ func DescribeTools(tools []map[string]interface{}) ([]string, error) {
 				"azure_ai_search(indexes=%d)",
 				len(getMapSlice(tool, "indexes")),
 			))
-		case "a2a_preview":
+		case "a2a", "a2a_preview":
 			sendCredentials, _ := tool["send_credentials_for_agent_card"].(bool)
-			described = append(described, fmt.Sprintf(
-				"a2a_preview(project_connection_id=%q, agent_card_path=%q, send_credentials_for_agent_card=%t)",
-				getStr(tool, "project_connection_id"),
-				getStr(tool, "agent_card_path"),
-				sendCredentials,
-			))
+			if toolType == "a2a" {
+				described = append(described, fmt.Sprintf(
+					"a2a(a2a_version=%q, project_connection_id=%q, agent_card_path=%q, send_credentials_for_agent_card=%t)",
+					getStr(tool, "a2a_version"),
+					getStr(tool, "project_connection_id"),
+					getStr(tool, "agent_card_path"),
+					sendCredentials,
+				))
+			} else {
+				described = append(described, fmt.Sprintf(
+					"a2a_preview(project_connection_id=%q, agent_card_path=%q, send_credentials_for_agent_card=%t)",
+					getStr(tool, "project_connection_id"),
+					getStr(tool, "agent_card_path"),
+					sendCredentials,
+				))
+			}
 		case "browser_automation_preview", "fabric_iq_preview", "work_iq_preview":
 			described = append(described, fmt.Sprintf(
 				"%s(project_connection_id=%q)",
@@ -345,8 +356,8 @@ func BuildToolsForProject(
 			result = buildWebSearch(tool)
 		case "azure_ai_search":
 			result, err = buildAzureAISearch(tool)
-		case "a2a_preview":
-			result, err = buildA2A(tool)
+		case "a2a", "a2a_preview":
+			result, err = buildA2A(toolType, tool)
 		case "browser_automation_preview":
 			result, err = buildBrowserAutomation(tool)
 		case "fabric_iq_preview":
@@ -970,12 +981,34 @@ func buildConnectionTool(
 	return result, nil
 }
 
-func buildA2A(tool map[string]interface{}) (interface{}, error) {
-	result, err := buildConnectionTool("a2a_preview", tool)
-	if err != nil {
-		return nil, err
+func buildA2A(toolType string, tool map[string]interface{}) (interface{}, error) {
+	connectionID := getStr(tool, "project_connection_id")
+	if connectionID == "" {
+		return nil, fmt.Errorf("missing required field \"project_connection_id\"")
 	}
-	built := result.(map[string]interface{})
+	built := map[string]interface{}{
+		"type":                  toolType,
+		"project_connection_id": connectionID,
+	}
+	if raw := getStr(tool, "base_url"); raw != "" {
+		baseURL, err := requireAbsoluteHTTPSURL(raw, "base_url")
+		if err != nil {
+			return nil, err
+		}
+		built["base_url"] = baseURL
+	}
+	if toolType == "a2a" {
+		version := getStr(tool, "a2a_version")
+		if version == "" {
+			return nil, fmt.Errorf("missing required field \"a2a_version\"")
+		}
+		if version != "1.0" {
+			return nil, fmt.Errorf("a2a_version %q is not supported; use \"1.0\"", version)
+		}
+		built["a2a_version"] = version
+	} else {
+		copyOptional(built, tool, "require_approval", "tool_configs")
+	}
 
 	if raw, exists := tool["agent_card_path"]; exists {
 		path, ok := raw.(string)

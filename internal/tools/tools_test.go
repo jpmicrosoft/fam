@@ -528,6 +528,7 @@ func TestManagedVectorStoreResolutionForAgentTools(t *testing.T) {
 
 func TestDescribeToolsMatchesTheSupportedCatalog(t *testing.T) {
 	described, err := DescribeTools([]map[string]interface{}{
+		{"type": "a2a", "a2a_version": "1.0", "project_connection_id": "stable-a2a-connection"},
 		{"type": "a2a_preview", "project_connection_id": "a2a-connection"},
 		{"type": "azure_ai_search", "indexes": []interface{}{map[string]interface{}{"index_name": "docs"}}},
 		{"type": "bing_custom_search_preview", "search_configurations": []interface{}{map[string]interface{}{"project_connection_id": "bing-custom", "instance_name": "docs"}}},
@@ -566,6 +567,7 @@ func TestDescribeToolsMatchesTheSupportedCatalog(t *testing.T) {
 		t.Fatalf("unexpected describe error: %v", err)
 	}
 	want := []string{
+		`a2a(a2a_version="1.0", project_connection_id="stable-a2a-connection", agent_card_path="", send_credentials_for_agent_card=false)`,
 		`a2a_preview(project_connection_id="a2a-connection", agent_card_path="", send_credentials_for_agent_card=false)`,
 		"azure_ai_search(indexes=1)",
 		"bing_custom_search_preview(search_configurations=1)",
@@ -614,6 +616,7 @@ func TestBuildExpandedDirectToolsAndPreviewCatalog(t *testing.T) {
 			"project_connection_id": "search-connection",
 			"index_name":            "docs",
 		}}},
+		{"type": "a2a", "a2a_version": "1.0", "project_connection_id": "stable-a2a-connection"},
 		{"type": "a2a_preview", "project_connection_id": "a2a-connection"},
 		{"type": "bing_custom_search_preview", "search_configurations": []interface{}{map[string]interface{}{
 			"project_connection_id": "bing-connection",
@@ -667,10 +670,11 @@ func TestBuildExpandedDirectToolsAndPreviewCatalog(t *testing.T) {
 	}
 }
 
-func TestBuildA2ASupportsAuthenticatedAgentCards(t *testing.T) {
+func TestBuildA2ASupportsStableAndPreviewAuthenticatedAgentCards(t *testing.T) {
 	built, err := BuildTools([]map[string]interface{}{
 		{
-			"type":                            "a2a_preview",
+			"type":                            "a2a",
+			"a2a_version":                     "1.0",
 			"project_connection_id":           "a2a-connection",
 			"base_url":                        "https://a2a.example.test",
 			"agent_card_path":                 "/private/agent-card.json",
@@ -688,7 +692,8 @@ func TestBuildA2ASupportsAuthenticatedAgentCards(t *testing.T) {
 	}
 	assertJSONEqual(t, built, []interface{}{
 		map[string]interface{}{
-			"type":                            "a2a_preview",
+			"type":                            "a2a",
+			"a2a_version":                     "1.0",
 			"project_connection_id":           "a2a-connection",
 			"base_url":                        "https://a2a.example.test",
 			"agent_card_path":                 "/private/agent-card.json",
@@ -701,6 +706,25 @@ func TestBuildA2ASupportsAuthenticatedAgentCards(t *testing.T) {
 			"send_credentials_for_agent_card": false,
 		},
 	})
+}
+
+func TestBuildStableA2ARequiresVersionOne(t *testing.T) {
+	for _, tool := range []map[string]interface{}{
+		{
+			"type":                  "a2a",
+			"project_connection_id": "a2a-connection",
+		},
+		{
+			"type":                  "a2a",
+			"a2a_version":           "0.3",
+			"project_connection_id": "a2a-connection",
+		},
+	} {
+		if _, err := BuildTools([]map[string]interface{}{tool}, t.TempDir()); err == nil ||
+			!strings.Contains(err.Error(), "a2a_version") {
+			t.Fatalf("invalid stable A2A version was accepted: tool=%#v err=%v", tool, err)
+		}
+	}
 }
 
 func TestBuildA2ARejectsInvalidAgentCardConfiguration(t *testing.T) {

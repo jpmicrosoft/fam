@@ -125,7 +125,8 @@ func TestDestinationsIncludesMCPServer(t *testing.T) {
 func TestDestinationsIncludesConnectionToolBaseURLs(t *testing.T) {
 	built, err := BuildTools([]map[string]interface{}{
 		{
-			"type":                            "a2a_preview",
+			"type":                            "a2a",
+			"a2a_version":                     "1.0",
 			"project_connection_id":           "a2a-connection",
 			"base_url":                        "https://a2a.contoso.com",
 			"agent_card_path":                 "https://cards.contoso.com/.well-known/agent-card.json",
@@ -167,12 +168,16 @@ func TestDestinationsIncludesConnectionToolBaseURLs(t *testing.T) {
 	if destinations[1].AuthType != "anonymous" {
 		t.Fatalf("cross-host agent-card fetch must be anonymous: %#v", destinations[1])
 	}
+	if destinations[0].Type != "a2a" || destinations[1].Type != "a2a" {
+		t.Fatalf("stable A2A destination type was not preserved: %#v", destinations[:2])
+	}
 }
 
 func TestA2AAgentCardDestinationUsesCredentialsOnlyForSameHost(t *testing.T) {
 	built, err := BuildTools([]map[string]interface{}{
 		{
-			"type":                            "a2a_preview",
+			"type":                            "a2a",
+			"a2a_version":                     "1.0",
 			"project_connection_id":           "a2a-connection",
 			"base_url":                        "https://a2a.contoso.com",
 			"agent_card_path":                 "https://a2a.contoso.com/private/agent-card.json",

@@ -126,7 +126,7 @@ choices in the workflow (`dev`, `staging`, `production`).
 - Enable branch protection on `main`.
 
 The Hosted template also installs `azd` 1.27.1, installs the reviewed
-`azure.ai.agents` extension version `1.0.0-beta.8`, authenticates `azd` through
+`azure.ai.agents` extension version `1.0.0-beta.13`, authenticates `azd` through
 GitHub OIDC, and creates a job-local azd environment from the variables above.
 
 ## Provisioning (Hosted Only)

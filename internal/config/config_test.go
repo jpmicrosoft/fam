@@ -608,7 +608,8 @@ func TestUnknownNestedToolFieldRejected(t *testing.T) {
 func TestA2AAgentCardFieldsAreScopedToA2ATools(t *testing.T) {
 	validDirect := validDoc()
 	validDirect["tools"] = []interface{}{map[string]interface{}{
-		"type":                            "a2a_preview",
+		"type":                            "a2a",
+		"a2a_version":                     "1.0",
 		"project_connection_id":           "a2a-connection",
 		"agent_card_path":                 "/private/agent-card.json",
 		"send_credentials_for_agent_card": true,
@@ -622,7 +623,8 @@ func TestA2AAgentCardFieldsAreScopedToA2ATools(t *testing.T) {
 		"name":        "delegation",
 		"description": "Delegate to another agent.",
 		"tools": []interface{}{map[string]interface{}{
-			"type":                            "a2a_preview",
+			"type":                            "a2a",
+			"a2a_version":                     "1.0",
 			"project_connection_id":           "a2a-connection",
 			"agent_card_path":                 "https://cards.example.test/agent-card.json",
 			"send_credentials_for_agent_card": false,
@@ -630,6 +632,36 @@ func TestA2AAgentCardFieldsAreScopedToA2ATools(t *testing.T) {
 	}}
 	if err := ValidateManifest(validToolbox); err != nil {
 		t.Fatalf("valid Toolbox A2A agent-card fields rejected: %v", err)
+	}
+
+	for _, target := range []string{"direct", "toolbox"} {
+		t.Run("stable version required "+target, func(t *testing.T) {
+			doc := validDoc()
+			tool := map[string]interface{}{
+				"type":                  "a2a",
+				"project_connection_id": "a2a-connection",
+			}
+			if target == "direct" {
+				doc["tools"] = []interface{}{tool}
+			} else {
+				doc["toolboxes"] = []interface{}{map[string]interface{}{
+					"name":  "delegation",
+					"tools": []interface{}{tool},
+				}}
+			}
+			if err := ValidateManifest(doc); err == nil {
+				t.Fatal("stable A2A without a2a_version must fail")
+			}
+		})
+	}
+
+	previewCompatibility := validDoc()
+	previewCompatibility["tools"] = []interface{}{map[string]interface{}{
+		"type":                  "a2a_preview",
+		"project_connection_id": "a2a-connection",
+	}}
+	if err := ValidateManifest(previewCompatibility); err != nil {
+		t.Fatalf("legacy preview A2A compatibility was lost: %v", err)
 	}
 
 	for _, test := range []struct {

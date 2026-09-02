@@ -424,7 +424,10 @@ fam prompt m365 publish -f agent.yaml --publication examples\publication.example
 ```
 
 Prerequisites: the agent is pinned to one concrete active version and has a
-system-assigned `instance_identity.principal_id`. A separate publication
+system-assigned `instance_identity.client_id`. FAM uses that application/client
+ID as the Azure Bot Service `msaAppId`; `instance_identity.principal_id` is the
+service-principal object ID used for Azure RBAC and directory correlation, not
+the Bot Service application ID. A separate publication
 configuration file (`foundry-agent-manager/publication/v1`) is required.
 
 The service supports `@latest` and fixed-ratio routing, but the manager does
@@ -438,13 +441,10 @@ Keep RBAC assigned to that agent identity when its project connections use
 `AgenticIdentityToken`. Tenant administration and approval remain outside this
 CLI.
 
-The Agent 365 support matrix mentions Prompt and Hosted agents, but the public
-Autopilot implementation guidance and sample remain Hosted-specific. There is
-no stable Prompt Agent Autopilot request contract in this manager. Official
-documentation currently conflicts: the integration table describes Prompt and
-Hosted Autopilot support, but the linked procedure is Hosted-only. This CLI
-does not claim Prompt execution support.
-`prompt m365 publish` is the supported Prompt publishing path.
+Prompt Agents support Agent 365 registry synchronization after standard
+Microsoft 365 publication, but Prompt Autopilot publishing is not supported.
+The Hosted Autopilot implementation and sample are separate and
+Hosted-specific. `prompt m365 publish` is the supported Prompt publishing path.
 
 ### Agent 365 blueprint and identity inspection
 
@@ -465,10 +465,15 @@ They do not attach the blueprint or change the agent. A blueprint is not a
 Prompt manifest, and no documented Foundry mutation currently binds an
 arbitrary existing blueprint to a Prompt Agent.
 
-**Identity lifecycle note:** Unpublished Prompt Agents share the parent project
-identity. Publication creates a distinct identity, and Azure RBAC must be
-reassigned. The CLI outputs `shared-or-distinct-unverified` when it cannot
-authoritatively distinguish the identity state.
+**Identity lifecycle note:** New-model Prompt Agents receive a unique
+`instance_identity` when created, and standard Microsoft 365 publication does
+not replace that identity. The CLI reports
+`modern-unique-agent-identity` when the field is present. Legacy agents without
+`instance_identity` use the shared project identity and are reported as
+`legacy-shared-project-identity`; migrating them to a new-model agent requires
+reassigning only the required downstream RBAC roles to the new
+`principal_id`. Legacy Agent Applications are separate resources with separate
+identities and require the same explicit migration review.
 
 See [Agent 365 Blueprints, Identity, Integration, Observability, and Publication](agent365.md).
 

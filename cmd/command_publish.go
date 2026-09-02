@@ -72,9 +72,9 @@ func cmdPublishM365(cmd *cobra.Command, _ []string) error {
 	if agent == nil {
 		return errs.NotFound("agent %q was not found", cfg.Agent.Name)
 	}
-	if agent.InstanceIdentity == nil || strings.TrimSpace(agent.InstanceIdentity.PrincipalID) == "" {
+	if agent.InstanceIdentity == nil || strings.TrimSpace(agent.InstanceIdentity.ClientID) == "" {
 		return errs.Conflict(
-			"agent %q has no instance_identity.principal_id and cannot be published to Microsoft 365",
+			"agent %q has no instance_identity.client_id and cannot be published to Microsoft 365",
 			cfg.Agent.Name,
 		)
 	}
@@ -161,7 +161,7 @@ func cmdPublishM365(cmd *cobra.Command, _ []string) error {
 		Name:           pub.Microsoft365.BotService.Name,
 		DisplayName:    pub.Microsoft365.BotService.DisplayName,
 		Endpoint:       activityEndpoint,
-		MSAAppID:       agent.InstanceIdentity.PrincipalID,
+		MSAAppID:       agent.InstanceIdentity.ClientID,
 		MSAAppTenantID: pub.Microsoft365.BotService.TenantID,
 		AllowUpdate:    allowBotUpdate,
 	})

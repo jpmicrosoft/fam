@@ -59,7 +59,8 @@ Prompt Agent. It attaches tools directly to that agent version. See
 | `azure_ai_search` | `indexes` with `project_connection_id` and `index_name` | Existing connections and indexes. |
 | `openapi` | `name` and `spec` or `spec_file` | Anonymous, managed-identity, or connection auth. |
 | `mcp` | `server_label`, `server_url` | Existing MCP endpoint; approval defaults to `always`. |
-| `a2a_preview` | `project_connection_id` | Preview; optional protected agent-card retrieval. |
+| `a2a` | `a2a_version: "1.0"`, `project_connection_id` | Stable A2A contract; optional protected agent-card retrieval. |
+| `a2a_preview` | `project_connection_id` | Legacy preview compatibility; requires `--accept-preview`. |
 | `browser_automation_preview` | `project_connection_id` | Preview. |
 | `computer_use_preview` | `display_width`, `display_height`, `environment` | Preview. |
 | `fabric_iq_preview` | `project_connection_id` | Preview. |
@@ -87,18 +88,21 @@ Prompt Agent. It attaches tools directly to that agent version. See
 
 ### A2A agent-card and identity contract
 
-Direct and Toolbox `a2a_preview` tools support public or protected agent
-cards:
+Direct and Toolbox tools support the stable `a2a` contract. Set
+`a2a_version: "1.0"` explicitly:
 
 ```yaml
 tools:
-  - type: a2a_preview
+  - type: a2a
+    a2a_version: "1.0"
     project_connection_id: remote-agent
     base_url: https://agent.contoso.com
     agent_card_path: /private/agent-card.json
     send_credentials_for_agent_card: true
-    require_approval: always
 ```
+
+`a2a_preview` remains accepted for existing manifests and retains its preview
+acceptance boundary. Stable `a2a` is not classified as preview.
 
 `agent_card_path` is optional and defaults in Foundry to
 `/.well-known/agent-card.json`. It may be a relative URL reference or an

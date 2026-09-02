@@ -41,7 +41,8 @@ func Destinations(built []interface{}) ([]Destination, error) {
 		if !ok {
 			return nil, errs.Security("tool[%d]: built tool payload is not an object", index)
 		}
-		switch getStr(tool, "type") {
+		toolType := getStr(tool, "type")
+		switch toolType {
 		case "openapi":
 			found, err := openAPIDestinations(index, tool)
 			if err != nil {
@@ -56,17 +57,18 @@ func Destinations(built []interface{}) ([]Destination, error) {
 				URL:      getStr(tool, "server_url"),
 				AuthType: "mcp",
 			})
-		case "a2a_preview":
+		case "a2a", "a2a_preview":
 			destinations = appendOptionalDestination(
 				destinations,
-				"a2a_preview",
-				fmt.Sprintf("tools[%d] a2a_preview base_url", index),
+				toolType,
+				fmt.Sprintf("tools[%d] %s base_url", index, toolType),
 				getStr(tool, "base_url"),
 			)
 			withAgentCard, err := appendA2AAgentCardDestination(
 				destinations,
 				tool,
-				fmt.Sprintf("tools[%d] a2a_preview agent_card_path", index),
+				toolType,
+				fmt.Sprintf("tools[%d] %s agent_card_path", index, toolType),
 			)
 			if err != nil {
 				return nil, err
@@ -112,7 +114,8 @@ func ToolboxDestinations(definitions []ToolboxDefinition) ([]Destination, error)
 				toolbox.Name,
 				toolIndex,
 			)
-			switch getStr(tool, "type") {
+			toolType := getStr(tool, "type")
+			switch toolType {
 			case "mcp":
 				destinations = append(destinations, Destination{
 					Type:     "mcp",
@@ -120,17 +123,18 @@ func ToolboxDestinations(definitions []ToolboxDefinition) ([]Destination, error)
 					URL:      getStr(tool, "server_url"),
 					AuthType: getStrDefault(getMap(tool, "authentication"), "type", "anonymous"),
 				})
-			case "a2a_preview":
+			case "a2a", "a2a_preview":
 				destinations = appendOptionalDestination(
 					destinations,
-					"a2a_preview",
-					prefix+" a2a_preview base_url",
+					toolType,
+					prefix+" "+toolType+" base_url",
 					getStr(tool, "base_url"),
 				)
 				withAgentCard, err := appendA2AAgentCardDestination(
 					destinations,
 					tool,
-					prefix+" a2a_preview agent_card_path",
+					toolType,
+					prefix+" "+toolType+" agent_card_path",
 				)
 				if err != nil {
 					return nil, err
@@ -184,6 +188,7 @@ func appendOptionalDestination(
 func appendA2AAgentCardDestination(
 	destinations []Destination,
 	tool map[string]interface{},
+	toolType string,
 	field string,
 ) ([]Destination, error) {
 	rawURL := getStr(tool, "agent_card_path")
@@ -209,7 +214,7 @@ func appendA2AAgentCardDestination(
 		}
 	}
 	return append(destinations, Destination{
-		Type:     "a2a_preview",
+		Type:     toolType,
 		Field:    field,
 		URL:      rawURL,
 		AuthType: authType,

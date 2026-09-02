@@ -6,7 +6,7 @@
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/REPO/main/scripts/install.sh | sh
-#   ./scripts/install.sh --version v0.15.1 --install-dir "$HOME/.local/bin"
+#   ./scripts/install.sh --version v0.16.0 --install-dir "$HOME/.local/bin"
 #
 # Environment:
 #   FAM_INSTALL_TOKEN / GITHUB_TOKEN / GH_TOKEN
@@ -31,7 +31,7 @@ Downloads and installs the prebuilt fam release binary.
 Go is not required; this script does not compile source code.
 
 Options:
-  --version VERSION     Install a specific published tag (e.g. v0.15.1).
+  --version VERSION     Install a specific published tag (e.g. v0.16.0).
                         Omit for latest release.
   --install-dir DIR     Destination directory (default: \$HOME/.local/bin)
   --repo OWNER/REPO    GitHub repository (default: $DEFAULT_REPO)

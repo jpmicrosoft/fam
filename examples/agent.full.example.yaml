@@ -139,7 +139,8 @@ tools:
     server_url: https://interpreter.example.com/mcp
     require_approval: always
 
-  - type: a2a_preview
+  - type: a2a
+    a2a_version: "1.0"
     project_connection_id: <a2a-project-connection-id>
     # Omit this to use Foundry's default /.well-known/agent-card.json path.
     # Relative paths use the effective A2A base host. Absolute HTTPS URLs
@@ -149,7 +150,6 @@ tools:
     # protected card is on the effective A2A base host and may receive the
     # project connection credentials.
     send_credentials_for_agent_card: false
-    require_approval: always
 
   - type: browser_automation_preview
     name: sample_browser

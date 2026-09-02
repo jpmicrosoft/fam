@@ -162,6 +162,35 @@ func TestBuildToolboxA2AForwardsAgentCardConfiguration(t *testing.T) {
 	}})
 }
 
+func TestBuildToolboxStableA2AIsNotPreview(t *testing.T) {
+	definitions, err := BuildToolboxes([]map[string]interface{}{{
+		"name":        "stable-delegation",
+		"description": "Delegate through the stable A2A contract.",
+		"tools": []interface{}{map[string]interface{}{
+			"type":                            "a2a",
+			"a2a_version":                     "1.0",
+			"project_connection_id":           "a2a-connection",
+			"base_url":                        "https://a2a.example.test",
+			"agent_card_path":                 "/private/agent-card.json",
+			"send_credentials_for_agent_card": true,
+		}},
+	}}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if definitions[0].RequiresPreview || len(definitions[0].PreviewCapabilities) != 0 {
+		t.Fatalf("stable A2A was classified as preview: %+v", definitions[0])
+	}
+	assertJSONEqual(t, definitions[0].Tools, []interface{}{map[string]interface{}{
+		"type":                            "a2a",
+		"a2a_version":                     "1.0",
+		"project_connection_id":           "a2a-connection",
+		"base_url":                        "https://a2a.example.test",
+		"agent_card_path":                 "/private/agent-card.json",
+		"send_credentials_for_agent_card": true,
+	}})
+}
+
 func TestBuildToolboxBingCustomSearchProducesDocumentedWireFormat(t *testing.T) {
 	definitions, err := BuildToolboxes([]map[string]interface{}{{
 		"name":        "research",

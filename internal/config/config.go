@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	Version     = "0.15.1"
+	Version     = "0.16.0"
 	BuildCommit = ""
 	BuildDate   = ""
 )

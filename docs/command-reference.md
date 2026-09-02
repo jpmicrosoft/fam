@@ -1,7 +1,7 @@
 # Command Reference
 
 Complete command listing, global options, exit codes, and output contracts for
-the current source tree (`0.15.1` is the prepared release version).
+the current source tree (`0.16.0` is the prepared release version).
 
 For task-oriented answers and common troubleshooting, start with the
 [`FAQ`](faq.md).
@@ -95,9 +95,9 @@ execution examples.
 | `agent365 observability plan` | plan/read-only | Scan bounded regular Hosted source files for Microsoft OpenTelemetry Distro or legacy Agent 365 observability SDK evidence and documented config calls. `.env` and `a365.generated.config.json` are skipped; only evidence filenames are emitted. |
 | `agent365 observability status` | read-only (AzureCloud only) | Check whether the deployed agent identity has the `Agent365.Observability.OtelWrite` app role (`8f71190c-00c8-461d-a63b-f74abde9ba52`) assigned. Requires `Application.Read.All`. Read-only; does not assign the role. |
 | `agent365 publication info` | no | Explain the publication boundary: read-only/plan-only, no generic registry mutation. |
-| `agent365 publication plan` | plan/read-only (AzureCloud only) | Plan publication and post-publication identity/RBAC migration for exactly one Prompt or Hosted target. Does not mutate. |
+| `agent365 publication plan` | plan/read-only (AzureCloud only) | Plan publication for exactly one Prompt or Hosted target. Preserves modern identity/RBAC guidance and emits migration steps only for legacy identities. Does not mutate. |
 | `agent365 publication status` | read-only (AzureCloud only) | Show Foundry publication and identity evidence for exactly one Prompt or Hosted target. Registry state remains unverified because no documented manager status API exists. |
-| `agent365 publication admin-handoff` | plan/read-only (AzureCloud only) | Generate tenant-admin, governance, observability, and RBAC handoff steps for exactly one Prompt or Hosted target. |
+| `agent365 publication admin-handoff` | plan/read-only (AzureCloud only) | Generate tenant-admin, governance, observability, and identity-appropriate RBAC handoff steps for exactly one Prompt or Hosted target. |
 | `project connection list` / `project connection show` | read-only | Inspect ARM project connections; credential values are removed before output. |
 | `project connection create` / `project connection update` | mutating | Create or update a project connection from non-secret flags plus a credential file/environment source; writes a v2 receipt. |
 | `project connection delete` | destructive | Delete one project connection after `--yes`. |
@@ -421,7 +421,7 @@ In text mode the same failure is written to stderr as `error: <message>`.
 
 ```powershell
 fam version
-# fam 0.15.1 commit=<commit> built=<timestamp>
+# fam 0.16.0 commit=<commit> built=<timestamp>
 ```
 
 | Format | Contract |
@@ -432,12 +432,12 @@ fam version
 
 ```json
 {
-  "version": "0.15.1",
+  "version": "0.16.0",
   "commit": "<commit>",
   "builtAt": "<timestamp>"
 }
 ```
 
-An unstamped `go build` prints `fam 0.15.1` and `{"version": "0.15.1"}`.
+An unstamped `go build` prints `fam 0.16.0` and `{"version": "0.16.0"}`.
 `fam --version` prints only `fam <version>`; use the
 `version` subcommand when you need commit and build time.

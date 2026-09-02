@@ -19,13 +19,13 @@ does and does not make, and how to operate and report issues against it.
 
 | Version | Status |
 |---|---|
-| `0.15.x` (current application version) | Supported. Fixes land here. |
+| `0.16.x` (current application version) | Supported. Fixes land here. |
 | Current `main` | Supported. This is where fixes are developed. |
 | Anything older | Not supported. |
 
-`0.15.1` is the version compiled into the binary
+`0.16.0` is the version compiled into the binary
 ([`internal/config/config.go`](internal/config/config.go)). Release assets are
-created only after the matching `v0.15.1` tag is pushed.
+created only after the matching `v0.16.0` tag is pushed.
 
 Always report against the current `main` if you can reproduce there.
 
@@ -82,7 +82,7 @@ Threats the design explicitly addresses:
 | Integration set silently changes the wrong account | ARM coordinates are explicit operator input; `--yes` is required; `set` verifies with a read-back and supports `--if-match` for concurrency control. |
 | Observability status falsely claims a role is assigned | `observability status` reads app-role assignments via Graph and never assigns roles; it requires `Application.Read.All`. |
 | Publication commands mutate registry state | All publication commands are read-only/plan-only; no generic registry mutation or arbitrary existing blueprint binding is performed. |
-| Identity lifecycle RBAC is silently inherited | The CLI explicitly warns that publication creates a distinct identity and that RBAC does not transfer; it outputs `shared-or-distinct-unverified` when the distinction cannot be proven. |
+| Modern publication needlessly replaces RBAC, or legacy migration silently inherits it | The CLI classifies a present `instance_identity` as a modern unique identity retained through standard publication, and a missing one as a legacy shared-project identity whose migration requires explicit RBAC reassignment. |
 | Lookalike/IDN host approved by mistake | Non-ASCII hosts and audiences are rejected on both sides; punycode is required. |
 | Over-broad approval (`*.example.com`) | Wildcard and suffix approvals are rejected. |
 | Secret leaks into logs, errors, or receipts | Central redaction of every registered credential, including JSON, query, and path encodings. |

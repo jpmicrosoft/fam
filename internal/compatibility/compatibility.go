@@ -24,6 +24,7 @@ type Result struct {
 }
 
 var matrixToolByManifestType = map[string]string{
+	"a2a":                          "a2a",
 	"a2a_preview":                  "a2a",
 	"azure_ai_search":              "azure_ai_search",
 	"azure_function":               "azure_function",

@@ -79,7 +79,7 @@ auditable deployment evidence.
 - **AzureCloud only.** Azure Government is rejected before credential
   acquisition or network access until dedicated qualification is complete.
 
-> **Preview status.** This tool is version 0.15.1. Hosted Agents require
+> **Preview status.** This tool is version 0.16.0. Hosted Agents require
 > `--accept-preview`. See [Support status](#support-status-and-release-boundaries)
 > for the full boundary table.
 
@@ -172,14 +172,16 @@ long-term support promise when an upstream service is still preview.
 - `prompt m365 publish` uses the stable `v1` Microsoft 365 REST operation, explicitly
   disables Autopilot, and reuses the modern agent's `instance_identity`.
 - Hosted Autopilot is a separate experimental pinned-sample workflow. There is
-  no stable Prompt Autopilot request contract.
+  no Prompt Autopilot publishing path.
 - `agent365` can inspect an existing Agent ID blueprint, identity, and
   principal; compare it with Foundry identity fields; manage integration
   logging on a Foundry account; inspect observability readiness; and plan
   publication. It cannot bind an arbitrary blueprint or Agent ID because no
   documented Foundry mutation API exposes that operation.
-- Legacy Agent Application compatibility creates a distinct identity, so
-  downstream RBAC must be reassigned deliberately.
+- New-model agents have a unique identity at creation, and standard Microsoft
+  365 publication does not replace it. Legacy agents can use the shared project
+  identity; migrating a legacy agent or Agent Application to a new-model agent
+  requires deliberate downstream RBAC reassignment.
 - `AgenticIdentityToken` uses the agent identity for unattended downstream
   tokens; `ProjectManagedIdentity` uses the project identity; OAuth identity
   passthrough is a separate user-consent flow.
@@ -201,13 +203,13 @@ deployment never creates a model implicitly.
 |---|---|
 | Offline validation, planning, and scaffolding | The `fam` executable only |
 | Online Prompt, project, model, connection, or Agent 365 operations | `fam` plus an identity that `DefaultAzureCredential` can resolve. Azure CLI (`az`) is one optional developer credential source, not a universal requirement. |
-| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.27.1 or later, and the `azure.ai.agents` azd extension at exactly `1.0.0-beta.8` |
+| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.27.1 or later, and the `azure.ai.agents` azd extension at exactly `1.0.0-beta.13` |
 | Optional source build | Go 1.25 or later |
 
 Install the pinned Hosted Agent extension explicitly:
 
 ```powershell
-azd extension install azure.ai.agents --version 1.0.0-beta.8
+azd extension install azure.ai.agents --version 1.0.0-beta.13
 ```
 
 Azure CLI and Azure Developer CLI maintain separate authentication context.
@@ -281,7 +283,7 @@ Download [`scripts/install.ps1`](scripts/install.ps1), save it as
 .\install.ps1
 
 # Pin a specific version:
-.\install.ps1 -Version v0.15.1
+.\install.ps1 -Version v0.16.0
 
 # Override install directory and add to PATH:
 .\install.ps1 -InstallDir C:\tools -ModifyProfile
@@ -297,7 +299,7 @@ Download [`scripts/install.ps1`](scripts/install.ps1), save it as
 curl -fsSL https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/install.sh | sh
 
 # Pin a specific version and install directory:
-./scripts/install.sh --version v0.15.1 --install-dir "$HOME/.local/bin"
+./scripts/install.sh --version v0.16.0 --install-dir "$HOME/.local/bin"
 
 # Override repository (private repo uses GITHUB_TOKEN / GH_TOKEN automatically):
 ./scripts/install.sh --repo myorg/fam
@@ -335,7 +337,7 @@ by the installer.
 |---|---|
 | `running scripts is disabled` | After reviewing the downloaded script, use `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`; do not weaken machine-wide policy |
 | Script is blocked or not digitally signed | Review its source, then run `Unblock-File .\install.ps1` |
-| `Could not determine latest release` | Check GitHub access/private-repo authentication, or pass a known tag such as `-Version v0.15.1` |
+| `Could not determine latest release` | Check GitHub access/private-repo authentication, or pass a known tag such as `-Version v0.16.0` |
 | Release or asset download returns 404 | Verify `-Repo OWNER/REPO`, the `v`-prefixed tag, token access, and the platform archive exists |
 | Checksum missing or mismatched | Stop and retry from the intended release; never bypass checksum verification |
 | Access denied while installing | Close a running executable or select a user-writable `-InstallDir` |
@@ -552,7 +554,7 @@ fam hosted init --destination unguarded-agent --name unguarded-agent --no-guardr
 # hosted deploy, and hosted draft deploy as an explicit online acknowledgement.
 
 # Install required tooling (manager never auto-installs):
-azd extension install azure.ai.agents --version 1.0.0-beta.8
+azd extension install azure.ai.agents --version 1.0.0-beta.13
 azd auth login --tenant-id <tenant-id>
 
 # Create/select and configure the local azd environment when quickstart did not:
@@ -920,7 +922,7 @@ Key template features:
   (`INSTALLER_REPO`), and private-repo token support (`FAM_INSTALL_TOKEN`).
 - Concurrency groups to prevent parallel deploys.
 - Receipt artifact upload for audit.
-- Hosted template installs pinned `azd` 1.27.1 and extension `1.0.0-beta.8`.
+- Hosted template installs pinned `azd` 1.27.1 and extension `1.0.0-beta.13`.
 
 ## Security principles
 

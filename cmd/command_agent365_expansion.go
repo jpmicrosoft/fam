@@ -556,15 +556,17 @@ func cmdAgent365PublicationInfo(cmd *cobra.Command, _ []string) error {
 		RegistryMutationSupported: false,
 		ExistingBindingSupported:  false,
 		HostedExecutionBoundary:   "Only the separately pinned and reviewed Hosted Autopilot sample workflow is executable; it does not publish an arbitrary existing Hosted Agent.",
-		PromptExecutionBoundary:   "Foundry integration documentation describes Prompt registry sync and Autopilot support, but the current linked Autopilot procedure is Hosted-only; this CLI does not guess a Prompt mutation.",
+		PromptExecutionBoundary:   "Prompt Agents support Agent 365 registry synchronization after standard Microsoft 365 publication; Prompt Autopilot publishing is not supported.",
 		IdentityLifecycle: []string{
-			"Unpublished agents in a Foundry project use the shared project Agent ID identity.",
-			"Publishing creates a distinct blueprint and Agent ID identity for the agent application.",
-			"Azure RBAC assignments on the shared project identity do not transfer to the distinct published identity.",
+			"New-model agents receive a unique blueprint and instance identity when they are created.",
+			"Standard Microsoft 365 publication and Agent 365 registry synchronization do not replace a new-model agent's instance identity or invalidate its existing Azure RBAC assignments.",
+			"Use instance_identity.client_id as the Azure Bot Service msaAppId; use instance_identity.principal_id for Azure RBAC and directory-object correlation.",
+			"Legacy agents can use the shared project identity, while legacy Agent Applications have separate identities; migrating either to a new-model agent requires reassessing and reassigning downstream RBAC to the new identity.",
 		},
 		Documentation: []string{
 			"https://learn.microsoft.com/azure/foundry/agents/concepts/agent-identity",
-			"https://learn.microsoft.com/azure/foundry/agents/how-to/agent-365-integration",
+			"https://learn.microsoft.com/azure/foundry/agents/concepts/agent-365-integration",
+			"https://learn.microsoft.com/azure/foundry/agents/how-to/migrate",
 			"https://learn.microsoft.com/microsoft-agent-365/developer/choose-integration-option",
 		},
 	}
@@ -649,6 +651,7 @@ func resolveAgent365PublicationResult(
 		}
 	}
 	evidence := classifyAgent365Identity(target.Agent, directoryIdentity)
+	modernIdentity := target.Agent != nil && target.Agent.InstanceIdentity != nil
 	result := agent365PublicationResult{
 		TargetType:        target.Type,
 		Cloud:             target.Cloud,
@@ -658,27 +661,40 @@ func resolveAgent365PublicationResult(
 		RegistryStatus:    "unverified-no-documented-manager-registry-status-api",
 		PublicationStatus: "unverified",
 		Executable:        false,
-		Steps: []string{
-			"Review the current shared project identity permissions before publication.",
-			"Use only a documented Foundry publication flow; do not write blueprint IDs into local metadata as a substitute.",
-			"After publication, retrieve the distinct agent identity from the agent application resource.",
-			"Reassign every required Azure RBAC role to the distinct identity and validate downstream token audiences.",
-			"Verify registry appearance and governance state in Microsoft Agent 365 admin experiences.",
-		},
 		AdminHandoff: []string{
 			"Confirm the tenant has the required Microsoft Agent 365 license and administrator consent.",
 			"Confirm the Foundry account Agent 365 status and account-wide activity-data setting.",
 			"Review blueprint owners, sponsors, requested permissions, inheritable permissions, and Conditional Access policy.",
 			"Approve the Agent365.Observability.OtelWrite app role only for identities that send Agent 365 telemetry.",
-			"Record the pre-publication shared identity and post-publication distinct identity as separate principals.",
-			"Repeat Azure RBAC assignments for the distinct identity; shared project identity roles do not transfer.",
 		},
+	}
+	if modernIdentity {
+		result.Steps = []string{
+			"Record the agent's existing blueprint, instance_identity.client_id, and instance_identity.principal_id before publication.",
+			"Use only a documented publication flow; standard Microsoft 365 publication does not replace the existing new-model agent identity.",
+			"Keep downstream Azure RBAC assignments on instance_identity.principal_id and use instance_identity.client_id only where an application/client ID is required.",
+			"Verify registry appearance and governance state in Microsoft Agent 365 admin experiences.",
+		}
+		result.AdminHandoff = append(result.AdminHandoff,
+			"Record the existing new-model agent identity as the continuing post-publication principal.",
+			"Do not recreate Azure RBAC solely because standard Microsoft 365 publication or registry synchronization occurred.",
+		)
+	} else {
+		result.Steps = []string{
+			"Inventory permissions granted to the legacy shared project identity or separate legacy Agent Application identity.",
+			"Use the documented migration flow to create or identify the target new-model agent; do not write blueprint IDs into local metadata as a substitute.",
+			"Retrieve the new agent's instance identity and reassign only the required Azure RBAC roles to its principal_id.",
+			"Validate downstream token audiences, registry appearance, and governance state after migration.",
+		}
+		result.AdminHandoff = append(result.AdminHandoff,
+			"Record the legacy identity and new-model agent identity as separate principals.",
+			"Reassign required Azure RBAC roles during migration because legacy identity assignments do not transfer to the new agent identity.",
+		)
 	}
 	if target.Type == "hosted" {
 		result.ExecutionBoundary = "The pinned `autopilot deploy` sample is the only executable Hosted Autopilot path and creates its own reviewed sample deployment."
 	} else {
-		result.ExecutionBoundary = "No Prompt Autopilot mutation is implemented because current official integration and procedure documentation are inconsistent."
-		result.DocumentationConflict = "The Agent 365 integration support table describes Prompt Autopilot support, while the linked publishing procedure is currently Hosted-only."
+		result.ExecutionBoundary = "Prompt Agents support standard Microsoft 365 publication and Agent 365 registry synchronization; Prompt Autopilot publishing is unsupported."
 	}
 	return result, cancel, nil
 }
@@ -688,43 +704,69 @@ func classifyAgent365Identity(
 	directory *agent365.AgentIdentity,
 ) agent365IdentityEvidence {
 	result := agent365IdentityEvidence{
-		Classification:    "shared-or-distinct-unverified",
+		Classification:    "identity-unavailable",
 		Authoritative:     false,
 		Correlation:       "not-requested",
 		DirectoryIdentity: directory,
-		RBACGuidance: []string{
-			"Unpublished agents use the shared project Agent ID identity.",
-			"Published agents use a new distinct Agent ID identity.",
-			"Do not assume roles transfer: enumerate assignments on the shared identity and recreate only required roles on the distinct identity.",
-			"Grant access to the principal that actually receives the downstream token, and validate the target audience separately.",
-		},
 	}
 	if agent == nil {
-		result.Classification = "identity-unavailable"
+		result.RBACGuidance = []string{
+			"Resolve the Foundry agent before making identity or RBAC decisions.",
+		}
 		return result
 	}
 	result.InstanceIdentity = agent.InstanceIdentity
 	result.FoundryBlueprint = agent.Blueprint
 	result.BlueprintReference = agent.BlueprintReference
+	if agent.InstanceIdentity == nil {
+		result.Classification = "legacy-shared-project-identity"
+		result.Authoritative = true
+		result.RBACGuidance = []string{
+			"The missing instance_identity identifies a legacy agent that uses the shared project identity.",
+			"Migrating to a new-model agent creates a unique identity; enumerate existing role assignments and recreate only the required roles on the new principal_id.",
+			"Legacy Agent Applications are separate resources with separate identities and require the same explicit RBAC reassessment when replaced.",
+			"Validate the downstream token audience after every identity migration.",
+		}
+		if directory != nil {
+			result.Correlation = "insufficient-data"
+		}
+		return result
+	}
+	result.Classification = "modern-unique-agent-identity"
+	result.Authoritative = true
+	result.RBACGuidance = []string{
+		"The agent already has a unique new-model instance identity.",
+		"Standard Microsoft 365 publication and Agent 365 registry synchronization retain this identity; do not recreate RBAC solely because publication occurred.",
+		"Use instance_identity.principal_id for Azure RBAC and directory-object correlation.",
+		"Use instance_identity.client_id where an application/client ID is required, including Azure Bot Service msaAppId.",
+	}
 	if directory == nil {
 		return result
 	}
-	if agent.InstanceIdentity == nil {
+	principalID := strings.TrimSpace(agent.InstanceIdentity.PrincipalID)
+	directoryID := strings.TrimSpace(directory.ID)
+	if principalID == "" || directoryID == "" {
 		result.Correlation = "insufficient-data"
 		return result
 	}
 	if !strings.EqualFold(
-		strings.TrimSpace(agent.InstanceIdentity.PrincipalID),
-		strings.TrimSpace(directory.ID),
+		principalID,
+		directoryID,
 	) {
 		result.Correlation = "not-matched"
 		return result
 	}
 	result.Correlation = "identity-object-matched"
-	if agent.Blueprint != nil &&
+	blueprintClientID := ""
+	if agent.Blueprint != nil {
+		blueprintClientID = strings.TrimSpace(agent.Blueprint.ClientID)
+	}
+	directoryBlueprintID := strings.TrimSpace(directory.AgentIdentityBlueprintID)
+	if blueprintClientID != "" &&
+		directoryBlueprintID != "" &&
 		strings.EqualFold(
-			strings.TrimSpace(agent.Blueprint.ClientID),
-			strings.TrimSpace(directory.AgentIdentityBlueprintID),
+			blueprintClientID,
+			directoryBlueprintID,
 		) {
 		result.Correlation = "identity-and-blueprint-matched"
 	}

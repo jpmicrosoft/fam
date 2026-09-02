@@ -5,13 +5,45 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Version status.** `0.15.1` is the version compiled into the executable
+> **Version status.** `0.16.0` is the version compiled into the executable
 > ([`internal/config/config.go`](internal/config/config.go)) and reported by
 > `fam version`. Release archives plus a GitHub Release are
-> produced only after the matching `v0.15.1` tag is pushed; see
+> produced only after the matching `v0.16.0` tag is pushed; see
 > [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## [Unreleased]
+
+## [0.16.0] - 2026-09-02
+
+### Added
+
+- Prompt Agent manifests and managed Toolboxes now support the stable Foundry
+  A2A tool type with required `a2a_version: "1.0"`. Existing
+  `a2a_preview` manifests remain compatible and retain their explicit preview
+  acceptance boundary.
+
+### Changed
+
+- **Breaking for Hosted workflows:** Hosted Agent commands now require the
+  reviewed `azure.ai.agents`
+  `1.0.0-beta.13` extension. Its version, deploy, provision-preview, and
+  read-only status command surfaces were qualified before updating the exact
+  pin. Install the new exact version before running online Hosted commands.
+- Agent 365 publication planning now distinguishes new-model agents, whose
+  unique instance identity persists through standard publication, from legacy
+  agents and Agent Applications that require identity and RBAC migration.
+- Prompt guidance now states directly that Agent 365 registry synchronization
+  is supported after standard publication while Prompt Autopilot publishing is
+  unsupported.
+
+### Fixed
+
+- Microsoft 365 publishing now uses `instance_identity.client_id` as Azure Bot
+  Service `msaAppId`. `instance_identity.principal_id` remains the
+  service-principal object ID for Azure RBAC and directory correlation.
+  Existing Bot Service resources created with the old object ID will be
+  reported as mismatched and require an explicit reviewed
+  `--allow-bot-update` run to correct.
 
 ## [0.15.1] - 2026-08-31
 

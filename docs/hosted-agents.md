@@ -13,11 +13,11 @@ Online Hosted Agent operations require all of the following:
 
 - The `fam` executable
 - Azure Developer CLI (`azd`) 1.27.1 or later
-- The `azure.ai.agents` azd extension at exactly `1.0.0-beta.8`
+- The `azure.ai.agents` azd extension at exactly `1.0.0-beta.13`
 - A separate authenticated `azd` session for the target tenant
 
 ```powershell
-azd extension install azure.ai.agents --version 1.0.0-beta.8
+azd extension install azure.ai.agents --version 1.0.0-beta.13
 azd auth login --tenant-id <tenant-id>
 ```
 
@@ -77,7 +77,7 @@ authentication or deployment rather than producing an unpredictable rollout.
 | Contract | Required value |
 |---|---|
 | Azure Developer CLI | `1.27.1` or later |
-| Hosted Agent extension | exactly `azure.ai.agents` `1.0.0-beta.8` |
+| Hosted Agent extension | exactly `azure.ai.agents` `1.0.0-beta.13` |
 | Workspace source of truth | `azure.yaml` |
 | Agent service | `host: azure.ai.agent`, `kind: hosted` |
 | Deployment modes | direct source code, Docker/container, or prebuilt image |
@@ -215,7 +215,7 @@ Install the reviewed extension yourself; the manager never auto-installs or
 upgrades it:
 
 ```powershell
-azd extension install azure.ai.agents --version 1.0.0-beta.8
+azd extension install azure.ai.agents --version 1.0.0-beta.13
 azd auth login --tenant-id <tenant-id>
 ```
 

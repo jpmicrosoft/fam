@@ -377,6 +377,7 @@
         "type": {
           "type": "string",
           "enum": [
+            "a2a",
             "a2a_preview",
             "azure_ai_search",
             "azure_function",
@@ -656,7 +657,7 @@
           "if": {
             "properties": {
               "type": {
-                "enum": ["a2a_preview", "work_iq_preview"]
+                "const": "work_iq_preview"
               }
             }
           },
@@ -676,11 +677,14 @@
         {
           "if": {
             "properties": {
-              "type": { "const": "a2a_preview" }
+              "type": { "enum": ["a2a", "a2a_preview"] }
             }
           },
           "then": {
+            "required": ["project_connection_id"],
             "properties": {
+              "project_connection_id": { "type": "string", "minLength": 1 },
+              "base_url": { "type": "string", "pattern": "^https://" },
               "agent_card_path": {
                 "type": "string",
                 "minLength": 1,
@@ -690,6 +694,35 @@
                 "type": "boolean",
                 "default": false
               }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "a2a" }
+            }
+          },
+          "then": {
+            "required": ["a2a_version"],
+            "properties": {
+              "a2a_version": { "type": "string", "enum": ["1.0"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "a2a_preview" }
+            }
+          },
+          "then": {
+            "properties": {
+              "require_approval": {
+                "type": "string",
+                "enum": ["always", "never"]
+              },
+              "tool_configs": { "type": "object" }
             }
           }
         },
@@ -809,6 +842,7 @@
         "type": {
           "type": "string",
           "enum": [
+            "a2a",
             "a2a_preview",
             "azure_ai_search",
             "bing_custom_search",
@@ -929,7 +963,7 @@
         {
           "if": {
             "properties": {
-              "type": { "enum": ["a2a_preview", "work_iq_preview"] }
+              "type": { "const": "work_iq_preview" }
             }
           },
           "then": {
@@ -947,11 +981,14 @@
         {
           "if": {
             "properties": {
-              "type": { "const": "a2a_preview" }
+              "type": { "enum": ["a2a", "a2a_preview"] }
             }
           },
           "then": {
+            "required": ["project_connection_id"],
             "properties": {
+              "project_connection_id": { "type": "string", "minLength": 1 },
+              "base_url": { "type": "string", "pattern": "^https://" },
               "agent_card_path": {
                 "type": "string",
                 "minLength": 1,
@@ -960,6 +997,34 @@
               "send_credentials_for_agent_card": {
                 "type": "boolean",
                 "default": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "a2a" }
+            }
+          },
+          "then": {
+            "required": ["a2a_version"],
+            "properties": {
+              "a2a_version": { "type": "string", "enum": ["1.0"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "a2a_preview" }
+            }
+          },
+          "then": {
+            "properties": {
+              "require_approval": {
+                "type": "string",
+                "enum": ["always", "never"]
               }
             }
           }

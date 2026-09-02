@@ -190,28 +190,28 @@ func cmdAgent365Info(cmd *cobra.Command, _ []string) error {
 			"Correlate Foundry Agent identity fields with Microsoft Entra identities for Prompt and Hosted targets.",
 			"Inspect and explicitly set Foundry account Agent 365 activity-data collection through the documented ARM preview property.",
 			"Validate Hosted Agent local observability integration and the required Agent365.Observability.OtelWrite app role.",
-			"Plan publication, identity migration, registry verification, and administrator handoff without inventing unsupported mutations.",
+			"Plan publication with modern identity retention or legacy identity migration guidance, registry verification, and administrator handoff without inventing unsupported mutations.",
 		},
 		Limitations: []string{
 			"A blueprint is an identity template, not deployable agent source or configuration.",
 			"No documented Foundry API binds an arbitrary existing Agent 365 blueprint to an existing Prompt or Hosted Agent.",
 			"The manager never treats local metadata, generated Agent 365 configuration, or matching IDs alone as a successful binding.",
 			"Blueprint credentials are never requested, read, logged, or emitted.",
-			"Shared-versus-distinct lifecycle identity cannot be classified authoritatively from project-agent and directory identity fields alone.",
-			"Registry and generic Autopilot publication mutations are not exposed without a stable documented API.",
+			"A present Foundry instance_identity identifies a modern unique agent identity; its absence identifies the legacy shared-project identity model. Optional Graph resolution correlates IDs but does not create a binding.",
+			"Generic registry mutation and arbitrary existing Hosted publication are not exposed. Prompt Autopilot publishing is unsupported; the executable Hosted boundary remains the separately pinned sample.",
 		},
 		Documentation: []string{
 			"https://learn.microsoft.com/graph/api/agentidentityblueprint-list?view=graph-rest-1.0",
 			"https://learn.microsoft.com/graph/api/agentidentity-list?view=graph-rest-1.0",
 			"https://learn.microsoft.com/graph/api/agentidentityblueprintprincipal-list?view=graph-rest-1.0",
 			"https://learn.microsoft.com/azure/foundry/agents/concepts/agent-identity",
-			"https://learn.microsoft.com/azure/foundry/agents/how-to/agent-365-integration",
+			"https://learn.microsoft.com/azure/foundry/agents/concepts/agent-365-integration",
 		},
 	}
 	return printResult(
 		cmd,
 		result,
-		"Agent 365 support includes read-only inventory, planning, and one confirmed account-level logging mutation; arbitrary existing-blueprint binding and registry publication are not supported",
+		"Agent 365 support includes read-only inventory, planning, and one confirmed account-level logging mutation; Prompt standard publication is under prompt m365, while arbitrary existing-blueprint binding and generic registry mutation are not supported",
 	)
 }
 

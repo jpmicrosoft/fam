@@ -15,6 +15,12 @@ func TestCheckUsesDocumentedModelAndRegionMatrix(t *testing.T) {
 	if unsupportedRegion.RegionStatus != StatusUnsupported {
 		t.Fatalf("expected unsupported region combination: %#v", unsupportedRegion)
 	}
+	stableA2A := Check("gpt-4.1", "East US", "a2a")
+	if stableA2A.MatrixTool != "a2a" ||
+		stableA2A.ModelStatus != StatusSupported ||
+		stableA2A.RegionStatus != StatusSupported {
+		t.Fatalf("stable A2A did not use the documented matrix: %#v", stableA2A)
+	}
 }
 
 func TestCheckReturnsUnknownForUnpublishedCombinations(t *testing.T) {

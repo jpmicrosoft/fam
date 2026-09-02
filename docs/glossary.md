@@ -22,11 +22,11 @@ If you are new to Foundry or this CLI, read this page first.
 | **Agent ID blueprint** | A specialized Microsoft Entra application that acts as a template for creating agent identity instances. It is not agent code, instructions, a Prompt manifest, or a Hosted workspace. |
 | **Agent ID identity** | A runtime identity instance created from a blueprint. Distinct from the blueprint itself and from Foundry project identities. |
 | **Blueprint principal** | A service principal associated with a blueprint, representing the blueprint's instantiation in a directory. |
-| **Instance identity** | The runtime service principal exposed by Foundry for supported agent-native authentication. Assign downstream Azure RBAC to this principal when the configured token flow uses it. |
+| **Instance identity** | The unique runtime identity exposed by a new-model Foundry agent. `client_id` is the application/client ID; `principal_id` is the service-principal object ID used for Azure RBAC. Standard Microsoft 365 publication retains this identity. |
 | **Blueprint correlation** | A read-only comparison between an existing Agent ID blueprint's IDs and the blueprint fields returned by Foundry. A match is evidence, not proof that this CLI created a binding. |
 | **Agent 365 integration** | The account-level Agent 365 logging capability on a Foundry account, controlled by `properties.a365LoggingEnabled`. Active only when both the logging flag is `true` and `a365Status` is `Enabled`. Scope is the entire account with storage following Entra tenant geography. |
 | **Agent 365 observability** | OpenTelemetry-based telemetry collection for agents, using the Microsoft OpenTelemetry Distro or legacy Agent 365 observability SDK. Requires the `Agent365.Observability.OtelWrite` app role on the agent identity. |
-| **Agent 365 publication** | The process of registering an agent identity in the Agent 365 registry, creating a distinct identity from the shared project identity. Unpublished agents share the project identity; publication triggers RBAC reassignment. |
+| **Agent 365 publication** | Registration and governance of an agent in Microsoft 365 and Agent 365. New-model agents retain the unique identity created with the agent; legacy-to-new-model migration, not standard publication itself, is what requires identity/RBAC reassignment. |
 
 ## CLI workflow concepts
 
@@ -68,7 +68,7 @@ If you are new to Foundry or this CLI, read this page first.
 | Term | What it means |
 |---|---|
 | **`azd` (Azure Developer CLI)** | A separate Microsoft CLI required only for Hosted Agents. It handles infrastructure provisioning and code deployment. Foundry Agent Manager orchestrates `azd` but never auto-installs it. |
-| **`azd` extension** | A plugin for `azd` that adds Hosted Agent support. Must be installed at the exact pinned version (`azure.ai.agents 1.0.0-beta.8`). |
+| **`azd` extension** | A plugin for `azd` that adds Hosted Agent support. Must be installed at the exact pinned version (`azure.ai.agents 1.0.0-beta.13`). |
 | **ARM** | Azure Resource Manager — the control plane for Azure resources. Some CLI commands use ARM to discover projects, create connections, or check resource state. |
 | **APIM** | Azure API Management — an existing API gateway your agent can connect to. The CLI creates a *connection* to APIM; it never creates or modifies the APIM service itself. |
 | **DefaultAzureCredential** | The Azure SDK credential chain used by online commands. The active environment must provide one of its supported identities, such as an applicable developer credential or managed identity. |

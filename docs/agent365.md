@@ -334,28 +334,32 @@ fam agent365 publication admin-handoff -f agent.yaml
 The Hosted executable boundary remains only the separately pinned autopilot
 sample, which is not an arbitrary existing-agent publisher.
 
-**Important:** Official documentation currently contains conflicting
-information. The Agent 365 integration support table describes both Prompt and
-Hosted Autopilot support, but the linked implementation procedure is
-Hosted-only. This CLI does not claim Prompt execution support for Agent 365
-publication. Registry status has no documented manager API and remains
-unverified.
+Prompt Agents support Agent 365 registry synchronization after standard
+Microsoft 365 publication, but Prompt Autopilot publishing is unsupported.
+Use `fam prompt m365 publish` for the standard Prompt path. Registry status has
+no documented manager API and remains unverified.
 
 ## Identity lifecycle
 
 Understanding identity lifecycle is important for RBAC planning:
 
-- **Unpublished agents** share their parent project identity.
-- **Publication** creates a distinct blueprint and identity for the agent.
-- **Azure RBAC does not transfer** from the shared project identity to the
-  distinct published identity. RBAC must be reassigned after publication.
+- **New-model agents** receive a unique blueprint and `instance_identity` when
+  created. Standard Microsoft 365 publication and Agent 365 registry
+  synchronization retain that identity and its Azure RBAC assignments.
+- **Legacy agents** have no `instance_identity` and can use the shared project
+  identity. Migrating to a new-model agent creates a unique identity, so the
+  required downstream roles must be reassigned to the new `principal_id`.
+- **Legacy Agent Applications** are separate resources with separate
+  identities. Replacing one with a new-model agent also requires an explicit
+  RBAC migration review.
+- `instance_identity.client_id` is an application/client ID, including the
+  Azure Bot Service `msaAppId`; `instance_identity.principal_id` is the
+  service-principal object ID used for Azure RBAC and Graph correlation.
 
-The current CLI cannot authoritatively distinguish whether an agent uses the
-shared project identity or a distinct published identity from the project
-agent and directory fields alone. When the distinction cannot be proven, the
-CLI outputs `shared-or-distinct-unverified` and provides explicit RBAC
-guidance directing the operator to verify the active identity and reassign
-roles as needed.
+The CLI reports `modern-unique-agent-identity` when `instance_identity` is
+present and `legacy-shared-project-identity` when it is absent. Optional Graph
+resolution correlates the returned principal and blueprint IDs but does not
+change the lifecycle classification.
 
 ## Identity layering and RBAC
 
@@ -363,9 +367,9 @@ An agent can expose more than one lifecycle identity:
 
 - Foundry project and runtime identities.
 - Foundry-managed blueprint identity information.
-- Dedicated identities created by supported publishing workflows.
-- Agent 365 blueprint-derived identities when Microsoft creates them through a
-  supported integration.
+- Legacy Agent Application identities.
+- New-model agent identities created with the agent and retained through
+  standard publication and registry synchronization.
 
 These identities do not automatically share permissions. Assign Azure RBAC to
 the principal that actually receives the downstream token. For example,

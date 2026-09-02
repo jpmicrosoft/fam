@@ -13,7 +13,7 @@ body:
     attributes:
       label: FAM version
       description: Output from `fam version`.
-      placeholder: 0.15.1
+      placeholder: 0.16.0
     validations:
       required: true
   - type: dropdown

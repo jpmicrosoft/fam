@@ -463,14 +463,14 @@ func (f *hostedLifecycleFakeRunner) Run(
 	case "azd-extensions":
 		version := f.extensionVersion
 		if version == "" {
-			version = "1.0.0-beta.8"
+			version = hosted.RequiredExtensionVer
 		}
 		return hosted.Execution{
 			ExitCode: 0,
 			Stdout:   `[{"id":"azure.ai.agents","installedVersion":"` + version + `"}]`,
 		}, nil
 	case "agent-extension-version":
-		return hosted.Execution{ExitCode: 0, Stdout: "Version: 1.0.0-beta.8"}, nil
+		return hosted.Execution{ExitCode: 0, Stdout: "Version: " + hosted.RequiredExtensionVer}, nil
 	case "deploy-contract":
 		return hosted.Execution{
 			ExitCode: 0,
@@ -788,10 +788,10 @@ func (f *hostedCommandFakeRunner) Run(
 	case "azd-extensions":
 		return hosted.Execution{
 			ExitCode: 0,
-			Stdout:   `[{"id":"azure.ai.agents","installedVersion":"1.0.0-beta.8"}]`,
+			Stdout:   `[{"id":"azure.ai.agents","installedVersion":"` + hosted.RequiredExtensionVer + `"}]`,
 		}, nil
 	case "agent-extension-version":
-		return hosted.Execution{ExitCode: 0, Stdout: "Version: 1.0.0-beta.8"}, nil
+		return hosted.Execution{ExitCode: 0, Stdout: "Version: " + hosted.RequiredExtensionVer}, nil
 	case "deploy-contract":
 		return hosted.Execution{ExitCode: 0, Stdout: "azd deploy <service>\n--no-prompt\n--environment"}, nil
 	case "provision-contract":

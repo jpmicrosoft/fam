@@ -228,10 +228,11 @@ non-owners also need the Agent ID Administrator role.
 - Foundry runtime, project, blueprint, and publishing identities remain
   distinct principals. Azure RBAC must target the identity that actually
   receives the downstream token.
-- Identity lifecycle: unpublished agents share the project identity;
-  publication creates a distinct identity; RBAC does not transfer. The CLI
-  outputs `shared-or-distinct-unverified` when the distinction cannot be
-  proven.
+- Identity lifecycle: new-model agents retain their unique
+  `instance_identity` through standard Microsoft 365 publication and Agent 365
+  registry synchronization. Legacy agents without that field can use the
+  shared project identity; migration to a new-model agent requires RBAC
+  reassignment to the new `principal_id`.
 
 ## Reliability and diagnostics
 
@@ -403,7 +404,7 @@ also includes `error.nextSteps` for automation and UI surfaces.
 | `wildcard and suffix approvals are not supported` (exit `4`) | Wildcard used | Approve each exact host |
 | `AzureUSGovernment is unsupported` (exit `3`) | Government cloud selected | Use `AzureCloud` |
 | `Azure Developer CLI version is too old` (exit `3`) | `azd` < 1.27.1 | Upgrade `azd` |
-| `required Foundry azd extension is not installed` (exit `3`) | Missing extension | `azd extension install azure.ai.agents --version 1.0.0-beta.8` |
+| `required Foundry azd extension is not installed` (exit `3`) | Missing extension | `azd extension install azure.ai.agents --version 1.0.0-beta.13` |
 | `Hosted Agent preview was not explicitly accepted` (exit `3`) | No `--accept-preview` | Add `--accept-preview` |
 | `apim.auth=api_key requires a subscription key` (exit `3`) | No secret source | Set env var or pass source flag |
 | `--yes is required for destructive operations with --output json` (exit `3`) | Interactive prompt in structured mode | Add `--yes` |

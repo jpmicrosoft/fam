@@ -28,7 +28,7 @@ const (
 	AzureYAMLFile        = "azure.yaml"
 	MinimumAZDVersion    = "1.27.1"
 	RequiredExtension    = "azure.ai.agents"
-	RequiredExtensionVer = "1.0.0-beta.8"
+	RequiredExtensionVer = "1.0.0-beta.13"
 	DefaultProtocol      = "invocations"
 	DefaultProtocolVer   = "2.0.0"
 	DefaultCPU           = "1"

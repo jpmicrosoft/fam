@@ -1313,7 +1313,7 @@ microsoft365:
 				"properties":{
 					"displayName":"Support Agent",
 					"endpoint":"https://account.services.ai.azure.com/api/projects/project/agents/m365-agent/endpoint/protocols/activityProtocol?api-version=2025-05-15-preview",
-					"msaAppId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+					"msaAppId":"bbbbbbbb-cccc-dddd-eeee-ffffffffffff",
 					"msaAppTenantId":"`+tenant+`",
 					"msaAppType":"SingleTenant",
 					"publicNetworkAccess":"Disabled"
@@ -1372,7 +1372,7 @@ microsoft365:
 	}
 }
 
-func TestCmdPublishM365RequiresIdentityPrincipalIDBeforeBotMutation(t *testing.T) {
+func TestCmdPublishM365RequiresIdentityClientIDBeforeBotMutation(t *testing.T) {
 	manifest := writeManifest(t, `apiVersion: foundry-agent-manager/v1
 agent:
   name: m365-agent
@@ -1384,7 +1384,7 @@ project:
 	http := &scriptedHTTP{routes: map[string]scriptedRoute{
 		"/agents/m365-agent": route(http.StatusOK, `{
 			"name":"m365-agent",
-			"instance_identity":{"client_id":"bbbbbbbb-cccc-dddd-eeee-ffffffffffff"},
+			"instance_identity":{"principal_id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"},
 			"agent_endpoint":{"version_selector":{"version_selection_rules":[
 				{"type":"FixedRatio","agent_version":"2","traffic_percentage":100}
 			]}},
@@ -1403,8 +1403,8 @@ project:
 		"--output",
 		"json",
 	)
-	if run.code != 7 || !strings.Contains(run.stderr, "instance_identity.principal_id") {
-		t.Fatalf("missing principal ID must fail before Bot Service mutation: code=%d stderr=%s", run.code, run.stderr)
+	if run.code != 7 || !strings.Contains(run.stderr, "instance_identity.client_id") {
+		t.Fatalf("missing client ID must fail before Bot Service mutation: code=%d stderr=%s", run.code, run.stderr)
 	}
 	for _, request := range http.requests {
 		if strings.Contains(request.URL.Path, "/providers/Microsoft.BotService") ||
@@ -1863,7 +1863,7 @@ microsoft365:
 		"/providers/Microsoft.BotService": route(http.StatusOK, `{"namespace":"Microsoft.BotService","registrationState":"Registered"}`),
 		"/botServices/support-bot": route(http.StatusOK, `{
 			"id":"`+botID+`","name":"support-bot","location":"global","kind":"azurebot","sku":{"name":"F0"},
-			"properties":{"displayName":"Support Agent","endpoint":"https://account.services.ai.azure.com/api/projects/project/agents/m365-agent/endpoint/protocols/activityProtocol?api-version=2025-05-15-preview","msaAppId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","msaAppTenantId":"`+tenant+`","msaAppType":"SingleTenant","publicNetworkAccess":"Disabled"}
+			"properties":{"displayName":"Support Agent","endpoint":"https://account.services.ai.azure.com/api/projects/project/agents/m365-agent/endpoint/protocols/activityProtocol?api-version=2025-05-15-preview","msaAppId":"bbbbbbbb-cccc-dddd-eeee-ffffffffffff","msaAppTenantId":"`+tenant+`","msaAppType":"SingleTenant","publicNetworkAccess":"Disabled"}
 		}`),
 		"/botServices/support-bot/channels/MsTeamsChannel": route(http.StatusOK, `{
 			"id":"`+botID+`/channels/MsTeamsChannel","name":"MsTeamsChannel","location":"global","properties":{"channelName":"MsTeamsChannel"}

@@ -284,9 +284,12 @@ custom role containing only the required read data actions.
 
 Graph permissions, Entra directory roles, Azure RBAC, and the
 `Agent365.Observability.OtelWrite` application role are different controls. Do
-not describe any one of them as granting the others. Agent 365 publication
-creates a distinct identity; downstream RBAC assigned to the shared project
-identity does not transfer.
+not describe any one of them as granting the others. New-model agents keep the
+unique `instance_identity` created with the agent through standard Microsoft
+365 publication and registry synchronization. Legacy agents can use the shared
+project identity, while legacy Agent Applications have separate identities;
+migration to a new-model agent creates a new principal and requires explicit
+downstream RBAC reassignment.
 
 ### Receipt publishing
 

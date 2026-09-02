@@ -75,14 +75,14 @@ The answer depends on the workflow:
 |---|---|
 | Offline validation, planning, and scaffolding | The published `fam` executable only |
 | Online Prompt and other direct Foundry operations | `fam` plus a supported Azure identity. Azure CLI (`az`) is optional and can provide a local developer credential through `DefaultAzureCredential`. |
-| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.27.1 or later, and the **`azure.ai.agents`** azd extension at exactly **`1.0.0-beta.8`** |
+| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.27.1 or later, and the **`azure.ai.agents`** azd extension at exactly **`1.0.0-beta.13`** |
 | Building from source | Go 1.25 or later |
 
 The Hosted extension is named `azure.ai.agents`. Install the required version
 with:
 
 ```powershell
-azd extension install azure.ai.agents --version 1.0.0-beta.8
+azd extension install azure.ai.agents --version 1.0.0-beta.13
 ```
 
 Azure CLI and `azd` do not share authentication automatically. Run `az login`
@@ -217,7 +217,7 @@ The installer could not read GitHub's latest-release API. Common causes are:
 Try a known published tag to avoid latest-release discovery:
 
 ```powershell
-.\install.ps1 -Version v0.15.1
+.\install.ps1 -Version v0.16.0
 ```
 
 For a private repository, authenticate `gh` or expose a read-capable token
@@ -231,7 +231,7 @@ the repository and its release assets:
 
 ```powershell
 gh auth status
-.\install.ps1 -Repo owner/repository -Version v0.15.1
+.\install.ps1 -Repo owner/repository -Version v0.16.0
 ```
 
 The installer checks `FAM_INSTALL_TOKEN`, then `GITHUB_TOKEN`, then `GH_TOKEN`,
@@ -244,10 +244,10 @@ Use `latest` or a `v`-prefixed semantic version:
 
 ```powershell
 .\install.ps1 -Version latest
-.\install.ps1 -Version v0.15.1
+.\install.ps1 -Version v0.16.0
 ```
 
-`0.15.1` without the leading `v` is rejected.
+`0.16.0` without the leading `v` is rejected.
 
 ### Why does the archive download return 404?
 
@@ -724,7 +724,7 @@ safely deleted.
 Hosted Agents require:
 
 - `azd` 1.27.1 or later
-- Hosted Agent extension `azure.ai.agents` exactly `1.0.0-beta.8`
+- Hosted Agent extension `azure.ai.agents` exactly `1.0.0-beta.13`
 - An `azure.yaml` workspace
 - `--accept-preview` for online Hosted commands
 
@@ -1006,10 +1006,13 @@ unverified.
 
 ### How does identity lifecycle work after publication?
 
-Unpublished agents share the parent project identity. Publication creates a
-distinct blueprint and identity. Azure RBAC does not transfer automatically
-and must be reassigned. The CLI outputs `shared-or-distinct-unverified` when it
-cannot authoritatively distinguish the identity state.
+New-model agents receive a unique blueprint and `instance_identity` when they
+are created. Standard Microsoft 365 publication and Agent 365 registry
+synchronization retain that identity, so existing RBAC remains assigned to its
+`principal_id`. Legacy agents without `instance_identity` can use the shared
+project identity, and legacy Agent Applications have separate identities.
+Migrating either legacy form to a new-model agent creates a new identity and
+requires deliberate downstream RBAC reassignment.
 
 ## Tools, grounding, and integrations
 

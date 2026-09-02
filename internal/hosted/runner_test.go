@@ -276,10 +276,10 @@ func TestCheckPreflightUsesPinnedReadOnlyContract(t *testing.T) {
 		case "azd-extensions":
 			return Execution{
 				ExitCode: 0,
-				Stdout:   `[{"id":"azure.ai.agents","version":"1.0.0-beta.9","installedVersion":"1.0.0-beta.8"}]`,
+				Stdout:   `[{"id":"azure.ai.agents","version":"1.0.0-beta.13","installedVersion":"1.0.0-beta.13"}]`,
 			}, nil
 		case "agent-extension-version":
-			return Execution{ExitCode: 0, Stdout: "Version: 1.0.0-beta.8"}, nil
+			return Execution{ExitCode: 0, Stdout: "Version: 1.0.0-beta.13"}, nil
 		case "deploy-contract":
 			return Execution{ExitCode: 0, Stdout: "azd deploy <service>\n--no-prompt\n--environment"}, nil
 		case "status-contract":
@@ -447,11 +447,11 @@ func TestCheckPreflightRejectsSuccessfulNotLoggedInStatus(t *testing.T) {
 					ExitCode: 0,
 					Stdout: `[{
 						"id":"azure.ai.agents",
-						"installedVersion":"1.0.0-beta.8"
+						"installedVersion":"1.0.0-beta.13"
 					}]`,
 				}, nil
 			case "agent-extension-version":
-				return Execution{ExitCode: 0, Stdout: "Version: 1.0.0-beta.8"}, nil
+				return Execution{ExitCode: 0, Stdout: "Version: 1.0.0-beta.13"}, nil
 			case "deploy-contract":
 				return Execution{ExitCode: 0, Stdout: "azd deploy <service>\n--no-prompt\n--environment"}, nil
 			case "status-contract":

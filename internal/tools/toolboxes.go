@@ -17,6 +17,7 @@ var toolboxNamePattern = regexp.MustCompile(
 // SupportedToolboxToolTypes enumerates tools that can be placed in a managed
 // Foundry Toolbox version.
 var SupportedToolboxToolTypes = []string{
+	"a2a",
 	"a2a_preview",
 	"azure_ai_search",
 	"bing_custom_search",
@@ -268,8 +269,8 @@ func buildToolboxTool(
 		built, err = buildOpenAPI(tool, baseDir)
 	case "mcp":
 		built, err = buildMCP(tool)
-	case "a2a_preview":
-		built, err = buildA2A(tool)
+	case "a2a", "a2a_preview":
+		built, err = buildA2A(toolType, tool)
 	case "work_iq_preview":
 		built, err = buildConnectionTool(toolType, tool)
 	case "browser_automation_preview":

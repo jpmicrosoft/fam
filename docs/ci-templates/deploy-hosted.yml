@@ -100,7 +100,7 @@ jobs:
           version: 1.27.1
 
       - name: Install pinned Hosted Agent extension
-        run: azd extension install azure.ai.agents --version 1.0.0-beta.8
+        run: azd extension install azure.ai.agents --version 1.0.0-beta.13
 
       - name: Authenticate azd with GitHub OIDC
         run: azd auth login --federated-credential-provider github
