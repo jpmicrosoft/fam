@@ -12,7 +12,7 @@ commands under `hosted` require `--accept-preview`.
 Online Hosted Agent operations require all of the following:
 
 - The `fam` executable
-- Azure Developer CLI (`azd`) 1.27.1 or later
+- Azure Developer CLI (`azd`) 1.32.0 or later
 - The `azure.ai.agents` azd extension at exactly `1.0.0-beta.13`
 - A separate authenticated `azd` session for the target tenant
 
@@ -20,6 +20,11 @@ Online Hosted Agent operations require all of the following:
 azd extension install azure.ai.agents --version 1.0.0-beta.13
 azd auth login --tenant-id <tenant-id>
 ```
+
+The `microsoft.foundry` bundle may install `azure.ai.agents`, but the manager
+validates the individual component and exact version. The
+`azure.ai.agents` `1.0.0-beta.13` manifest requires `azd >=1.32.0`; older
+`azd` versions are rejected before any extension command runs.
 
 Azure CLI (`az`) is not a replacement for `azd`. It is optional unless it is
 the selected developer credential source for FAM or is needed for a separate
@@ -76,7 +81,7 @@ authentication or deployment rather than producing an unpredictable rollout.
 
 | Contract | Required value |
 |---|---|
-| Azure Developer CLI | `1.27.1` or later |
+| Azure Developer CLI | `1.32.0` or later |
 | Hosted Agent extension | exactly `azure.ai.agents` `1.0.0-beta.13` |
 | Workspace source of truth | `azure.yaml` |
 | Agent service | `host: azure.ai.agent`, `kind: hosted` |

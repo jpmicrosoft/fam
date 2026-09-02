@@ -26,7 +26,7 @@ import (
 
 const (
 	AzureYAMLFile        = "azure.yaml"
-	MinimumAZDVersion    = "1.27.1"
+	MinimumAZDVersion    = "1.32.0"
 	RequiredExtension    = "azure.ai.agents"
 	RequiredExtensionVer = "1.0.0-beta.13"
 	DefaultProtocol      = "invocations"

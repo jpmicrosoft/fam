@@ -13,6 +13,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking for Hosted tooling:** online Hosted Agent commands now require
+  Azure Developer CLI `1.32.0` or later. The pinned
+  `azure.ai.agents` `1.0.0-beta.13` extension declares that minimum, so FAM no
+  longer accepts the incompatible `azd` `1.27.1` pairing.
+
 ## [0.16.1] - 2026-09-02
 
 ### Changed

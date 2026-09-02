@@ -506,7 +506,7 @@ func (f *hostedLifecycleFakeRunner) Run(
 	}
 	switch command.Phase {
 	case "azd-version":
-		return hosted.Execution{ExitCode: 0, Stdout: "azd version 1.27.1"}, nil
+		return hosted.Execution{ExitCode: 0, Stdout: "azd version " + hosted.MinimumAZDVersion}, nil
 	case "azd-extensions":
 		version := f.extensionVersion
 		if version == "" {
@@ -831,7 +831,7 @@ func (f *hostedCommandFakeRunner) Run(
 ) (hosted.Execution, error) {
 	switch command.Phase {
 	case "azd-version":
-		return hosted.Execution{ExitCode: 0, Stdout: "azd version 1.27.1"}, nil
+		return hosted.Execution{ExitCode: 0, Stdout: "azd version " + hosted.MinimumAZDVersion}, nil
 	case "azd-extensions":
 		return hosted.Execution{
 			ExitCode: 0,

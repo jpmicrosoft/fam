@@ -68,7 +68,8 @@ If you are new to Foundry or this CLI, read this page first.
 | Term | What it means |
 |---|---|
 | **`azd` (Azure Developer CLI)** | A separate Microsoft CLI required only for Hosted Agents. It handles infrastructure provisioning and code deployment. Foundry Agent Manager orchestrates `azd` but never auto-installs it. |
-| **`azd` extension** | A plugin for `azd` that adds Hosted Agent support. Must be installed at the exact pinned version (`azure.ai.agents 1.0.0-beta.13`). |
+| **`azd` extension** | A plugin for `azd` that adds Hosted Agent support. FAM requires `azure.ai.agents 1.0.0-beta.13`, whose manifest requires `azd 1.32.0` or later. |
+| **`microsoft.foundry` extension bundle** | Microsoft's meta-package for the Foundry `azd` extensions. It can install `azure.ai.agents`, but FAM validates the individual agent extension and its exact reviewed version. |
 | **ARM** | Azure Resource Manager — the control plane for Azure resources. Some CLI commands use ARM to discover projects, create connections, or check resource state. |
 | **APIM** | Azure API Management — an existing API gateway your agent can connect to. The CLI creates a *connection* to APIM; it never creates or modifies the APIM service itself. |
 | **DefaultAzureCredential** | The Azure SDK credential chain used by online commands. The active environment must provide one of its supported identities, such as an applicable developer credential or managed identity. |

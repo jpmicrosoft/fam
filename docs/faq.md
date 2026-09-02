@@ -75,7 +75,7 @@ The answer depends on the workflow:
 |---|---|
 | Offline validation, planning, and scaffolding | The published `fam` executable only |
 | Online Prompt and other direct Foundry operations | `fam` plus a supported Azure identity. Azure CLI (`az`) is optional and can provide a local developer credential through `DefaultAzureCredential`. |
-| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.27.1 or later, and the **`azure.ai.agents`** azd extension at exactly **`1.0.0-beta.13`** |
+| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.32.0 or later, and the **`azure.ai.agents`** azd extension at exactly **`1.0.0-beta.13`** |
 | Building from source | Go 1.25 or later |
 
 The Hosted extension is named `azure.ai.agents`. Install the required version
@@ -84,6 +84,10 @@ with:
 ```powershell
 azd extension install azure.ai.agents --version 1.0.0-beta.13
 ```
+
+Microsoft's `microsoft.foundry` bundle can install this component, but FAM
+validates `azure.ai.agents` itself. Version `1.0.0-beta.13` declares
+`azd >=1.32.0`; an older `azd` version is not a supported pairing.
 
 Azure CLI and `azd` do not share authentication automatically. Run `az login`
 when Azure CLI should supply FAM's local developer credential, and authenticate
@@ -725,7 +729,7 @@ safely deleted.
 
 Hosted Agents require:
 
-- `azd` 1.27.1 or later
+- `azd` 1.32.0 or later
 - Hosted Agent extension `azure.ai.agents` exactly `1.0.0-beta.13`
 - An `azure.yaml` workspace
 - `--accept-preview` for online Hosted commands

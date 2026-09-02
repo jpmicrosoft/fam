@@ -403,7 +403,7 @@ also includes `error.nextSteps` for automation and UI surfaces.
 | `must be a bare host with an optional port` (exit `3`) | Approval is a URL | Pass `host:port` only |
 | `wildcard and suffix approvals are not supported` (exit `4`) | Wildcard used | Approve each exact host |
 | `AzureUSGovernment is unsupported` (exit `3`) | Government cloud selected | Use `AzureCloud` |
-| `Azure Developer CLI version is too old` (exit `3`) | `azd` < 1.27.1 | Upgrade `azd` |
+| `Azure Developer CLI version is too old` (exit `3`) | `azd` < 1.32.0 | Upgrade `azd` |
 | `required Foundry azd extension is not installed` (exit `3`) | Missing extension | `azd extension install azure.ai.agents --version 1.0.0-beta.13` |
 | `Hosted Agent preview was not explicitly accepted` (exit `3`) | No `--accept-preview` | Add `--accept-preview` |
 | `apim.auth=api_key requires a subscription key` (exit `3`) | No secret source | Set env var or pass source flag |

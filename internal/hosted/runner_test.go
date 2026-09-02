@@ -272,7 +272,7 @@ func TestCheckPreflightUsesPinnedReadOnlyContract(t *testing.T) {
 	runner.run = func(command Command) (Execution, error) {
 		switch command.Phase {
 		case "azd-version":
-			return Execution{ExitCode: 0, Stdout: "azd version 1.27.1", Duration: time.Millisecond}, nil
+			return Execution{ExitCode: 0, Stdout: "azd version " + MinimumAZDVersion, Duration: time.Millisecond}, nil
 		case "azd-extensions":
 			return Execution{
 				ExitCode: 0,
@@ -332,7 +332,7 @@ func TestDiagnosePreflightCollectsIndependentFailures(t *testing.T) {
 		run: func(command Command) (Execution, error) {
 			switch command.Phase {
 			case "azd-version":
-				return Execution{ExitCode: 0, Stdout: "azd version 1.27.1"}, nil
+				return Execution{ExitCode: 0, Stdout: "azd version " + MinimumAZDVersion}, nil
 			case "azd-extensions":
 				return Execution{ExitCode: 0, Stdout: `[]`}, nil
 			case "deploy-contract":
@@ -441,7 +441,7 @@ func TestCheckPreflightRejectsSuccessfulNotLoggedInStatus(t *testing.T) {
 		run: func(command Command) (Execution, error) {
 			switch command.Phase {
 			case "azd-version":
-				return Execution{ExitCode: 0, Stdout: "azd version 1.30.0"}, nil
+				return Execution{ExitCode: 0, Stdout: "azd version " + MinimumAZDVersion}, nil
 			case "azd-extensions":
 				return Execution{
 					ExitCode: 0,
@@ -481,14 +481,14 @@ func TestCheckPreflightRejectsVersionDrift(t *testing.T) {
 		expected   error
 	}{
 		{
-			name:       "old azd",
-			azdVersion: "1.27.0",
+			name:       "previously accepted azd",
+			azdVersion: "1.27.1",
 			extension:  RequiredExtensionVer,
 			expected:   ErrAZDTooOld,
 		},
 		{
 			name:       "prerelease azd",
-			azdVersion: "1.27.1-beta.1",
+			azdVersion: "1.32.0-beta.1",
 			extension:  RequiredExtensionVer,
 			expected:   ErrAZDTooOld,
 		},
@@ -535,10 +535,10 @@ func TestCompareVersionsUsesSemverPrereleaseOrdering(t *testing.T) {
 		right string
 		want  int
 	}{
-		{left: "1.27.1-beta.2", right: "1.27.1-beta.10", want: -1},
-		{left: "1.27.1-beta.10", right: "1.27.1-beta.2", want: 1},
-		{left: "1.27.1-beta.1", right: "1.27.1", want: -1},
-		{left: "1.27.1", right: "1.27.1-beta.1", want: 1},
+		{left: "1.32.0-beta.2", right: "1.32.0-beta.10", want: -1},
+		{left: "1.32.0-beta.10", right: "1.32.0-beta.2", want: 1},
+		{left: "1.32.0-beta.1", right: "1.32.0", want: -1},
+		{left: "1.32.0", right: "1.32.0-beta.1", want: 1},
 	}
 	for _, tt := range tests {
 		if got := compareVersions(tt.left, tt.right); got != tt.want {

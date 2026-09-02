@@ -30,6 +30,7 @@ func TestHostedWorkflowTemplateContract(t *testing.T) {
 	requireText(t, template,
 		"id-token: write",
 		"Azure/setup-azd@v2",
+		"version: 1.32.0",
 		"azd auth login --federated-credential-provider github",
 		"azd extension install azure.ai.agents --version 1.0.0-beta.13",
 		"azd env set FOUNDRY_PROJECT_ENDPOINT",

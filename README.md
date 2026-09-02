@@ -119,7 +119,7 @@ Answer one question: **Does your agent need custom application code?**
 | Answer | Path | What you need before starting |
 |---|---|---|
 | **No** — my agent is instructions + a model + declarative tools | **[Prompt Agent](#quick-start-prompt-agent)** | A Foundry account, an existing or explicitly planned model deployment, and a supported Azure identity such as an applicable developer credential or managed identity |
-| **Yes** — I need Python, .NET, or a container runtime | **[Hosted Agent](#quick-start-hosted-agent)** | A Foundry account plus `azd` 1.27.1+ and the pinned Hosted extension; model infrastructure remains declared in `azure.yaml` |
+| **Yes** — I need Python, .NET, or a container runtime | **[Hosted Agent](#quick-start-hosted-agent)** | A Foundry account plus `azd` 1.32.0+ and the pinned Hosted extension; model infrastructure remains declared in `azure.yaml` |
 | **I already have an Agent 365 blueprint** | **[Inspect and correlate it](#agent-365-blueprint-inspection)** | Microsoft Graph `AgentIdentityBlueprint.Read.All`; this path does not deploy source or bind the blueprint |
 | **I'm not sure yet** | Run `fam quickstart` | The CLI is enough for Prompt or files-only Hosted scaffolding; accepting Hosted environment bootstrap also requires `azd` |
 
@@ -203,7 +203,7 @@ deployment never creates a model implicitly.
 |---|---|
 | Offline validation, planning, and scaffolding | The `fam` executable only |
 | Online Prompt, project, model, connection, or Agent 365 operations | `fam` plus an identity that `DefaultAzureCredential` can resolve. Azure CLI (`az`) is one optional developer credential source, not a universal requirement. |
-| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.27.1 or later, and the `azure.ai.agents` azd extension at exactly `1.0.0-beta.13` |
+| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.32.0 or later, and the `azure.ai.agents` azd extension at exactly `1.0.0-beta.13` |
 | Optional source build | Go 1.25 or later |
 
 Install the pinned Hosted Agent extension explicitly:
@@ -211,6 +211,11 @@ Install the pinned Hosted Agent extension explicitly:
 ```powershell
 azd extension install azure.ai.agents --version 1.0.0-beta.13
 ```
+
+The `microsoft.foundry` extension bundle can supply this component, but FAM
+checks the installed `azure.ai.agents` component directly and requires the
+exact reviewed version. That component declares `azd` 1.32.0 as its minimum
+version, so FAM rejects earlier `azd` releases before invoking it.
 
 Azure CLI and Azure Developer CLI maintain separate authentication context.
 Use `az login` only when Azure CLI should provide the local developer
@@ -851,7 +856,7 @@ executed.
 | `destination host "..." is not approved` | The manifest references an external host you haven't approved | Add `--trusted-apim-host` or `--trusted-tool-host` with the exact hostname |
 | `Foundry project "..." does not exist` | The project hasn't been created yet | Run `project create -f agent.yaml` first |
 | `Hosted Agent preview was not explicitly accepted` | Missing flag | Add `--accept-preview` to the command |
-| `Azure Developer CLI version is too old` | `azd` needs updating | Install `azd` 1.27.1 or later |
+| `Azure Developer CLI version is too old` | `azd` needs updating | Install `azd` 1.32.0 or later |
 | Commands work locally but fail in CI | CI runner missing credentials or tools | Run `doctor -f agent.yaml --online` or the Hosted workspace equivalent in CI |
 
 For the full troubleshooting table, see [Security and Operations — Troubleshooting](docs/security-and-operations.md#troubleshooting).
@@ -922,7 +927,7 @@ Key template features:
   (`INSTALLER_REPO`), and private-repo token support (`FAM_INSTALL_TOKEN`).
 - Concurrency groups to prevent parallel deploys.
 - Receipt artifact upload for audit.
-- Hosted template installs pinned `azd` 1.27.1 and extension `1.0.0-beta.13`.
+- Hosted template installs pinned `azd` 1.32.0 and extension `1.0.0-beta.13`.
 
 ## Security principles
 

@@ -125,7 +125,7 @@ choices in the workflow (`dev`, `staging`, `production`).
 - Add required reviewers to production environments.
 - Enable branch protection on `main`.
 
-The Hosted template also installs `azd` 1.27.1, installs the reviewed
+The Hosted template also installs `azd` 1.32.0, installs the reviewed
 `azure.ai.agents` extension version `1.0.0-beta.13`, authenticates `azd` through
 GitHub OIDC, and creates a job-local azd environment from the variables above.
 
