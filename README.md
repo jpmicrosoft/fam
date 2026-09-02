@@ -79,7 +79,7 @@ auditable deployment evidence.
 - **AzureCloud only.** Azure Government is rejected before credential
   acquisition or network access until dedicated qualification is complete.
 
-> **Preview status.** This tool is version 0.16.2. Hosted Agents require
+> **Preview status.** This tool is version 0.16.3. Hosted Agents require
 > `--accept-preview`. See [Support status](#support-status-and-release-boundaries)
 > for the full boundary table.
 
@@ -288,7 +288,7 @@ Download [`scripts/install.ps1`](scripts/install.ps1), save it as
 .\install.ps1
 
 # Pin a specific version:
-.\install.ps1 -Version v0.16.2
+.\install.ps1 -Version v0.16.3
 
 # Override install directory and add to PATH:
 .\install.ps1 -InstallDir C:\tools -ModifyProfile
@@ -304,7 +304,7 @@ Download [`scripts/install.ps1`](scripts/install.ps1), save it as
 curl -fsSL https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/install.sh | sh
 
 # Pin a specific version and install directory:
-./scripts/install.sh --version v0.16.2 --install-dir "$HOME/.local/bin"
+./scripts/install.sh --version v0.16.3 --install-dir "$HOME/.local/bin"
 
 # Override repository (private repo uses GITHUB_TOKEN / GH_TOKEN automatically):
 ./scripts/install.sh --repo myorg/fam
@@ -342,7 +342,7 @@ by the installer.
 |---|---|
 | `running scripts is disabled` | After reviewing the downloaded script, use `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`; do not weaken machine-wide policy |
 | Script is blocked or not digitally signed | Review its source, then run `Unblock-File .\install.ps1` |
-| `Could not determine latest release` | Check GitHub access/private-repo authentication, or pass a known tag such as `-Version v0.16.2` |
+| `Could not determine latest release` | Check GitHub access/private-repo authentication, or pass a known tag such as `-Version v0.16.3` |
 | Release or asset download returns 404 | Verify `-Repo OWNER/REPO`, the `v`-prefixed tag, token access, and the platform archive exists |
 | Checksum missing or mismatched | Stop and retry from the intended release; never bypass checksum verification |
 | Access denied while installing | Close a running executable or select a user-writable `-InstallDir` |

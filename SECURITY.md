@@ -23,9 +23,9 @@ does and does not make, and how to operate and report issues against it.
 | Current `main` | Supported. This is where fixes are developed. |
 | Anything older | Not supported. |
 
-`0.16.2` is the version compiled into the binary
+`0.16.3` is the version compiled into the binary
 ([`internal/config/config.go`](internal/config/config.go)). Release assets are
-created only after the matching `v0.16.2` tag is pushed.
+created only after the matching `v0.16.3` tag is pushed.
 
 Always report against the current `main` if you can reproduce there.
 

@@ -5,13 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Version status.** `0.16.2` is the version compiled into the executable
+> **Version status.** `0.16.3` is the version compiled into the executable
 > ([`internal/config/config.go`](internal/config/config.go)) and reported by
 > `fam version`. Release archives plus a GitHub Release are
-> produced only after the matching `v0.16.2` tag is pushed; see
+> produced only after the matching `v0.16.3` tag is pushed; see
 > [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## [Unreleased]
+
+## [0.16.3] - 2026-09-02
+
+### Added
+
+- Added a weekly GitHub Agentic Workflow that compares FAM publishing and
+  identity behavior with allowlisted first-party Microsoft sources and can
+  propose only high-confidence corrections through a constrained draft pull
+  request.
+
+### Changed
+
+- Updated runtime authentication dependencies to Azure SDK for Go
+  `azcore` `1.23.1` and `azidentity` `1.14.1`. The resolved Microsoft
+  Authentication Library for Go `1.8.0` includes upstream token-cache panic
+  recovery and external-cache partition-key fixes.
+- Updated the pinned CodeQL actions to `4.37.9` and Azure Login to `3.0.2`,
+  with matching immutable-SHA contract coverage.
 
 ## [0.16.2] - 2026-09-02
 

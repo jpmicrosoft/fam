@@ -11,7 +11,7 @@
     an authenticated gh CLI.
 
 .PARAMETER Version
-    Specific published version tag to install (e.g. v0.16.2). Omit for latest release.
+    Specific published version tag to install (e.g. v0.16.3). Omit for latest release.
 
 .PARAMETER InstallDir
     Destination directory. Defaults to $env:LOCALAPPDATA\foundry-agent-manager
@@ -26,7 +26,7 @@
     Without this switch, the installer never modifies profiles.
 
 .EXAMPLE
-    ./scripts/install.ps1 -Version v0.16.2
+    ./scripts/install.ps1 -Version v0.16.3
     ./scripts/install.ps1 -InstallDir C:\tools
     ./scripts/install.ps1 -Repo myorg/my-repo -ModifyProfile
 #>
