@@ -64,7 +64,7 @@ packages only the `fam` executable,
 generates `SHA256SUMS`, conditionally attests build provenance, and creates the
 GitHub release.
 
-The current application version is **0.16.1**
+The current application version is **0.16.2**
 ([`../internal/config/config.go`](../internal/config/config.go)).
 
 ## Repository layout
