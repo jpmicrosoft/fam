@@ -878,7 +878,7 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 		_ = store.Complete("failed", classified)
 		return releaseFailure(store.Path, classified)
 	}
-	if _, err := validateHostedRAIPolicy(
+	resolvedRAIPolicyID, err := validateHostedRAIPolicy(
 		ctx,
 		cmd,
 		profile,
@@ -888,7 +888,8 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 		getFlag(cmd, "environment"),
 		projectEndpoint,
 		recorder,
-	); err != nil {
+	)
+	if err != nil {
 		_ = store.AddStep(
 			"hosted-rai-policy",
 			"failed",
@@ -956,7 +957,7 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 			_ = store.Complete("failed-partial", classified)
 			return releaseFailure(store.Path, classified)
 		}
-		if _, err := validateHostedRAIPolicy(
+		resolvedRAIPolicyID, err = validateHostedRAIPolicy(
 			ctx,
 			cmd,
 			profile,
@@ -966,7 +967,8 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 			getFlag(cmd, "environment"),
 			projectEndpoint,
 			recorder,
-		); err != nil {
+		)
+		if err != nil {
 			_ = store.AddStep(
 				"hosted-rai-policy",
 				"failed",
@@ -1119,7 +1121,11 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 			); err != nil {
 				return err
 			}
-			if err := store.Complete("succeeded", nil); err != nil {
+			if err := completeAndIndexHostedDeployReceipt(
+				store,
+				workspace,
+				"succeeded",
+			); err != nil {
 				return err
 			}
 			return printHostedDeployResult(
@@ -1150,6 +1156,11 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 	); err != nil {
 		return err
 	}
+	restoreRAIPolicy, err := hosted.MaterializeRAIPolicy(workspace, resolvedRAIPolicyID)
+	if err != nil {
+		_ = store.Complete("failed", err)
+		return releaseFailure(store.Path, err)
+	}
 	_, deployErr := hosted.RunDeploy(
 		ctx,
 		runner,
@@ -1158,6 +1169,21 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 		getFlag(cmd, "environment"),
 		recorder,
 	)
+	if restoreErr := restoreRAIPolicy(); restoreErr != nil {
+		var classified error = errs.Config("%v", restoreErr)
+		if deployErr != nil {
+			classified = errors.Join(hostedCommandError(deployErr), classified)
+		}
+		_ = store.AddResource(receipt.ResourceChange{
+			Kind:           "hosted-workspace",
+			Name:           workspace.Name,
+			Action:         "restore-deployment-configuration",
+			Status:         "unknown",
+			Reconciliation: "Restore azure.yaml from source control, then run fam hosted status before any retry.",
+		})
+		_ = store.Complete("unknown", classified)
+		return releaseFailure(store.Path, classified)
+	}
 	if deployErr != nil {
 		status, _, statusErr := hosted.ShowStatus(
 			ctx,
@@ -1170,7 +1196,26 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 		deploymentAdvanced := errors.Is(baselineErr, hosted.ErrAgentNotDeployed) ||
 			(baselineErr == nil && baselineStatus.Version != status.Version)
 		if statusErr == nil && activeHostedStatus(status.Status) && deploymentAdvanced {
-			populateHostedReceipt(store, status)
+			if err := verifyHostedDeployedRAIPolicy(
+				ctx,
+				cmd,
+				profile,
+				projectEndpoint,
+				status.Name,
+				status.Version,
+				resolvedRAIPolicyID,
+			); err != nil {
+				_ = store.AddResource(receipt.ResourceChange{
+					Kind:           "hosted-agent-version",
+					Name:           status.Version,
+					Action:         "verify-rai-policy",
+					Status:         "mismatch",
+					Reconciliation: "Delete or supersede this version after correcting the Hosted RAI policy deployment configuration.",
+				})
+				_ = store.Complete("failed-partial", err)
+				return releaseFailure(store.Path, err)
+			}
+			populateHostedReceipt(store, status, true)
 			if err := store.AddStep(
 				"hosted-agent-version",
 				"succeeded-reconciled",
@@ -1181,7 +1226,11 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 			if err := recordHostedRuntimeObligations(store, workspace, status); err != nil {
 				return err
 			}
-			if err := store.Complete("succeeded-reconciled", nil); err != nil {
+			if err := completeAndIndexHostedDeployReceipt(
+				store,
+				workspace,
+				"succeeded-reconciled",
+			); err != nil {
 				return err
 			}
 			return printHostedDeployResult(
@@ -1242,7 +1291,27 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 		_ = store.Complete("unknown", classified)
 		return releaseFailure(store.Path, classified)
 	}
-	populateHostedReceipt(store, status)
+	if err := verifyHostedDeployedRAIPolicy(
+		ctx,
+		cmd,
+		profile,
+		projectEndpoint,
+		status.Name,
+		status.Version,
+		resolvedRAIPolicyID,
+	); err != nil {
+		_ = store.AddResource(receipt.ResourceChange{
+			Kind:           "hosted-agent-version",
+			Name:           status.Version,
+			Action:         "verify-rai-policy",
+			Status:         "mismatch",
+			Reconciliation: "Delete or supersede this version after correcting the Hosted RAI policy deployment configuration.",
+		})
+		_ = store.Complete("failed-partial", err)
+		return releaseFailure(store.Path, err)
+	}
+	deploymentChanged := baselineErr != nil || baselineStatus.Version != status.Version
+	populateHostedReceipt(store, status, deploymentChanged)
 	if err := store.AddStep(
 		"hosted-agent-version",
 		"succeeded",
@@ -1253,7 +1322,7 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 	if err := recordHostedRuntimeObligations(store, workspace, status); err != nil {
 		return err
 	}
-	if err := store.Complete("succeeded", nil); err != nil {
+	if err := completeAndIndexHostedDeployReceipt(store, workspace, "succeeded"); err != nil {
 		return err
 	}
 	return printHostedDeployResult(
@@ -1263,10 +1332,92 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 		status,
 		provision,
 		false,
-		true,
+		deploymentChanged,
 		snapshot.Hash,
 		store.Path,
 	)
+}
+
+func completeAndIndexHostedDeployReceipt(
+	store *receipt.OperationStore,
+	workspace hosted.Workspace,
+	status string,
+) error {
+	if err := store.Complete(status, nil); err != nil {
+		return err
+	}
+	canonicalDirectory := filepath.Join(
+		filepath.Dir(workspace.AzureYAML),
+		".foundry-agent-manager",
+		"receipts",
+	)
+	if filepath.Clean(filepath.Dir(store.Path)) == filepath.Clean(canonicalDirectory) {
+		return nil
+	}
+	canonicalPath := receipt.OperationPath(
+		workspace.AzureYAML,
+		"hosted-deploy",
+		workspace.Selected.AgentName,
+		nowUTC(),
+	)
+	indexed := &receipt.OperationStore{
+		Path:    canonicalPath,
+		Receipt: store.Receipt,
+	}
+	if err := indexed.Save(); err != nil {
+		return errs.Config(
+			"Hosted deployment succeeded, but its receipt could not be indexed for hosted diff and --if-changed: %v",
+			err,
+		)
+	}
+	return nil
+}
+
+func verifyHostedDeployedRAIPolicy(
+	ctx context.Context,
+	cmd *cobra.Command,
+	profile azcloud.Profile,
+	projectEndpoint string,
+	agentName string,
+	version string,
+	expectedPolicyID string,
+) error {
+	if expectedPolicyID == "" {
+		return nil
+	}
+	credential, err := newCredential(cmd, profile)
+	if err != nil {
+		return err
+	}
+	client := foundry.NewClientWithOptions(
+		projectEndpoint,
+		credential,
+		newHTTPClient(cmd),
+		foundry.ClientOptions{Scope: profile.FoundryScope},
+	)
+	deployed, err := client.GetAgentVersionContext(ctx, agentName, version)
+	if err != nil {
+		return err
+	}
+	if deployed == nil {
+		return errs.NotFound(
+			"Hosted Agent %q version %s was not found while verifying its RAI policy",
+			agentName,
+			version,
+		)
+	}
+	raiConfig, _ := deployed.Definition["rai_config"].(map[string]interface{})
+	actualPolicyID, _ := raiConfig["rai_policy_name"].(string)
+	if !strings.EqualFold(strings.TrimSpace(actualPolicyID), strings.TrimSpace(expectedPolicyID)) {
+		return errs.Foundry(
+			"Hosted Agent %q version %s RAI policy mismatch: expected %q, got %q",
+			agentName,
+			version,
+			expectedPolicyID,
+			actualPolicyID,
+		)
+	}
+	return nil
 }
 
 func recordHostedRuntimeObligations(
@@ -1386,7 +1537,7 @@ func hostedCommandError(err error) error {
 		)
 	case errors.Is(err, hosted.ErrAgentNotDeployed):
 		return errs.WithNextSteps(
-			errs.Config("%v", err),
+			errs.NotFound("%v", err),
 			"Verify the selected service and azd environment, then deploy it with fam hosted deploy.",
 			"Run fam hosted plan first when you need to review whether provisioning is required.",
 		)
@@ -1468,11 +1619,17 @@ func hostedReceiptPath(cmd *cobra.Command, workspace hosted.Workspace) (string, 
 	), nil
 }
 
-func populateHostedReceipt(store *receipt.OperationStore, status hosted.Status) {
+func populateHostedReceipt(
+	store *receipt.OperationStore,
+	status hosted.Status,
+	changed bool,
+) {
 	store.Receipt.Agent.ID = status.ID
-	store.Receipt.Agent.CreatedVersion = status.Version
+	if changed {
+		store.Receipt.Agent.CreatedVersion = status.Version
+	}
 	store.Receipt.Agent.LatestVersionAfter = status.Version
-	store.Receipt.Agent.Changed = true
+	store.Receipt.Agent.Changed = changed
 }
 
 func activeHostedStatus(status string) bool {

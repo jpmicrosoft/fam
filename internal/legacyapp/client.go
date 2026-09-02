@@ -37,6 +37,12 @@ type Client struct {
 	sleep            func(context.Context, time.Duration) error
 }
 
+// DeleteResult records which legacy resources were removed.
+type DeleteResult struct {
+	DeletedDeployment  bool
+	DeletedApplication bool
+}
+
 // NewClient validates all ARM routing and resource identifiers before authentication.
 func NewClient(options Options) (*Client, error) {
 	validated, err := validateOptions(options)
@@ -365,6 +371,69 @@ func (c *Client) DeleteApplication(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	return c.delete(ctx, requestURL, "legacy application deletion")
+}
+
+// Delete removes either the deployment alone or the parent application and
+// its deployment. Deleting the parent directly avoids a service-side failure
+// observed when a child deployment references an agent that no longer exists.
+func (c *Client) Delete(ctx context.Context, removeApplication bool) (DeleteResult, error) {
+	if !removeApplication {
+		deleted, err := c.DeleteDeployment(ctx)
+		return DeleteResult{DeletedDeployment: deleted}, err
+	}
+	deployment, err := c.GetDeployment(ctx)
+	if err != nil {
+		return DeleteResult{}, err
+	}
+	application, err := c.GetApplication(ctx)
+	if err != nil {
+		return DeleteResult{}, err
+	}
+	if !application.Exists {
+		return DeleteResult{}, nil
+	}
+	if len(application.Properties.Agents) > 0 ||
+		routingConfigured(application.Properties.TrafficRoutingPolicy) {
+		requestURL, err := c.applicationURL()
+		if err != nil {
+			return DeleteResult{}, err
+		}
+		properties := ApplicationProperties{
+			ApplicationMetadata: application.Properties.ApplicationMetadata,
+			Agents:              application.Properties.Agents,
+		}
+		if _, err := c.put(
+			ctx,
+			requestURL,
+			"legacy application dependency cleanup",
+			map[string]any{"properties": properties},
+			conditionalHeaders(true, application.ETag),
+		); err != nil {
+			return DeleteResult{}, err
+		}
+		cleaned, err := c.GetApplication(ctx)
+		if err != nil {
+			return DeleteResult{}, errs.AmbiguousMutation(err)
+		}
+		if !cleaned.Exists ||
+			routingConfigured(cleaned.Properties.TrafficRoutingPolicy) {
+			return DeleteResult{}, errs.AmbiguousMutation(
+				errs.Conflict("legacy application dependencies did not clear before deletion"),
+			)
+		}
+	}
+	deleted, err := c.DeleteApplication(ctx)
+	if err != nil {
+		return DeleteResult{}, err
+	}
+	return DeleteResult{
+		DeletedDeployment:  deployment.Exists && deleted,
+		DeletedApplication: deleted,
+	}, nil
+}
+
+func routingConfigured(policy *TrafficRoutingPolicy) bool {
+	return policy != nil && len(policy.Rules) > 0
 }
 
 func (c *Client) applicationURL() (string, error) {

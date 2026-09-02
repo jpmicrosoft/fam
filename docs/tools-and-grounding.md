@@ -277,6 +277,10 @@ fam connector wait -f agent.yaml --connection github-actions --accept-preview
 fam connector toolbox deploy -f agent.yaml --connection github-actions --toolbox-name operations --if-changed --accept-preview --trusted-tool-host <host>
 ```
 
+`connector list --search` matches connector names using the catalog's supported
+name filter. Use `connector show --connector-name` after discovery for the exact
+catalog record.
+
 Non-OAuth2 connectors remain on the separate Logic Apps Standard registration
 workflow.
 
@@ -291,7 +295,7 @@ claiming it completed the external mutation.
 fam connector logic-apps registration plan -f agent.yaml `
   --connector-name rss --mcp-server-name rss-tools `
   --mcp-server-description "Read approved RSS feeds." `
-  --operation ListAllRSSFeedItems --user-parameter ListAllRSSFeedItems/feedUrl `
+  --operation ListFeedItems --user-parameter ListFeedItems/feedUrl `
   --accept-preview
 ```
 

@@ -147,6 +147,7 @@ type Workspace struct {
 	ExistingProject  bool     `json:"existingProject" yaml:"existingProject"`
 	ProvisioningHint string   `json:"provisioningHint" yaml:"provisioningHint"`
 	ContractWarnings []string `json:"contractWarnings,omitempty" yaml:"contractWarnings,omitempty"`
+	resolvedDocument map[string]any
 }
 
 type documentResolver struct {
@@ -270,6 +271,7 @@ func LoadWorkspace(path, selectedService string) (Workspace, error) {
 		ExistingProject:  existingProject,
 		ProvisioningHint: hint,
 		ContractWarnings: warnings,
+		resolvedDocument: deepCloneMap(document),
 	}, nil
 }
 
@@ -1505,4 +1507,34 @@ func cloneMap(document map[string]any) map[string]any {
 		clone[key] = value
 	}
 	return clone
+}
+
+func deepCloneMap(document map[string]any) map[string]any {
+	clone, _ := deepCloneValue(document).(map[string]any)
+	return clone
+}
+
+func deepCloneValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		clone := make(map[string]any, len(typed))
+		for key, item := range typed {
+			clone[key] = deepCloneValue(item)
+		}
+		return clone
+	case map[string]map[string]any:
+		clone := make(map[string]any, len(typed))
+		for key, item := range typed {
+			clone[key] = deepCloneValue(item)
+		}
+		return clone
+	case []any:
+		clone := make([]any, len(typed))
+		for i, item := range typed {
+			clone[i] = deepCloneValue(item)
+		}
+		return clone
+	default:
+		return value
+	}
 }

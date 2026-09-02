@@ -953,7 +953,7 @@ All commands default to text output; use --output json or --output yaml for auto
 			requireFlags(command, "connector-name", "mcp-server-name", "mcp-server-description")
 		case "connector-list":
 			addManagedConnectorPreviewFlag(command)
-			command.Flags().String("search", "*", "Free-text connector catalog search.")
+			command.Flags().String("search", "*", "Case-insensitive connector name search.")
 			command.Flags().Int("page-size", 100, "Connector catalog page size (1-100).")
 			command.Flags().Int("skip", 0, "Connector catalog records to skip.")
 		case "connector-show":

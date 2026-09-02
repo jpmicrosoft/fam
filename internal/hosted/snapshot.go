@@ -58,7 +58,7 @@ func ComputeDeploymentSnapshot(workspace Workspace, environment string) (Deploym
 		hashString(digest, workspace.Selected.Image)
 		return DeploymentSnapshot{Hash: hex.EncodeToString(digest.Sum(nil))}, nil
 	}
-	files, err := hostedSourceFiles(workspace.Selected.SourceDirectory, false)
+	files, err := hostedSourceFiles(workspace.Selected.SourceDirectory, true)
 	if err != nil {
 		return DeploymentSnapshot{}, err
 	}

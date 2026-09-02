@@ -1226,6 +1226,254 @@ func TestCmdPromotePinsVerifiedVersion(t *testing.T) {
 	}
 }
 
+func TestCmdPromotePinsLatestWhenEffectiveVersionAlreadyMatches(t *testing.T) {
+	manifest := writeManifest(t, baseManifest)
+	http := &scriptedHTTP{routes: map[string]scriptedRoute{
+		"/agents/base-agent/versions/3": route(
+			http.StatusOK,
+			`{"id":"v3","name":"base-agent","version":"3","definition":{}}`,
+		),
+		"/agents/base-agent": routeSequence(
+			route(http.StatusOK, `{
+				"id":"agent-1","name":"base-agent",
+				"agent_endpoint":{"version_selector":{"version_selection_rules":[
+					{"type":"FixedRatio","agent_version":"@latest","traffic_percentage":100}
+				]}},
+				"versions":{"latest":{"version":"3"}}
+			}`),
+			route(http.StatusNoContent, ``),
+			route(http.StatusOK, `{
+				"id":"agent-1","name":"base-agent",
+				"agent_endpoint":{"version_selector":{"version_selection_rules":[
+					{"type":"FixedRatio","agent_version":"3","traffic_percentage":100}
+				]}},
+				"versions":{"latest":{"version":"3"}}
+			}`),
+		),
+	}}
+	stubCredentialAndHTTP(t, http)
+	run := runCLI(
+		t,
+		"",
+		"promote",
+		"-f",
+		manifest,
+		"--agent-version",
+		"3",
+		"--output",
+		"json",
+	)
+	if run.code != 0 {
+		t.Fatalf("promote failed: %s", run.stderr)
+	}
+	var result releaseResult
+	if err := json.Unmarshal([]byte(run.stdout), &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.Changed || result.ActiveVersion != "3" || result.SelectorMode != "pinned" {
+		t.Fatalf("latest selector was not explicitly pinned: %#v", result)
+	}
+	patches := 0
+	for _, request := range http.requests {
+		if request.Method == "PATCH" {
+			patches++
+		}
+	}
+	if patches != 1 {
+		t.Fatalf("expected one routing PATCH, got %d", patches)
+	}
+}
+
+func TestCmdPromoteKeepsMatchingPinnedVersionUnchanged(t *testing.T) {
+	manifest := writeManifest(t, baseManifest)
+	http := &scriptedHTTP{routes: map[string]scriptedRoute{
+		"/agents/base-agent/versions/3": route(
+			http.StatusOK,
+			`{"id":"v3","name":"base-agent","version":"3","definition":{}}`,
+		),
+		"/agents/base-agent": route(http.StatusOK, `{
+			"id":"agent-1","name":"base-agent",
+			"agent_endpoint":{"version_selector":{"version_selection_rules":[
+				{"type":"FixedRatio","agent_version":"3","traffic_percentage":100}
+			]}},
+			"versions":{"latest":{"version":"3"}}
+		}`),
+	}}
+	stubCredentialAndHTTP(t, http)
+	run := runCLI(
+		t,
+		"",
+		"promote",
+		"-f",
+		manifest,
+		"--agent-version",
+		"3",
+		"--output",
+		"json",
+	)
+	if run.code != 0 {
+		t.Fatalf("promote failed: %s", run.stderr)
+	}
+	var result releaseResult
+	if err := json.Unmarshal([]byte(run.stdout), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Changed || result.ActiveVersion != "3" || result.SelectorMode != "pinned" {
+		t.Fatalf("matching pinned version should be unchanged: %#v", result)
+	}
+	for _, request := range http.requests {
+		if request.Method == "PATCH" {
+			t.Fatal("matching pinned version must not issue a routing PATCH")
+		}
+	}
+}
+
+func TestCmdPromoteRestoresLatestWhenEffectiveVersionAlreadyMatches(t *testing.T) {
+	manifest := writeManifest(t, baseManifest)
+	http := &scriptedHTTP{routes: map[string]scriptedRoute{
+		"/agents/base-agent": routeSequence(
+			route(http.StatusOK, `{
+				"id":"agent-1","name":"base-agent",
+				"agent_endpoint":{"version_selector":{"version_selection_rules":[
+					{"type":"FixedRatio","agent_version":"3","traffic_percentage":100}
+				]}},
+				"versions":{"latest":{"version":"3"}}
+			}`),
+			route(http.StatusNoContent, ``),
+			route(http.StatusOK, `{
+				"id":"agent-1","name":"base-agent",
+				"agent_endpoint":{"version_selector":{"version_selection_rules":[
+					{"type":"FixedRatio","agent_version":"@latest","traffic_percentage":100}
+				]}},
+				"versions":{"latest":{"version":"3"}}
+			}`),
+		),
+	}}
+	stubCredentialAndHTTP(t, http)
+	run := runCLI(
+		t,
+		"",
+		"promote",
+		"-f",
+		manifest,
+		"--latest",
+		"--output",
+		"json",
+	)
+	if run.code != 0 {
+		t.Fatalf("promote --latest failed: %s", run.stderr)
+	}
+	var result releaseResult
+	if err := json.Unmarshal([]byte(run.stdout), &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.Changed || result.ActiveVersion != "3" || result.SelectorMode != "latest" {
+		t.Fatalf("pinned selector was not restored to latest: %#v", result)
+	}
+	patches := 0
+	for _, request := range http.requests {
+		if request.Method == "PATCH" {
+			patches++
+		}
+	}
+	if patches != 1 {
+		t.Fatalf("expected one routing PATCH, got %d", patches)
+	}
+}
+
+func TestCmdConnectionCreateReportsCreateIntentWhenARMReturnsOK(t *testing.T) {
+	manifest := writeManifest(t, baseManifest)
+	http := &scriptedHTTP{routes: map[string]scriptedRoute{
+		"/connections/toolbox-connection": routeSequence(
+			route(http.StatusNotFound, `{"error":{"code":"NotFound"}}`),
+			route(http.StatusOK, `{"name":"toolbox-connection"}`),
+		),
+	}}
+	stubCredentialAndHTTP(t, http)
+	run := runCLI(
+		t,
+		"",
+		"project",
+		"connection",
+		"create",
+		"-f",
+		manifest,
+		"--connection",
+		"toolbox-connection",
+		"--connection-type",
+		"RemoteTool",
+		"--target",
+		"https://example.com/mcp",
+		"--auth-type",
+		"ProjectManagedIdentity",
+		"--output",
+		"json",
+	)
+	if run.code != 0 {
+		t.Fatalf("connection create failed: %s", run.stderr)
+	}
+	var result struct {
+		Created bool `json:"created"`
+		Updated bool `json:"updated"`
+	}
+	if err := json.Unmarshal([]byte(run.stdout), &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.Created || result.Updated {
+		t.Fatalf("guarded create must report create intent regardless of ARM status: %#v", result)
+	}
+}
+
+func TestCmdConnectionUpdateReportsUpdateIntentWhenARMReturnsCreated(t *testing.T) {
+	manifest := writeManifest(t, baseManifest)
+	http := &scriptedHTTP{routes: map[string]scriptedRoute{
+		"/connections/toolbox-connection": routeSequence(
+			route(http.StatusOK, `{
+				"name":"toolbox-connection",
+				"properties":{
+					"category":"RemoteTool",
+					"target":"https://example.com/mcp",
+					"authType":"ProjectManagedIdentity"
+				}
+			}`),
+			route(http.StatusCreated, `{"name":"toolbox-connection"}`),
+		),
+	}}
+	stubCredentialAndHTTP(t, http)
+	run := runCLI(
+		t,
+		"",
+		"project",
+		"connection",
+		"update",
+		"-f",
+		manifest,
+		"--connection",
+		"toolbox-connection",
+		"--connection-type",
+		"RemoteTool",
+		"--target",
+		"https://example.com/mcp",
+		"--auth-type",
+		"ProjectManagedIdentity",
+		"--output",
+		"json",
+	)
+	if run.code != 0 {
+		t.Fatalf("connection update failed: %s", run.stderr)
+	}
+	var result struct {
+		Created bool `json:"created"`
+		Updated bool `json:"updated"`
+	}
+	if err := json.Unmarshal([]byte(run.stdout), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Created || !result.Updated {
+		t.Fatalf("guarded update must report update intent regardless of ARM status: %#v", result)
+	}
+}
+
 func TestCmdDeleteVersionRejectsActiveVersion(t *testing.T) {
 	manifest := writeManifest(t, baseManifest)
 	http := &scriptedHTTP{routes: map[string]scriptedRoute{

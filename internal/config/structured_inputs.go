@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	errs "foundry-agent-manager/internal/errors"
@@ -10,12 +11,53 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
+// ValidateStructuredInputDefinitions validates the Foundry wire contract for
+// prompt-agent structured inputs.
+func ValidateStructuredInputDefinitions(definitions map[string]interface{}) error {
+	names := make([]string, 0, len(definitions))
+	for name := range definitions {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		rawDefinition := definitions[name]
+		definition, ok := rawDefinition.(map[string]interface{})
+		if !ok {
+			return errs.Config("structured input definition %q must be an object", name)
+		}
+		required, _ := definition["required"].(bool)
+		defaultValue, hasDefault := definition["default_value"]
+		if !required && !hasDefault {
+			return errs.Config(
+				"optional structured input %q must define default_value; set required: true or provide a default",
+				name,
+			)
+		}
+		rawSchema, hasSchema := definition["schema"]
+		if !hasDefault || !hasSchema {
+			continue
+		}
+		schemaDocument, ok := rawSchema.(map[string]interface{})
+		if !ok {
+			return errs.Config("structured input %q schema must be an object", name)
+		}
+		if err := validateStructuredInputSchema(name, schemaDocument, defaultValue); err != nil {
+			return errs.Config("structured input %q default_value failed schema validation: %v", name, err)
+		}
+	}
+	return nil
+}
+
 // ValidateStructuredInputValues validates runtime values against the
 // definitions stored on the prompt agent.
 func ValidateStructuredInputValues(
 	definitions map[string]interface{},
 	values map[string]interface{},
 ) error {
+	if err := ValidateStructuredInputDefinitions(definitions); err != nil {
+		return err
+	}
 	for name := range values {
 		if _, exists := definitions[name]; !exists {
 			return errs.Config("structured input %q is not declared by agent.structured_inputs", name)

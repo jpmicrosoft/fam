@@ -56,6 +56,7 @@ agent:
     tenantContext:
       description: Non-secret tenant context supplied by the invoking application.
       required: false
+      default_value: {}
       schema:
         type: object
         additionalProperties: false

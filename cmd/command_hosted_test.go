@@ -221,6 +221,50 @@ func TestValidateHostedRAIPolicyRejectsPolicylessProjectEndpointMismatch(t *test
 	}
 }
 
+func TestVerifyHostedDeployedRAIPolicyRejectsUnresolvedReference(t *testing.T) {
+	const policyID = "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/raiPolicies/Microsoft.DefaultV2"
+	profile, err := azcloud.Resolve(azcloud.AzureCloud)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name      string
+		deployed  string
+		wantError bool
+	}{
+		{name: "resolved", deployed: policyID},
+		{name: "unresolved", deployed: "${RAI_POLICY_ID}", wantError: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			httpClient := &scriptedHTTP{routes: map[string]scriptedRoute{
+				"/agents/hosted-agent/versions/2": route(
+					http.StatusOK,
+					`{"name":"hosted-agent","version":"2","status":"active","definition":{"kind":"hosted","rai_config":{"rai_policy_name":"`+tt.deployed+`"}}}`,
+				),
+			}}
+			stubCredentialAndHTTP(t, httpClient)
+			err := verifyHostedDeployedRAIPolicy(
+				context.Background(),
+				rootCmd(),
+				profile,
+				"https://account.services.ai.azure.com/api/projects/project",
+				"hosted-agent",
+				"2",
+				policyID,
+			)
+			if tt.wantError {
+				if err == nil || !strings.Contains(err.Error(), "RAI policy mismatch") {
+					t.Fatalf("unresolved deployed policy was not rejected: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolved deployed policy was rejected: %v", err)
+			}
+		})
+	}
+}
+
 func TestHostedDeployRevalidatesProjectBindingAfterProvision(t *testing.T) {
 	root := writeHostedLifecycleWorkspace(t, false)
 	runner := &hostedCommandFakeRunner{changeEndpointAfterProvision: true}
@@ -406,6 +450,9 @@ func TestHostedCommandErrorsPreserveStateSpecificRemediation(t *testing.T) {
 			steps := errs.Remediation(classified)
 			if len(steps) == 0 || !strings.Contains(strings.Join(steps, "\n"), test.expected) {
 				t.Fatalf("state-specific remediation missing %q: %#v", test.expected, steps)
+			}
+			if test.name == "not deployed" && errs.KindOf(classified) != "not_found" {
+				t.Fatalf("undeployed Hosted Agent must be not_found, got %q", errs.KindOf(classified))
 			}
 			if test.name != "authentication" &&
 				strings.Contains(strings.Join(steps, "\n"), "hosted info") {
@@ -998,6 +1045,7 @@ services:
 
 			var stdout bytes.Buffer
 			var stderr bytes.Buffer
+			customReceipt := filepath.Join(t.TempDir(), "hosted-deploy.json")
 			code := execute(
 				[]string{
 					"hosted-deploy",
@@ -1005,6 +1053,7 @@ services:
 					"--environment", "prod",
 					"--accept-preview",
 					"--no-guardrail",
+					"--receipt", customReceipt,
 					"--output", "json",
 				},
 				strings.NewReader(""),
@@ -1073,6 +1122,26 @@ services:
 			}
 			if !foundToolboxStep {
 				t.Fatalf("receipt must record Toolbox approval ownership: %#v", operation.Steps)
+			}
+			workspace, err := hosted.LoadWorkspace(root, "agent")
+			if err != nil {
+				t.Fatal(err)
+			}
+			indexedAgent := &foundry.Agent{Name: "hosted-agent"}
+			indexedAgent.Versions.Latest = foundry.AgentVersion{Version: "9"}
+			found, indexedPath, err := latestHostedDeployReceipt(&hostedRESTRuntime{
+				Profile:         azcloud.Profile{Name: azcloud.AzureCloud},
+				Workspace:       workspace,
+				Deployment:      hosted.Status{Version: "9", Status: "active"},
+				ProjectEndpoint: "https://account.services.ai.azure.com/api/projects/project",
+				Agent:           indexedAgent,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if found == nil || filepath.Clean(indexedPath) == filepath.Clean(customReceipt) ||
+				found.Receipt.Agent.CreatedVersion != "9" {
+				t.Fatalf("custom Hosted receipt was not indexed: path=%q receipt=%#v", indexedPath, found)
 			}
 		})
 	}
@@ -1144,6 +1213,54 @@ services:
 	}
 	if operation.Status != "unknown" || operation.Agent.CreatedVersion != "" {
 		t.Fatalf("unchanged baseline must not be claimed as deployed: %#v", operation)
+	}
+}
+
+func TestHostedDeployReportsPlatformDeduplicationAsUnchanged(t *testing.T) {
+	root := writeHostedLifecycleWorkspace(t, true)
+	runner := &hostedCommandFakeRunner{advance: false}
+	oldLookPath := hostedLookPathFn
+	oldRunner := newHostedRunnerFn
+	hostedLookPathFn = func(string) (string, error) { return `C:\tools\azd.exe`, nil }
+	newHostedRunnerFn = func() hosted.Runner { return runner }
+	t.Cleanup(func() {
+		hostedLookPathFn = oldLookPath
+		newHostedRunnerFn = oldRunner
+	})
+
+	receiptPath := filepath.Join(t.TempDir(), "receipt.json")
+	run := runCLI(
+		t,
+		"",
+		"hosted-deploy",
+		"--workspace", root,
+		"--environment", "prod",
+		"--accept-preview",
+		"--no-guardrail",
+		"--receipt", receiptPath,
+		"--output", "json",
+	)
+	if run.code != 0 {
+		t.Fatalf("deduplicated Hosted deploy failed: %#v", run)
+	}
+	var result hostedDeployResult
+	if err := json.Unmarshal([]byte(run.stdout), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Changed || result.Status != "unchanged" || result.AgentVersion != "8" {
+		t.Fatalf("deduplicated Hosted deploy was reported as changed: %#v", result)
+	}
+	data, err := os.ReadFile(receiptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var operation receipt.ReceiptV2
+	if err := json.Unmarshal(data, &operation); err != nil {
+		t.Fatal(err)
+	}
+	if operation.Agent.Changed || operation.Agent.CreatedVersion != "" ||
+		operation.Agent.LatestVersionAfter != "8" {
+		t.Fatalf("deduplicated receipt claimed a new version: %#v", operation.Agent)
 	}
 }
 

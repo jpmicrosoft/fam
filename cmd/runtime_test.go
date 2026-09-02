@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"io"
 	"net/http"
 	"strings"
@@ -85,5 +86,24 @@ func TestStructuredDestructiveConfirmationDoesNotWritePrompt(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("structured confirmation wrote non-JSON prompt text: %q", stderr.String())
+	}
+}
+
+func TestAPICenterTransportAllowsOnlyOneRenegotiation(t *testing.T) {
+	transport := apiCenterTransport()
+	if transport == http.DefaultTransport {
+		t.Fatal("API Center transport must not mutate the global default transport")
+	}
+	if transport.TLSClientConfig == nil {
+		t.Fatal("API Center transport is missing TLS configuration")
+	}
+	if transport.TLSClientConfig.MinVersion != tls.VersionTLS12 {
+		t.Fatalf("unexpected minimum TLS version: %d", transport.TLSClientConfig.MinVersion)
+	}
+	if transport.TLSClientConfig.Renegotiation != tls.RenegotiateOnceAsClient {
+		t.Fatalf(
+			"unexpected TLS renegotiation policy: %d",
+			transport.TLSClientConfig.Renegotiation,
+		)
 	}
 }

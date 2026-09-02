@@ -57,10 +57,28 @@ func TestListConnectorCatalogUsesDocumentedContract(t *testing.T) {
 	if err := json.Unmarshal(data, &body); err != nil {
 		t.Fatal(err)
 	}
-	if body["freeTextSearch"] != "git" ||
+	if body["freeTextSearch"] != "*" ||
 		int(body["pageSize"].(float64)) != 25 ||
 		int(body["skip"].(float64)) != 50 {
 		t.Fatalf("unexpected catalog body: %#v", body)
+	}
+	filters, ok := body["filters"].([]interface{})
+	if !ok {
+		t.Fatalf("unexpected catalog filters: %#v", body["filters"])
+	}
+	var foundSearch bool
+	for _, raw := range filters {
+		filter, _ := raw.(map[string]interface{})
+		values, _ := filter["values"].([]interface{})
+		if filter["field"] == "annotations/name" &&
+			filter["operator"] == "contains" &&
+			len(values) == 1 &&
+			values[0] == "git" {
+			foundSearch = true
+		}
+	}
+	if !foundSearch {
+		t.Fatalf("catalog request is missing the supported name search filter: %#v", filters)
 	}
 }
 
@@ -160,7 +178,8 @@ func TestConnectorOperationsFilterTriggersAndExpandSchema(t *testing.T) {
 		response(http.StatusOK, `{"value":[
 			{"name":"CreateIssue","properties":{"summary":"Create issue"}},
 			{"name":"IssueCreated","properties":{"summary":"Issue created","isWebhook":true}},
-			{"name":"Notification","properties":{"isNotification":true}}
+			{"name":"Notification","properties":{"isNotification":true}},
+			{"name":"ScheduledTrigger","properties":{"summary":"When an event occurs","trigger":"batch"}}
 		]}`),
 		response(http.StatusOK, `{
 			"name":"CreateIssue",
@@ -204,6 +223,31 @@ func TestConnectorOperationsFilterTriggersAndExpandSchema(t *testing.T) {
 	if len(detail.InputsDefinition.Properties) != 2 ||
 		client.requests[1].URL.Query().Get("$expand") != "properties/inputsDefinition" {
 		t.Fatalf("unexpected operation detail: %#v request=%s", detail, client.requests[1].URL)
+	}
+}
+
+func TestConnectorOperationRejectsTriggerMetadata(t *testing.T) {
+	client := &recordingHTTPClient{responses: []*http.Response{
+		response(http.StatusOK, `{
+			"name":"OnNewFeed",
+			"properties":{
+				"summary":"When a feed item is published",
+				"trigger":"batch",
+				"isWebhook":false,
+				"isNotification":false
+			}
+		}`),
+	}}
+	_, err := GetConnectorOperationContext(
+		context.Background(),
+		projectSpec(),
+		"rss",
+		"OnNewFeed",
+		&recordingCredential{},
+		client,
+	)
+	if err == nil || !strings.Contains(err.Error(), "is a trigger") {
+		t.Fatalf("expected trigger rejection, got %v", err)
 	}
 }
 

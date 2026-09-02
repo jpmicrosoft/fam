@@ -517,6 +517,57 @@ func TestDeleteIsIdempotentAndSupportsLocationLRO(t *testing.T) {
 	})
 }
 
+func TestDeleteParentApplicationCascadesWithoutDeletingChildFirst(t *testing.T) {
+	spec := ManagedDeploymentSpec{
+		AgentID:      testAgentID,
+		AgentName:    "agent1",
+		AgentVersion: "1",
+		DisplayName:  "deployment1",
+	}
+	metadata := ApplicationMetadata{DisplayName: "application1"}
+	routing := &TrafficRoutingPolicy{
+		Protocol: RoutingProtocolFixed,
+		Rules: []TrafficRoutingRule{{
+			DeploymentID:      "deployment-id-1",
+			TrafficPercentage: 100,
+		}},
+	}
+	agent := AgentReference{AgentID: testAgentID, AgentName: "agent1"}
+	client, _, httpClient := newTestClient(
+		t,
+		response(http.StatusOK, deploymentPayload(spec, "deployment-id-1"), nil),
+		response(http.StatusOK, applicationPayload(metadata, routing, agent), nil),
+		response(http.StatusOK, `{}`, nil),
+		response(http.StatusOK, applicationPayload(metadata, nil, agent), nil),
+		response(http.StatusNoContent, ``, nil),
+	)
+	result, err := client.Delete(context.Background(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.DeletedApplication || !result.DeletedDeployment {
+		t.Fatalf("unexpected cascade delete result: %#v", result)
+	}
+	if len(httpClient.requests) != 5 ||
+		httpClient.requests[0].Method != http.MethodGet ||
+		!strings.HasSuffix(httpClient.requests[0].URL, "/agentDeployments/deployment1?api-version="+APIVersion) ||
+		httpClient.requests[1].Method != http.MethodGet ||
+		!strings.HasSuffix(httpClient.requests[1].URL, "/applications/application1?api-version="+APIVersion) ||
+		httpClient.requests[2].Method != http.MethodPut ||
+		httpClient.requests[3].Method != http.MethodGet ||
+		httpClient.requests[4].Method != http.MethodDelete ||
+		!strings.HasSuffix(httpClient.requests[4].URL, "/applications/application1?api-version="+APIVersion) {
+		t.Fatalf("parent deletion must not delete the child first: %#v", httpClient.requests)
+	}
+	properties := decodeBody(t, httpClient.requests[2])["properties"].(map[string]any)
+	if agents, ok := properties["agents"].([]any); !ok || len(agents) != 1 {
+		t.Fatalf("dependency cleanup did not preserve required agent references: %#v", properties)
+	}
+	if _, ok := properties["trafficRoutingPolicy"]; ok {
+		t.Fatalf("dependency cleanup preserved traffic routing: %#v", properties)
+	}
+}
+
 func TestStatusUsesOnlyLegacyARMResources(t *testing.T) {
 	metadata := ApplicationMetadata{DisplayName: "application1"}
 	spec := ManagedDeploymentSpec{

@@ -1178,6 +1178,18 @@
     "structuredInputDefinition": {
       "type": "object",
       "additionalProperties": false,
+      "description": "Structured inputs must either be explicitly required or provide a service-compatible default value.",
+      "anyOf": [
+        {
+          "required": ["default_value"]
+        },
+        {
+          "required": ["required"],
+          "properties": {
+            "required": { "const": true }
+          }
+        }
+      ],
       "properties": {
         "description": { "type": "string" },
         "default_value": true,

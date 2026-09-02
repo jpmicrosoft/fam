@@ -275,7 +275,9 @@ schemas give callers a contract they can validate.
 `agent.structured_inputs` declares typed runtime variables in the immutable
 agent definition. Each key can define `description`, `schema`, `required`, and
 `default_value`; templates in instructions and supported tool fields use
-`{{variableName}}`.
+`{{variableName}}`. Foundry requires every optional input to define
+`default_value`, so set `required: true` or provide a default that satisfies the
+declared schema.
 
 ```yaml
 agent:

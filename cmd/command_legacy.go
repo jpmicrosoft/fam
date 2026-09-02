@@ -283,18 +283,13 @@ func cmdLegacyDelete(cmd *cobra.Command, _ []string) error {
 		_ = store.Complete("cancelled", err)
 		return err
 	}
-	result.DeletedDeployment, err = runtime.client.DeleteDeployment(commandContext(cmd))
+	deleted, err := runtime.client.Delete(commandContext(cmd), removeApplication)
 	if err != nil {
 		_ = store.Complete(operationFailureStatus(err), err)
 		return releaseFailure(store.Path, err)
 	}
-	if removeApplication {
-		result.DeletedApplication, err = runtime.client.DeleteApplication(commandContext(cmd))
-		if err != nil {
-			_ = store.Complete(operationFailureStatus(err), err)
-			return releaseFailure(store.Path, err)
-		}
-	}
+	result.DeletedDeployment = deleted.DeletedDeployment
+	result.DeletedApplication = deleted.DeletedApplication
 	if err := store.Complete("succeeded", nil); err != nil {
 		return err
 	}

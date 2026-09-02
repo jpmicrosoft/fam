@@ -318,10 +318,12 @@ func TestEnsureTeamsChannelCreatesThenVerifies(t *testing.T) {
 }
 
 func TestEnsureTeamsChannelNoOp(t *testing.T) {
+	current := channelResponse()
+	current.Name = testBotName + "/" + teamsChannelName
 	options, _, transport := testOptions(
 		t,
 		providerResponse("Registered"),
-		jsonResponse(http.StatusOK, channelResponse()),
+		jsonResponse(http.StatusOK, current),
 	)
 	result, err := EnsureTeamsChannelContext(context.Background(), options, testBotName)
 	if err != nil {

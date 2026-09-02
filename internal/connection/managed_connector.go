@@ -112,6 +112,7 @@ type ConnectorOperation struct {
 	Name             string                    `json:"name" yaml:"name"`
 	Summary          string                    `json:"summary,omitempty" yaml:"summary,omitempty"`
 	Description      string                    `json:"description,omitempty" yaml:"description,omitempty"`
+	IsTrigger        bool                      `json:"isTrigger" yaml:"isTrigger"`
 	IsWebhook        bool                      `json:"isWebhook" yaml:"isWebhook"`
 	IsNotification   bool                      `json:"isNotification" yaml:"isNotification"`
 	InputsDefinition ConnectorInputsDefinition `json:"inputsDefinition,omitempty" yaml:"inputsDefinition,omitempty"`
@@ -149,14 +150,16 @@ func ListConnectorCatalogContext(
 		return ConnectorCatalogPage{}, errs.Config("connector catalog skip must be zero or greater")
 	}
 	search := strings.TrimSpace(query.Search)
-	if search == "" {
-		search = "*"
-	}
 	filters := []map[string]interface{}{
 		{"field": "entityContainerId", "operator": "eq", "values": []string{ConnectorCatalogRegistry}},
 		{"field": "type", "operator": "eq", "values": []string{"tools"}},
 		{"field": "kind", "operator": "eq", "values": []string{"Versioned"}},
 		{"field": "labels", "operator": "eq", "values": []string{"latest"}},
+	}
+	if search != "" && search != "*" {
+		filters = append(filters, map[string]interface{}{
+			"field": "annotations/name", "operator": "contains", "values": []string{search},
+		})
 	}
 	if name := strings.TrimSpace(query.Name); name != "" {
 		filters = append(filters, map[string]interface{}{
@@ -164,7 +167,7 @@ func ListConnectorCatalogContext(
 		})
 	}
 	body, err := json.Marshal(map[string]interface{}{
-		"freeTextSearch":          search,
+		"freeTextSearch":          "*",
 		"filters":                 filters,
 		"includeTotalResultCount": true,
 		"pageSize":                query.PageSize,
@@ -343,7 +346,7 @@ func ListConnectorOperationsContext(
 		if err != nil {
 			return nil, err
 		}
-		if operation.IsWebhook || operation.IsNotification {
+		if operation.IsTrigger {
 			continue
 		}
 		result = append(result, operation)
@@ -406,7 +409,7 @@ func GetConnectorOperationContext(
 	if err != nil {
 		return ConnectorOperation{}, err
 	}
-	if operation.IsWebhook || operation.IsNotification {
+	if operation.IsTrigger {
 		return ConnectorOperation{}, errs.Config(
 			"connector operation %q is a trigger and cannot be registered as an agent-callable action",
 			operationName,
@@ -797,6 +800,7 @@ type connectorOperationPayload struct {
 	Properties struct {
 		Summary          string                    `json:"summary"`
 		Description      string                    `json:"description"`
+		Trigger          string                    `json:"trigger"`
 		IsWebhook        bool                      `json:"isWebhook"`
 		IsNotification   bool                      `json:"isNotification"`
 		InputsDefinition ConnectorInputsDefinition `json:"inputsDefinition"`
@@ -814,6 +818,7 @@ func normalizeConnectorOperation(payload connectorOperationPayload) (ConnectorOp
 		Name:             payload.Name,
 		Summary:          payload.Properties.Summary,
 		Description:      payload.Properties.Description,
+		IsTrigger:        strings.TrimSpace(payload.Properties.Trigger) != "" || payload.Properties.IsWebhook || payload.Properties.IsNotification,
 		IsWebhook:        payload.Properties.IsWebhook,
 		IsNotification:   payload.Properties.IsNotification,
 		InputsDefinition: payload.Properties.InputsDefinition,

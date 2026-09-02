@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -147,8 +148,20 @@ func newHTTPClient(cmd *cobra.Command) *httpx.RetryClient {
 }
 
 func newHTTPClientReal(cmd *cobra.Command) *httpx.RetryClient {
+	return newHTTPClientWithTransport(cmd, nil)
+}
+
+func newAPICenterHTTPClient(cmd *cobra.Command) *httpx.RetryClient {
+	return newHTTPClientWithTransport(cmd, apiCenterTransport())
+}
+
+func newHTTPClientWithTransport(
+	cmd *cobra.Command,
+	transport http.RoundTripper,
+) *httpx.RetryClient {
 	base := &http.Client{
-		Timeout: getDurationFlag(cmd, "request-timeout"),
+		Timeout:   getDurationFlag(cmd, "request-timeout"),
+		Transport: transport,
 		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
 			return errs.Security(
 				"Azure redirected an authenticated request to %q; refusing to forward the bearer token",
@@ -186,6 +199,20 @@ func newHTTPClientReal(cmd *cobra.Command) *httpx.RetryClient {
 			)
 		},
 	})
+}
+
+func apiCenterTransport() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	tlsConfig := transport.TLSClientConfig
+	if tlsConfig == nil {
+		tlsConfig = &tls.Config{}
+	} else {
+		tlsConfig = tlsConfig.Clone()
+	}
+	tlsConfig.MinVersion = tls.VersionTLS12
+	tlsConfig.Renegotiation = tls.RenegotiateOnceAsClient
+	transport.TLSClientConfig = tlsConfig
+	return transport
 }
 
 func newCredential(cmd *cobra.Command, profile azcloud.Profile) (azcore.TokenCredential, error) {

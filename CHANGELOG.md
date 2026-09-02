@@ -5,13 +5,55 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Version status.** `0.16.0` is the version compiled into the executable
+> **Version status.** `0.16.1` is the version compiled into the executable
 > ([`internal/config/config.go`](internal/config/config.go)) and reported by
 > `fam version`. Release archives plus a GitHub Release are
-> produced only after the matching `v0.16.0` tag is pushed; see
+> produced only after the matching `v0.16.1` tag is pushed; see
 > [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## [Unreleased]
+
+## [0.16.1] - 2026-09-02
+
+### Changed
+
+- **Breaking for invalid structured-input manifests:** optional Prompt Agent
+  structured inputs must now declare `default_value`, and each default is
+  validated against its declared JSON Schema before deployment. Manifests that
+  relied on the service rejecting these invalid definitions later must be
+  corrected locally.
+- **Breaking for Hosted error handling:** `hosted show`, `status`, and related
+  reconciliation paths now return the stable `not_found` error kind and exit
+  code `6` when the selected environment remembers an agent version that has
+  been deleted. Automation that treated this state as a tooling failure should
+  update its exit-code handling.
+
+### Fixed
+
+- Hosted deployments now materialize the fully resolved account-scoped RAI
+  policy ID into a deployment-only `azure.yaml`, restore the original file
+  byte-for-byte, and verify the deployed version retained the expected policy.
+  This prevents `${RAI_POLICY_ID}` from reaching the service literally and
+  causing session creation failures.
+- Hosted drift snapshots now honor `.agentignore`, custom receipt paths are
+  indexed for later drift checks, and platform-deduplicated deployments report
+  `changed: false`.
+- Hosted status reconciliation recognizes service `404 not_found` responses
+  after deletion instead of misclassifying them as `azd` tooling failures.
+- Legacy Agent Application deletion clears active traffic routing before
+  cascading deletion of the parent application, avoiding routed child
+  deployment deletion failures.
+- Prompt response parsing now selects the latest assistant message instead of
+  returning earlier tool or user content from a multi-message response.
+- Connector catalog search now uses exact service-side name filters, and
+  trigger operations are excluded using the connector's trigger metadata.
+- API Center registry requests use the TLS 1.2 renegotiation behavior required
+  by the service without weakening the default transport for other endpoints.
+- Bot Service reconciliation accepts ARM's composite
+  `<bot>/MsTeamsChannel` child name.
+- Project connection create/update output now reports the requested operation
+  accurately, and explicit version pinning is no longer reported as unchanged
+  when the endpoint was previously routed to latest.
 
 ## [0.16.0] - 2026-09-02
 

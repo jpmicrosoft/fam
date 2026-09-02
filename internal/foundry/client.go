@@ -1039,6 +1039,17 @@ func stringValue(source map[string]interface{}, key string) string {
 func findOutputText(value interface{}) string {
 	switch typed := value.(type) {
 	case []interface{}:
+		for index := len(typed) - 1; index >= 0; index-- {
+			item, ok := typed[index].(map[string]interface{})
+			if !ok ||
+				!strings.EqualFold(stringValue(item, "type"), "message") ||
+				!strings.EqualFold(stringValue(item, "role"), "assistant") {
+				continue
+			}
+			if found := findOutputText(item["content"]); found != "" {
+				return found
+			}
+		}
 		for _, item := range typed {
 			if found := findOutputText(item); found != "" {
 				return found

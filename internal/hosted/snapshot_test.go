@@ -95,6 +95,7 @@ func TestBuildCodeArchiveRejectsUnsupportedAgentIgnoreNegation(t *testing.T) {
 	if err := os.MkdirAll(source, 0o700); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(filepath.Join(source, "main.py"), []byte("pass\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -109,6 +110,59 @@ func TestBuildCodeArchiveRejectsUnsupportedAgentIgnoreNegation(t *testing.T) {
 	}
 	if _, err := BuildCodeArchive(workspace); err == nil {
 		t.Fatal("expected unsupported .agentignore negation to fail")
+	}
+}
+
+func TestDeploymentSnapshotHonorsAgentIgnore(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "src", "agent")
+	if err := os.MkdirAll(filepath.Join(source, ".agent_configs"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{
+		"main.py":                      "print('ready')\n",
+		".agentignore":                 "eval.yaml\n.agent_configs/\n",
+		"eval.yaml":                    "name: generated\n",
+		".agent_configs/baseline.yaml": "version: 1\n",
+	} {
+		path := filepath.Join(source, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	workspace := Workspace{
+		Name: "hosted-project",
+		Hash: "workspace-hash",
+		Selected: Service{
+			ServiceName:     "agent",
+			AgentName:       "hosted-agent",
+			Mode:            DeploymentModeCode,
+			SourceDirectory: source,
+		},
+	}
+	before, err := ComputeDeploymentSnapshot(workspace, "dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.FileCount != 1 {
+		t.Fatalf("snapshot included ignored deployment files: %#v", before)
+	}
+	if err := os.WriteFile(
+		filepath.Join(source, "eval.yaml"),
+		[]byte("name: regenerated\n"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	after, err := ComputeDeploymentSnapshot(workspace, "dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatalf("ignored evaluation output changed deployment snapshot: before=%#v after=%#v", before, after)
 	}
 }
 

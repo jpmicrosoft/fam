@@ -94,7 +94,8 @@ func changeReleaseRouting(cmd *cobra.Command, operation string, restoreLatest bo
 		}
 	}
 	changed := before.ActiveVersions[0] != target ||
-		(restoreLatest && !before.IsLatest())
+		(restoreLatest && !before.IsLatest()) ||
+		(!restoreLatest && !before.IsPinned())
 	dryRun := getBoolFlag(cmd, "dry-run")
 	path, err := releaseReceiptPath(cmd, runtime, operation)
 	if err != nil {

@@ -24,7 +24,7 @@ func cmdAPICenterList(cmd *cobra.Command, _ []string) error {
 		getFlag(cmd, "search"),
 		getFlag(cmd, "api-center-token-scope"),
 		credential,
-		newHTTPClient(cmd),
+		newAPICenterHTTPClient(cmd),
 	)
 	if err != nil {
 		return err
@@ -55,7 +55,7 @@ func cmdAPICenterShow(cmd *cobra.Command, _ []string) error {
 		"",
 		getFlag(cmd, "api-center-token-scope"),
 		credential,
-		newHTTPClient(cmd),
+		newAPICenterHTTPClient(cmd),
 	)
 	if err != nil {
 		return err

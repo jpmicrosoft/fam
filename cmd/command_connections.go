@@ -173,7 +173,7 @@ func cmdConnectionUpsert(cmd *cobra.Command, _ []string, requireExisting bool) e
 		return err
 	}
 	return printResult(cmd, map[string]interface{}{
-		"name": result.Name, "created": result.Created, "updated": !result.Created,
+		"name": result.Name, "created": !requireExisting, "updated": requireExisting,
 	}, action+" succeeded")
 }
 

@@ -217,7 +217,7 @@ The installer could not read GitHub's latest-release API. Common causes are:
 Try a known published tag to avoid latest-release discovery:
 
 ```powershell
-.\install.ps1 -Version v0.16.0
+.\install.ps1 -Version v0.16.1
 ```
 
 For a private repository, authenticate `gh` or expose a read-capable token
@@ -231,7 +231,7 @@ the repository and its release assets:
 
 ```powershell
 gh auth status
-.\install.ps1 -Repo owner/repository -Version v0.16.0
+.\install.ps1 -Repo owner/repository -Version v0.16.1
 ```
 
 The installer checks `FAM_INSTALL_TOKEN`, then `GITHUB_TOKEN`, then `GH_TOKEN`,
@@ -244,10 +244,10 @@ Use `latest` or a `v`-prefixed semantic version:
 
 ```powershell
 .\install.ps1 -Version latest
-.\install.ps1 -Version v0.16.0
+.\install.ps1 -Version v0.16.1
 ```
 
-`0.16.0` without the leading `v` is rejected.
+`0.16.1` without the leading `v` is rejected.
 
 ### Why does the archive download return 404?
 
@@ -395,6 +395,8 @@ long-term source of truth.
 Yes. Declare `agent.structured_inputs` and reference supported values with
 `{{variableName}}` templates. The input schema becomes part of the immutable
 agent definition, while callers provide the actual values at invocation time.
+Each input must either set `required: true` or provide a `default_value` that
+matches its schema; Foundry rejects optional inputs without defaults.
 
 ### Does the schema allow unknown fields?
 

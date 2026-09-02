@@ -312,7 +312,9 @@ func (c *Client) getTeamsChannel(
 	if err := validateReturnedChannelID(state.ID, c.options, botName); err != nil {
 		return TeamsChannelState{}, false, err
 	}
-	if state.Name != "" && !strings.EqualFold(state.Name, teamsChannelName) {
+	if state.Name != "" &&
+		!strings.EqualFold(state.Name, teamsChannelName) &&
+		!strings.EqualFold(state.Name, botName+"/"+teamsChannelName) {
 		return TeamsChannelState{}, false, errs.Conflict(
 			"ARM returned channel name %q while reading %s",
 			state.Name,

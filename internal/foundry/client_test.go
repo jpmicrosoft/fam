@@ -638,6 +638,44 @@ func TestInvokePromptUsesResponsesAPI(t *testing.T) {
 	}
 }
 
+func TestInvokePromptPrefersFinalAssistantMessageOverReasoningText(t *testing.T) {
+	mock := &mockHTTP{responses: []*http.Response{
+		jsonResp(200, map[string]interface{}{
+			"id": "resp-1",
+			"output": []interface{}{
+				map[string]interface{}{
+					"type": "reasoning",
+					"content": []interface{}{
+						map[string]interface{}{
+							"type": "output_text",
+							"text": `{"message":{"parts":[{"kind":"text","text":"A2A-STABLE"}]}}`,
+						},
+					},
+				},
+				map[string]interface{}{
+					"type":   "message",
+					"role":   "assistant",
+					"status": "completed",
+					"content": []interface{}{
+						map[string]interface{}{
+							"type": "output_text",
+							"text": "A2A-STABLE",
+						},
+					},
+				},
+			},
+		}),
+	}}
+	client := NewClient("https://acct.services.ai.azure.com/api/projects/p", &mockCred{}, mock, false)
+	result, err := client.InvokePromptContext(context.Background(), "agent", "Are you ready?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OutputText != "A2A-STABLE" {
+		t.Fatalf("expected final assistant output, got %q", result.OutputText)
+	}
+}
+
 func TestInvokePromptCanPinAgentVersion(t *testing.T) {
 	mock := &mockHTTP{responses: []*http.Response{
 		jsonResp(200, map[string]interface{}{

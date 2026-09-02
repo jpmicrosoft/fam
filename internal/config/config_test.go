@@ -350,6 +350,26 @@ func TestValidMinimalDocPasses(t *testing.T) {
 	}
 }
 
+func TestOptionalStructuredInputRequiresDefault(t *testing.T) {
+	doc := map[string]interface{}{
+		"apiVersion": "foundry-agent-manager/v1",
+		"agent": map[string]interface{}{
+			"name":         "demo-agent",
+			"model":        "chat-001",
+			"instructions": "be nice",
+			"structured_inputs": map[string]interface{}{
+				"qualification": map[string]interface{}{
+					"required": false,
+					"schema":   map[string]interface{}{"type": "object"},
+				},
+			},
+		},
+	}
+	if err := ValidateManifest(doc); err == nil {
+		t.Fatal("expected optional structured input without default_value to fail")
+	}
+}
+
 func TestMissingAgentRejected(t *testing.T) {
 	doc := map[string]interface{}{
 		"apiVersion": "foundry-agent-manager/v1",

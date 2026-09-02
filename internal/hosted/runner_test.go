@@ -599,24 +599,44 @@ func TestRunDeployAndShowUseArgumentArrays(t *testing.T) {
 }
 
 func TestShowStatusClassifiesUndeployedEnvironment(t *testing.T) {
-	runner := &fakeRunner{
-		run: func(command Command) (Execution, error) {
-			return Execution{
-				ExitCode: 1,
-				Stderr:   "agent version could not be resolved from azd environment for service 'agent'",
-			}, errors.New("exit status 1")
+	tests := []struct {
+		name   string
+		stderr string
+	}{
+		{
+			name:   "environment has no version",
+			stderr: "agent version could not be resolved from azd environment for service 'agent'",
+		},
+		{
+			name: "remembered version was deleted",
+			stderr: `ERROR: failed to get agent version
+RESPONSE 404: 404 Not Found
+ERROR CODE: not_found
+{"error":{"code":"not_found","message":"Agent agent with version 2 not found"}}`,
 		},
 	}
-	_, _, err := ShowStatus(
-		context.Background(),
-		runner,
-		"azd",
-		Workspace{Root: t.TempDir(), Selected: Service{ServiceName: "agent"}},
-		"prod",
-		nil,
-	)
-	if !errors.Is(err, ErrAgentNotDeployed) {
-		t.Fatalf("expected undeployed classification, got %v", err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runner := &fakeRunner{
+				run: func(command Command) (Execution, error) {
+					return Execution{
+						ExitCode: 1,
+						Stderr:   test.stderr,
+					}, errors.New("exit status 1")
+				},
+			}
+			_, _, err := ShowStatus(
+				context.Background(),
+				runner,
+				"azd",
+				Workspace{Root: t.TempDir(), Selected: Service{ServiceName: "agent"}},
+				"prod",
+				nil,
+			)
+			if !errors.Is(err, ErrAgentNotDeployed) {
+				t.Fatalf("expected undeployed classification, got %v", err)
+			}
+		})
 	}
 }
 

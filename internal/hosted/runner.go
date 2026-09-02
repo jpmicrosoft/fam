@@ -991,8 +991,7 @@ func ShowStatus(
 	}
 	if err != nil {
 		output := execution.Stdout + "\n" + execution.Stderr
-		if strings.Contains(output, "agent name could not be resolved from azd environment") ||
-			strings.Contains(output, "agent version could not be resolved from azd environment") {
+		if statusReportsUndeployed(output) {
 			return Status{}, commandRecord, fmt.Errorf("%w", ErrAgentNotDeployed)
 		}
 		return Status{}, commandRecord, fmt.Errorf(
@@ -1012,6 +1011,18 @@ func ShowStatus(
 		)
 	}
 	return status, commandRecord, nil
+}
+
+func statusReportsUndeployed(output string) bool {
+	normalized := strings.ToLower(output)
+	if strings.Contains(normalized, "agent name could not be resolved from azd environment") ||
+		strings.Contains(normalized, "agent version could not be resolved from azd environment") {
+		return true
+	}
+	notFound := strings.Contains(normalized, "response 404") ||
+		strings.Contains(normalized, `"code":"not_found"`) ||
+		strings.Contains(normalized, `"code": "not_found"`)
+	return notFound && strings.Contains(normalized, "agent")
 }
 
 // ResolveProjectEndpoint returns the validated Foundry project endpoint without

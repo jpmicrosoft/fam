@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	Version     = "0.16.0"
+	Version     = "0.16.1"
 	BuildCommit = ""
 	BuildDate   = ""
 )
@@ -465,6 +465,9 @@ func ValidateResolvedConfig(cfg *ResolvedConfig) error {
 		return err
 	}
 	if err := validateAgentRAIPolicy(cfg.Agent.RAIPolicyID, cfg.Project); err != nil {
+		return err
+	}
+	if err := ValidateStructuredInputDefinitions(cfg.Agent.StructuredInputs); err != nil {
 		return err
 	}
 	if err := ValidateProjectLocation(cfg.Project.Location, cfg.Project.AllowedRegions); err != nil {
