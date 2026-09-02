@@ -1,7 +1,7 @@
 # Command Reference
 
 Complete command listing, global options, exit codes, and output contracts for
-the current source tree (`0.16.2` is the prepared release version).
+the current source tree (`0.16.3` is the prepared release version).
 
 For task-oriented answers and common troubleshooting, start with the
 [`FAQ`](faq.md).
@@ -421,7 +421,7 @@ In text mode the same failure is written to stderr as `error: <message>`.
 
 ```powershell
 fam version
-# fam 0.16.2 commit=<commit> built=<timestamp>
+# fam 0.16.3 commit=<commit> built=<timestamp>
 ```
 
 | Format | Contract |
@@ -432,12 +432,12 @@ fam version
 
 ```json
 {
-  "version": "0.16.2",
+  "version": "0.16.3",
   "commit": "<commit>",
   "builtAt": "<timestamp>"
 }
 ```
 
-An unstamped `go build` prints `fam 0.16.2` and `{"version": "0.16.2"}`.
+An unstamped `go build` prints `fam 0.16.3` and `{"version": "0.16.3"}`.
 `fam --version` prints only `fam <version>`; use the
 `version` subcommand when you need commit and build time.
