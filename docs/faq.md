@@ -673,11 +673,13 @@ JSON schema, destination table, stream mapping, and optional transformation.
 The Logs Ingestion API also requires the DCR's immutable `dcr-...` identifier
 on every request. The DCR resource ID is different and is used for RBAC scope.
 
-Follow the copy-ready
-[custom table and DCR creation procedure](log-analytics-receipts.md#create-the-custom-table-and-dcr).
-It includes the supplied table definition and ARM template, exact stream names,
-role assignment, endpoint and immutable-ID discovery, and an ingestion
-verification query.
+Use the copy-ready
+[standalone PowerShell quickstart](log-analytics-receipts.md#quickstart-create-the-table-and-dcr)
+to create both resources from a Log Analytics workspace resource ID. The guide
+also includes a
+[manual procedure](log-analytics-receipts.md#create-the-custom-table-and-dcr-manually),
+exact stream names, role assignment, endpoint and immutable-ID discovery, and
+an ingestion verification query.
 
 ### What happens when Log Analytics receipt publishing fails?
 

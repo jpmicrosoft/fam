@@ -8,6 +8,38 @@ the CLI writes the terminal local file first, then submits one record to Azure
 Monitor. If ingestion fails, the command returns an error, preserves the local
 receipt, and prints a `receipt upload` retry command.
 
+## Quickstart: create the table and DCR
+
+> [!TIP]
+> **Quickstart:** Download the standalone
+> [`Initialize-LogAnalyticsReceipts.ps1`](https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/Initialize-LogAnalyticsReceipts.ps1)
+> script, review it, and run it with the full Log Analytics workspace resource
+> ID. It uses Azure CLI and creates both the custom table and direct DCR by
+> default.
+>
+> ```powershell
+> Invoke-WebRequest `
+>   -Uri "https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/Initialize-LogAnalyticsReceipts.ps1" `
+>   -OutFile ".\Initialize-LogAnalyticsReceipts.ps1"
+>
+> Unblock-File ".\Initialize-LogAnalyticsReceipts.ps1"
+>
+> .\Initialize-LogAnalyticsReceipts.ps1 `
+>   -WorkspaceResourceId "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.OperationalInsights/workspaces/<workspace>"
+> ```
+>
+> Use `-TableOnly` or `-DcrOnly` to create only one resource. `-DcrOnly`
+> requires the compatible table to exist. Use `-DcrName <name>` when the
+> default `dcr-foundry-agent-receipts` name is already assigned. The script
+> assumes `az login` is complete and the required resource providers are
+> registered. It does not create the workspace or role assignment.
+
+The script requires a new or existing `DataCollectionRuleBased` custom table.
+It fails before modifying a legacy `Classic` custom table. Migrate a classic
+table by following Microsoft's
+[Data Collector API migration guidance](https://learn.microsoft.com/azure/azure-monitor/logs/custom-logs-migrate),
+or use a new table.
+
 ## Why a DCR is required
 
 A Log Analytics workspace is only the storage destination. It does not by
@@ -51,7 +83,10 @@ Logs ingestion. A custom role can instead grant the narrower
 `Microsoft.Insights/Telemetry/Write` data action. Assign access at the DCR scope
 or an appropriate parent scope and allow time for propagation.
 
-The CLI does not create the workspace, table, DCR, endpoint, or role assignment.
+The `fam` executable does not create the workspace, table, DCR, endpoint, or
+role assignment. The standalone repository script in the quickstart can create
+the table and direct DCR, but intentionally leaves workspace creation and RBAC
+to the administrator.
 
 For strict separation of duties, do not grant DCR ingestion to the production
 deployment identity. Preserve local receipts and use a separate audit workload
@@ -112,10 +147,11 @@ Existing destinations created before custom metadata support must add the
 receipt containing metadata is uploaded. Receipts without metadata omit the
 column and remain compatible with the earlier payload shape.
 
-## Create the custom table and DCR
+## Create the custom table and DCR manually
 
-The following PowerShell procedure uses Azure CLI from the repository root. It
-creates the exact table and direct-DCR contracts expected by the manager. It
+Use this procedure when you prefer to inspect and run each provisioning command
+from a repository clone instead of using the standalone quickstart script. It
+creates the exact table and direct-DCR contracts expected by the manager and
 does not create a Log Analytics workspace.
 
 Microsoft documents the underlying resources in the
@@ -152,7 +188,7 @@ The location is read from the workspace instead of entered independently
 because Azure requires the DCR and destination workspace to be in the same
 region.
 
-### 2. Create or update the custom table
+### 2. Create the custom table
 
 Run this command from the repository root:
 
@@ -165,8 +201,10 @@ az rest `
 
 The `_CL` suffix identifies a Log Analytics custom table. The provided table
 definition includes both `Metadata` and the complete redacted `Receipt` as
-dynamic JSON columns. Reapplying the complete definition is also the migration
-path for a table created before metadata support.
+dynamic JSON columns. To migrate an existing table created before metadata
+support, run the same command with `--method patch` instead of `--method put`.
+`PATCH` preserves table properties omitted from the schema payload, including
+existing retention settings.
 
 ### 3. Deploy the direct DCR
 

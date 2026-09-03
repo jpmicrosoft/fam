@@ -42,6 +42,8 @@ func TestOfflineReleaseRunnerKeepsEveryGate(t *testing.T) {
 		`-Filter "agent*.example.yaml"`,
 		`"evaluator calibration contract"`,
 		`"Test-EvaluatorCalibration.ps1"`,
+		`"Log Analytics receipt setup script contract"`,
+		`"Test-InitializeLogAnalyticsReceipts.ps1"`,
 		`"tool catalog"`,
 		`"tool-catalog"`,
 		`"AzureCloud"`,
@@ -50,6 +52,83 @@ func TestOfflineReleaseRunnerKeepsEveryGate(t *testing.T) {
 		`"windows", "arm64"`,
 		`"SHA256SUMS"`,
 		`"release-report.json"`,
+	)
+}
+
+func TestLogAnalyticsReceiptSetupQuickstartContract(t *testing.T) {
+	script := repositoryFile(t, "scripts", "Initialize-LogAnalyticsReceipts.ps1")
+	requireText(t, script,
+		`[CmdletBinding(SupportsShouldProcess, ConfirmImpact = "Medium")]`,
+		`[string]$WorkspaceResourceId`,
+		`[switch]$TableOnly`,
+		`[switch]$DcrOnly`,
+		`"-TableOnly and -DcrOnly cannot be used together."`,
+		`$createTable = -not $DcrOnly`,
+		`$createDcr = -not $TableOnly`,
+		`$TableName = "FoundryAgentReceipts_CL"`,
+		`$StreamName = "Custom-FoundryAgentReceipts"`,
+		`$TableApiVersion = "2022-10-01"`,
+		`$DcrApiVersion = "2023-03-11"`,
+		`$tableMethod = if ($tableExisted) { "patch" } else { "put" }`,
+		`$tableHeaders = if ($tableExisted) { "If-Match=*" } else { "If-None-Match=*" }`,
+		`"--headers", "If-None-Match=*"`,
+		`changed after it was inspected`,
+		`"guid" { return "string" }`,
+		`tableSubType 'DataCollectionRuleBased'`,
+		`Classic custom table`,
+		`Wait-CompatibleReceiptTable`,
+		`kind       = "Direct"`,
+		`transformKql = "source"`,
+		`outputStream = "Custom-$TableName"`,
+		`"monitor", "log-analytics", "workspace", "show"`,
+		`"rest",`,
+		`"--subscription", $SubscriptionId`,
+		`Invoke-AzureCliJsonBody`,
+		`[IO.File]::WriteAllText`,
+		`"@$tempPath"`,
+		`Remove-Item -LiteralPath $tempPath -Force`,
+		`Monitoring Metrics Publisher`,
+		`"FAM receipt publishing values:"`,
+	)
+	for _, column := range []string{
+		"TimeGenerated",
+		"ReceiptId",
+		"SchemaVersion",
+		"Operation",
+		"Status",
+		"Cloud",
+		"AgentName",
+		"ProjectName",
+		"Metadata",
+		"Receipt",
+	} {
+		if !strings.Contains(script, fmt.Sprintf(`name        = "%s"`, column)) {
+			t.Errorf("setup script is missing receipt column %q", column)
+		}
+	}
+	for _, forbidden := range []string{
+		"Invoke-Expression",
+		" iex ",
+		"provider register",
+		"role assignment create",
+		"az account set",
+	} {
+		if strings.Contains(strings.ToLower(script), strings.ToLower(forbidden)) {
+			t.Errorf("setup script contains forbidden behavior %q", forbidden)
+		}
+	}
+
+	docs := repositoryFile(t, "docs", "log-analytics-receipts.md")
+	requireText(t, docs,
+		"https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/Initialize-LogAnalyticsReceipts.ps1",
+		`Invoke-WebRequest`,
+		`Unblock-File`,
+		`-WorkspaceResourceId`,
+		`-TableOnly`,
+		`-DcrOnly`,
+		`It does not create the workspace or role assignment.`,
+		`DataCollectionRuleBased`,
+		`custom-logs-migrate`,
 	)
 }
 
