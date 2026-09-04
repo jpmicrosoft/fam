@@ -253,6 +253,10 @@ try {
         & (Join-Path $PSScriptRoot "Test-LiveAgent365Acceptance.ps1")
     }
 
+    Invoke-GateStep "Log Analytics receipt setup script contract" {
+        & (Join-Path $PSScriptRoot "Test-InitializeLogAnalyticsReceipts.ps1")
+    }
+
     Invoke-GateStep "example manifests" {
         $exampleDirectory = Join-Path $OutputDirectory "examples"
         New-Item -ItemType Directory -Force -Path $exampleDirectory | Out-Null

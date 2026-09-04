@@ -769,7 +769,8 @@ fam prompt deploy -f agent.yaml --if-changed `
 The local file is always written first. If ingestion fails, retry it with
 `fam receipt upload --file <receipt-path>`. See
 [Log Analytics Receipts](docs/log-analytics-receipts.md) for the stream schema,
-RBAC, metadata migration, environment variables, and KQL.
+RBAC, metadata migration, environment variables, KQL, and the standalone
+[table and DCR setup script](https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/Initialize-LogAnalyticsReceipts.ps1).
 
 ## Doctor — environment readiness
 

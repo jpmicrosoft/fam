@@ -13,6 +13,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added
+
+- Added a standalone Azure CLI PowerShell quickstart that creates the Log
+  Analytics custom table and direct DCR required for optional FAM receipt
+  publishing, with table-only and DCR-only modes.
+
 ## [0.16.3] - 2026-09-02
 
 ### Added
