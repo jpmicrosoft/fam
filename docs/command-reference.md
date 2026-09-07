@@ -4,7 +4,7 @@ Command-family catalog, shared options, exit codes, and output contracts for
 the current source tree (`0.17.0` is the prepared release version).
 
 **Starting out?** Use the [documentation hub](README.md) and
-[quickstarts](../README.md#first-success-without-azure). This page is for
+[local walkthrough](../README.md#try-fam-locally). This page is for
 looking up a command once you know the task. For individual flags, use
 `fam <command path> --help`; for common failures, use the [FAQ](faq.md#troubleshooting).
 

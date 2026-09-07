@@ -8,7 +8,7 @@ Agents**. AzureCloud is the supported cloud; Hosted deployment is preview.
 
 1. **[Install FAM](../README.md#install)** and run `fam version`. The prebuilt
    executable needs no Go installation or repository clone.
-2. **[Get a first result without Azure](../README.md#first-success-without-azure)**:
+2. **[Try FAM locally](../README.md#try-fam-locally)**:
    create a local manifest, validate it, and inspect a plan. No login required.
 3. **[Choose a deployment path](../README.md#which-path-do-i-need)** when you
    are ready to supply Azure coordinates, credentials, and permissions.
@@ -21,7 +21,7 @@ changes Azure state. Sending a test message is a separate, billable action.
 
 | Your situation | Do this |
 |---|---|
-| I just want to explore, with no Azure account yet | [Offline first success](../README.md#first-success-without-azure) |
+| I just want to explore, with no Azure account yet | [Try FAM locally](../README.md#try-fam-locally) |
 | I have a Foundry project/model and want an instructions-based agent | [Prompt quickstart](../README.md#quick-start-prompt-agent) |
 | I need custom code and want to start with a local workspace | [Hosted quickstart](../README.md#quick-start-hosted-agent) |
 | I already have Python source but no `azure.yaml` | [Adopt existing Python source](hosted-agents.md#adopt-existing-python-source) |
