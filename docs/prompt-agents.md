@@ -5,7 +5,7 @@ and lifecycle management with `fam`.
 
 **First deployment?** Follow the [Prompt quickstart](../README.md#quick-start-prompt-agent)
 for prerequisites, a small manifest, and expected outcomes. To try FAM without
-Azure access, use the [offline first-success path](../README.md#first-success-without-azure).
+Azure access, use the [local walkthrough](../README.md#try-fam-locally).
 Return here when you need a specific configuration or lifecycle operation.
 
 ## Contents

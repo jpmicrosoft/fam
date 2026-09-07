@@ -4,7 +4,7 @@ Practical answers for installing, configuring, deploying, operating, and
 troubleshooting `fam`.
 
 New users can start with the [documentation hub](README.md) or
-[first success without Azure](../README.md#first-success-without-azure).
+[try FAM locally](../README.md#try-fam-locally).
 Use the [command reference](command-reference.md#commands) to browse command
 families and shared options; run `fam help <command path>` for exact flags
 and copyable examples.
@@ -64,7 +64,7 @@ Interactive Hosted quickstart asks before creating/configuring local azd
 environment state; it does not create Azure resources or deploy an agent.
 
 For a first run without supplying Azure coordinates, follow the
-[three-command offline example](../README.md#first-success-without-azure).
+[three-command offline example](../README.md#try-fam-locally).
 It creates a placeholder manifest and makes the expected local result explicit.
 
 ### Does the tool create every required Azure resource?
