@@ -7,6 +7,23 @@ Hosted Agents and the required **`azure.ai.agents` Azure Developer CLI
 extension** are **preview features** available only in AzureCloud. All online
 commands under `hosted` require `--accept-preview`.
 
+**First workspace?** Follow the [Hosted quickstart](../README.md#quick-start-hosted-agent).
+Local `hosted init`, `hosted validate`, and `hosted plan` need only FAM, not
+`azd` or an Azure login. Use this guide when you need the full workspace,
+tooling, or lifecycle contract.
+
+## Contents
+
+- [Online tooling prerequisites](#tooling-prerequisites) / [Permissions](#rbac-and-separation-of-duties)
+- [Guided environment setup](#quickstart-environment-bootstrap) / [Guardrails](#agent-guardrails)
+- [Adopt Python source](#adopt-existing-python-source) / [Create starter source](#workspace-scaffold-hosted-init)
+- [Workspace configuration](#workspace-example) / [Deployment commands](#deployment-commands)
+- [Inspection and troubleshooting](#inspection-and-diagnostics)
+- [Sessions and files](#sessions-and-files) / [Logs](#hosted-agent-logs)
+- [Invoke an agent](#smoke-tests) / [Promotion and rollback](#promotion-rollback-and-destructive-safeguards)
+- [Draft deployments](#draft-deployment) / [Change detection](#change-detection---if-changed)
+- [Experimental Autopilot](#experimental-hosted-agent-autopilot) / [Agent 365](#agent-365-blueprint-identity-and-observability-inspection)
+
 ## Tooling prerequisites
 
 Online Hosted Agent operations require all of the following:
@@ -18,7 +35,7 @@ Online Hosted Agent operations require all of the following:
 
 ```powershell
 azd extension install azure.ai.agents --version 1.0.0-beta.13
-azd auth login --tenant-id <tenant-id>
+azd auth login --tenant-id "<tenant-id>"
 ```
 
 The `microsoft.foundry` bundle may install `azure.ai.agents`, but the manager
@@ -221,7 +238,7 @@ upgrades it:
 
 ```powershell
 azd extension install azure.ai.agents --version 1.0.0-beta.13
-azd auth login --tenant-id <tenant-id>
+azd auth login --tenant-id "<tenant-id>"
 ```
 
 Quickstart never runs `azd auth login`, assigns RBAC, provisions resources, or
@@ -283,34 +300,52 @@ and Log Analytics.
 
 ## Deployment commands
 
-The sequence below moves from no-Azure local checks to read-only online checks
-and finally to mutation. This lets users stop at the confidence level they need
-without making validation itself a deployment.
+Start with local inspection, then configure an environment and run read-only
+preflight. Only deploy after those steps succeed. Replace the workspace path
+and example Azure coordinates below with your own.
+
+**Local inspection:** no azd execution or authentication.
 
 ```powershell
-# No azd execution or authentication:
 fam hosted info
 fam hosted validate --workspace C:\src\hosted-agent
 fam hosted plan --workspace C:\src\hosted-agent --environment prod
+```
 
-# One-time local azd environment setup and existing-project context:
+**Environment setup:** requires the pinned azd tooling, but does not provision
+Azure resources or authenticate either credential context.
+
+```powershell
 fam hosted environment create `
   --workspace C:\src\hosted-agent --environment prod `
   --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/projects/project `
   --model-deployment support-model --location eastus2
+```
 
-# Read-only online checks:
+**Read-only preflight:** verifies tooling, credentials, project binding, and
+policy access. For an intentionally policy-less workspace, add `--no-guardrail`.
+
+```powershell
 fam hosted preflight --workspace C:\src\hosted-agent `
   --environment prod --accept-preview
-# Add --no-guardrail only when azure.yaml intentionally has no policies block.
+```
 
-# Deploy into already provisioned resources:
+**Deploy into already-provisioned resources:**
+
+```powershell
 fam hosted deploy --workspace C:\src\hosted-agent `
   --environment prod --accept-preview
-# The same explicit --no-guardrail acknowledgement is required for a
-# policy-less workspace.
+```
 
-# Provision only with explicit operator intent:
+Repeat `--no-guardrail` only for an intentionally policy-less workspace.
+Successful deployment writes a receipt; use `fam hosted status` with the same
+workspace, environment, and preview flag to inspect the resulting version.
+
+**Provisioning alternative, not the next step:** review the infrastructure and
+required permissions before using this command *instead of* the deploy above.
+It can create billable Azure resources.
+
+```powershell
 fam hosted deploy --workspace C:\src\hosted-agent `
   --environment prod --accept-preview --provision --preview-provision
 ```
@@ -324,9 +359,9 @@ environment. If the selected name does not exist, create it once with:
 
 ```powershell
 fam hosted environment create `
-  --workspace <workspace> --environment <environment> `
-  --project-id <project-resource-id> `
-  --model-deployment <deployment> --location <azure-location>
+  --workspace "<workspace>" --environment "<environment>" `
+  --project-id "<project-resource-id>" `
+  --model-deployment "<deployment>" --location "<azure-location>"
 ```
 
 The command is idempotent and verifies the environment through `azd env list`.
@@ -342,8 +377,11 @@ with the same azd identity that deployment will use. An HTTP 403 therefore
 fails before mutation with guidance to select the project tenant and assign
 `Foundry Project Manager` on the target project. Before the first deployment,
 doctor's single expected "agents have not been deployed" check does not fail
-preflight. If `AZURE_AI_PROJECT_ID` is absent, azd skips its project-role check;
-rerun environment creation with `--project-id` to enable it.
+preflight. FAM requires `AZURE_AI_PROJECT_ID` and binds it to the resolved
+endpoint before `hosted preflight`, `hosted deploy`, or `hosted draft deploy`,
+including policy-less workspaces. If it is missing, rerun environment creation
+with `--project-id`; azd's ability to skip its own project-role diagnostic does
+not make this input optional in FAM.
 
 ## Inspection and diagnostics
 
@@ -379,21 +417,49 @@ Sessions provide stateful Hosted execution without changing the deployed agent
 version. File commands move bounded inputs and outputs through the session
 sandbox while enforcing local and remote path containment.
 
+**Create or find a session:** creation changes Azure state. Replace `"<id>"`
+in later examples with an ID returned by create or list.
+
 ```powershell
 fam hosted session create --workspace C:\src\hosted-agent --environment prod --accept-preview
 fam hosted session list --workspace C:\src\hosted-agent --environment prod --accept-preview
-fam hosted session show --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id>
-fam hosted session stop --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id>
-fam hosted session delete --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --yes
+```
+
+**Inspect one session:**
+
+```powershell
+fam hosted session show --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id "<id>"
+```
+
+**Cleanup is a separate decision.** Stop preserves state; deletion removes the
+session and its persisted files. Choose the operation you need:
+
+```powershell
+# Stop compute, preserving the session's state:
+fam hosted session stop --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id "<id>"
+```
+
+```powershell
+# Preview deletion; omit --dry-run only when ready to confirm it:
+fam hosted session delete --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id "<id>" --dry-run
 ```
 
 ### Session files
 
+These are individual operations, not a script to run from top to bottom.
+Use an existing local input file and a remote result path that the agent has
+actually produced.
+
 ```powershell
-fam hosted session file upload --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --file data/input.csv --remote-path uploads/input.csv
-fam hosted session file list --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id>
-fam hosted session file download --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --remote-path outputs/result.csv --output-file downloads/result.csv
-fam hosted session file delete --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id <id> --remote-path uploads/input.csv --yes
+fam hosted session file upload --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id "<id>" --file data\input.csv --remote-path uploads/input.csv
+fam hosted session file list --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id "<id>"
+fam hosted session file download --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id "<id>" --remote-path outputs/result.csv --output-file downloads\result.csv
+```
+
+Preview a deletion separately. Omit `--dry-run` only when ready to confirm it:
+
+```powershell
+fam hosted session file delete --workspace C:\src\hosted-agent --environment prod --accept-preview --session-id "<id>" --remote-path uploads/input.csv --dry-run
 ```
 
 ## Hosted Agent logs
@@ -404,11 +470,12 @@ diagnosis possible without downloading an unbounded service stream.
 ```powershell
 fam hosted logs --workspace C:\src\hosted-agent `
   --environment prod --accept-preview `
-  --agent-version 5 --session-id <session-id>
+  --agent-version "<agent-version>" --session-id "<session-id>"
 ```
 
-Both `--agent-version` and `--session-id` are required. Bounded by
-`--max-lines`, `--max-bytes`, and `--duration`.
+Both `--agent-version` and `--session-id` are required; use values returned by
+version and session inspection. Output is bounded by `--max-lines`,
+`--max-bytes`, and `--duration`.
 
 ## Smoke tests
 

@@ -32,6 +32,40 @@ requires no runtime language dependency or external state backend.
 > **Independent project.** FAM is independently maintained and is not an
 > official Microsoft product or supported Microsoft offering.
 
+## First success without Azure
+
+**Start here if you are evaluating FAM.** You need only the
+[installed `fam` executable](#install): no Azure account, Go, `azd`, or
+repository clone.
+
+In a new working directory, run:
+
+```powershell
+fam prompt init -f agent.yaml --no-tools
+fam prompt validate -f agent.yaml
+fam prompt plan -f agent.yaml
+```
+
+**Expected result:** a new `agent.yaml`, a structure-only validation result,
+and a plan describing the agent, model, and deployment intent. Nothing has
+been deployed. The generated model and project values are placeholders;
+successful offline commands do not prove Azure access or model availability.
+
+Try changing `agent.instructions` in the file and run validation and planning
+again. This is the edit/review loop you will use before deployment.
+
+| Ready for the next step? | Go to |
+|---|---|
+| Deploy instructions and tools using an existing project/model | [Prompt quickstart](#quick-start-prompt-agent) |
+| Create a workspace for custom code, or adopt existing Python code | [Hosted quickstart](#quick-start-hosted-agent) |
+| Work with an existing `azure.yaml` workspace | [Existing Hosted workspace](#existing-hosted-agent-workspace) |
+| Understand the choices or find a specific guide | [Documentation hub](docs/README.md) |
+| A command failed | [Quick troubleshooting](#quick-troubleshooting) |
+
+Online operations support **AzureCloud only**. Hosted Agent deployment is
+**preview** and requires additional tooling and explicit acceptance; the
+quickstarts separate those requirements from offline exploration.
+
 ## Why teams adopt FAM
 
 - **[Prove before mutation](#doctor--environment-readiness):** separate
@@ -79,17 +113,18 @@ auditable deployment evidence.
 - **AzureCloud only.** Azure Government is rejected before credential
   acquisition or network access until dedicated qualification is complete.
 
-> **Preview status.** This tool is version 0.16.3. Hosted Agents require
+> **Preview status.** This tool is version 0.17.0. Hosted Agents require
 > `--accept-preview`. See [Support status](#support-status-and-release-boundaries)
 > for the full boundary table.
 
-**New to this tool?** Start with the [FAQ](docs/faq.md) for practical answers
-and the [Glossary](docs/glossary.md) for plain-language definitions of Foundry,
-manifests, preflight, receipts, and other terms used throughout this
-documentation.
+Use the [documentation hub](docs/README.md) to choose a task,
+the [FAQ](docs/faq.md) for practical answers, and the
+[Glossary](docs/glossary.md) to look up unfamiliar terms as needed.
 
 ## Contents
 
+- [First success without Azure](#first-success-without-azure)
+- [Documentation hub](docs/README.md)
 - [Why teams adopt FAM](#why-teams-adopt-fam)
 - [FAM and `azd`](#fam-and-azd)
 - [Operational boundaries](#operational-boundaries)
@@ -99,6 +134,7 @@ documentation.
 - [Prerequisites](#prerequisites)
 - [RBAC and separation of duties](docs/rbac-and-separation-of-duties.md)
 - [Install](#install)
+- [Update an existing installation](#update-an-existing-installation)
 - [Command organization](#command-organization)
 - [Quick start: Prompt agent](#quick-start-prompt-agent)
 - [Quick start: Hosted agent](#quick-start-hosted-agent)
@@ -121,12 +157,11 @@ Answer one question: **Does your agent need custom application code?**
 | **No** — my agent is instructions + a model + declarative tools | **[Prompt Agent](#quick-start-prompt-agent)** | A Foundry account, an existing or explicitly planned model deployment, and a supported Azure identity such as an applicable developer credential or managed identity |
 | **Yes** — I need Python, .NET, or a container runtime | **[Hosted Agent](#quick-start-hosted-agent)** | A Foundry account plus `azd` 1.32.0+ and the pinned Hosted extension; model infrastructure remains declared in `azure.yaml` |
 | **I already have an Agent 365 blueprint** | **[Inspect and correlate it](#agent-365-blueprint-inspection)** | Microsoft Graph `AgentIdentityBlueprint.Read.All`; this path does not deploy source or bind the blueprint |
-| **I'm not sure yet** | Run `fam quickstart` | The CLI is enough for Prompt or files-only Hosted scaffolding; accepting Hosted environment bootstrap also requires `azd` |
+| **I'm not sure yet** | [Try the offline first-success path](#first-success-without-azure) | The `fam` executable only; no Azure coordinates or login |
 
-> **Want to explore without Azure?** You can validate and plan a generated
-> Prompt manifest or Hosted workspace offline, without Azure credentials or
-> resource changes. Choose Prompt, or answer **no** when Hosted quickstart asks
-> whether to bootstrap the workspace azd environment.
+The Azure prerequisites above apply to deployment, not to trying the CLI.
+You can also [create and inspect a Hosted workspace offline](#quick-start-hosted-agent)
+before installing `azd`.
 
 ## Support status and release boundaries
 
@@ -223,7 +258,7 @@ credential for FAM. Authenticate `azd` separately before an online Hosted
 workflow:
 
 ```powershell
-azd auth login --tenant-id <tenant-id>
+azd auth login --tenant-id "<tenant-id>"
 ```
 
 > **Source dependency scope:** `go mod download` downloads only the Go modules
@@ -266,7 +301,8 @@ computer:
 Installing the CLI does **not** deploy an agent, create Azure resources, install
 Go, or install Azure Developer CLI (`azd`). Prompt Agent users can run the
 offline commands immediately. Hosted Agent users must also install the
-versioned `azd` tooling listed under [Prerequisites](#prerequisites).
+versioned `azd` tooling listed under [Prerequisites](#prerequisites) before
+online operations, not before scaffolding, validation, or planning.
 
 Choose one installation path:
 
@@ -280,38 +316,64 @@ Choose one installation path:
 **PowerShell (Windows / macOS / Linux):**
 
 Download [`scripts/install.ps1`](scripts/install.ps1), save it as
-`install.ps1`, and run it from Windows PowerShell. On macOS or Linux, use
-`pwsh ./install.ps1` with the same parameters.
+`install.ps1`, and review it before running. In PowerShell, from the directory
+where you saved it:
 
 ```powershell
-# Latest release:
-.\install.ps1
+.\install.ps1 -ModifyProfile
+```
 
-# Pin a specific version:
+`-ModifyProfile` explicitly opts in to adding the install directory to PATH.
+Open a new terminal afterward. To leave PATH unchanged, omit that switch and
+use the full executable path printed by the installer. On macOS or Linux,
+invoke the saved script with `pwsh ./install.ps1 -ModifyProfile`.
+
+**POSIX shell (macOS / Linux):**
+
+Save the installer locally, review it, then run it. These commands do not
+require a repository clone or an executable permission change:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/install.sh -o install.sh
+# Review install.sh before the next command.
+sh ./install.sh --modify-profile
+```
+
+Open a new terminal after the PATH change. Alternatively, omit
+`--modify-profile` and use the printed full executable path.
+
+**Confirm installation, then continue:**
+
+```powershell
+fam version
+```
+
+You should see `fam` and the installed version. Continue with
+[first success without Azure](#first-success-without-azure), or use
+[installer troubleshooting](#common-powershell-installer-issues) if the
+command is not found.
+
+<details>
+<summary>Advanced installer options: version, directory, and private repository</summary>
+
+Choose the option you need; these are alternatives, not a sequence.
+Use a tag that is already published.
+
+```powershell
 .\install.ps1 -Version v0.16.3
-
-# Override install directory and add to PATH:
 .\install.ps1 -InstallDir C:\tools -ModifyProfile
-
-# Private repository (token from environment):
 .\install.ps1 -Repo myorg/fam
 ```
 
-**POSIX shell:**
+POSIX equivalents, using the saved installer:
 
 ```bash
-# Latest release:
-curl -fsSL https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/install.sh | sh
-
-# Pin a specific version and install directory:
-./scripts/install.sh --version v0.16.3 --install-dir "$HOME/.local/bin"
-
-# Override repository (private repo uses GITHUB_TOKEN / GH_TOKEN automatically):
-./scripts/install.sh --repo myorg/fam
-
-# Add to PATH in shell profile:
-./scripts/install.sh --modify-profile
+sh ./install.sh --version v0.16.3
+sh ./install.sh --install-dir "$HOME/.local/bin" --modify-profile
+sh ./install.sh --repo myorg/fam
 ```
+
+</details>
 
 Both installers:
 - Download the release archive matching your OS/architecture.
@@ -320,21 +382,9 @@ Both installers:
 - Remove the retired `foundry-agent-manager` executable from the selected
   install directory when upgrading from an earlier release.
 - Install to a configurable directory (default: `$LOCALAPPDATA\foundry-agent-manager` on Windows, `$HOME/.local/bin` on POSIX).
-- **Never modify PATH** unless `--ModifyProfile` / `--modify-profile` is explicitly passed.
+- **Never modify PATH** unless `-ModifyProfile` / `--modify-profile` is explicitly passed.
 - Support private repositories via `GITHUB_TOKEN` / `GH_TOKEN` environment variable or `FAM_INSTALL_TOKEN` secret (token is used only as an HTTP authorization header and never printed).
 - Accept `--repo` / `-Repo` to override the source GitHub repository.
-
-After installation, open a new terminal if PATH was modified and confirm the
-CLI is available:
-
-```powershell
-fam version
-fam doctor
-fam --version
-```
-
-If PATH modification was not requested, use the full executable path printed
-by the installer.
 
 #### Common PowerShell installer issues
 
@@ -400,6 +450,31 @@ fam completion powershell | Out-String | Invoke-Expression
 Run `fam completion <shell> --help` for persistent
 installation instructions for your shell.
 
+### Update an existing installation
+
+```powershell
+fam update --check                   # check without changing the executable
+fam update                          # latest stable release, with confirmation
+fam version                         # show the version now installed
+```
+
+To select an exact published stable release instead of latest, use
+`fam update --version v0.17.0`. Use `--yes` to skip confirmation in automation.
+
+The updater verifies the release archive against `SHA256SUMS` and replaces the
+executable you invoked, resolving symlinks rather than choosing another copy
+from PATH. It supports standalone installations on Windows, macOS, and Linux
+(`amd64`/`arm64`), requires a writable installation directory, and never
+elevates permissions automatically. Use your package manager instead for
+package-managed installations. Source builds are replaced with the published
+binary, not rebuilt.
+
+An older FAM without this command must first be upgraded using the installer
+or a release archive. Equal versions are unchanged; downgrades and prereleases
+are refused. This updates only FAM, not agents, Azure resources, `azd`, or its
+extensions. See the [update command contract](docs/command-reference.md#update)
+for authentication, automation, and recovery details.
+
 ### How the downloadable binaries are produced
 
 Pushing a `v`-prefixed tag runs the release workflow which cross-compiles for
@@ -430,162 +505,205 @@ new scripts and documentation should use the nested command paths.
 
 ## Quick start: Prompt agent
 
-Choose this path when the agent is primarily instructions, a model deployment,
-and declarative tools rather than a custom hosted application. You gain a
-reviewable manifest, offline validation and planning, read-only Azure preflight,
-immutable version deployment, explicit traffic promotion, and a redacted
-receipt for mutation evidence.
+**Goal:** deploy an instructions-based agent to an existing Foundry project
+and inspect its first version. No custom application runtime is needed.
+
+### 1. Gather the Azure inputs
+
+| You need | What to use |
+|---|---|
+| A Foundry account and child project in AzureCloud | The project's full ARM resource ID, not its HTTPS endpoint |
+| An existing model deployment | Its **deployment name**, which can differ from the catalog model name |
+| An Azure identity FAM can resolve | A supported developer credential or workload identity with the [Prompt operator permissions](docs/rbac-and-separation-of-duties.md#prompt-agents) |
+
+The parent account must already exist. If the project or model is missing,
+use the [explicit resource-creation workflow](#prompt-agent-with-a-new-foundry-child-project)
+and [model deployment guide](docs/prompt-agents.md#model-deployment-lifecycle)
+before online preflight. Creation is not part of the default quickstart.
+
+### 2. Create and review the manifest
+
+Replace both quoted placeholders below with your Azure values. The new
+filename keeps this manifest separate from the offline `agent.yaml` example:
 
 ```powershell
-# Scaffold a Prompt manifest interactively and see what to run next:
-fam quickstart --type prompt
-# Expected: creates the Prompt manifest and prints validation/deployment steps.
-
-# Or manually:
-fam prompt init -f agent.yaml --name support-agent --model my-model `
-  --project-resource-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/contoso/projects/support
-# Expected: writes a schema-valid starter manifest to agent.yaml.
-
-# Optional: override the model deployment guardrail with a same-account policy:
-fam prompt init -f guarded-agent.yaml --name support-agent --model my-model `
-  --project-resource-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/contoso/projects/support `
-  --guardrail-policy-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/contoso/raiPolicies/my-policy
-
-# Validate offline (no Azure):
-fam prompt validate -f agent.yaml
-# Expected: confirms the manifest and local references are valid. Exit 0 = valid.
-
-# Plan offline:
-fam prompt plan -f agent.yaml
-# Expected: shows the resolved deployment intent without contacting Azure.
+fam prompt init -f azure-agent.yaml --name support-agent --no-tools `
+  --model "<model-deployment-name>" `
+  --project-resource-id "<full-foundry-project-resource-id>"
 ```
 
-To let the CLI plan or create the account-scoped model deployment, add its
-exact desired state. `deployment_name` defaults to `agent.model` when omitted:
-
-```yaml
-model_deployment:
-  model_name: gpt-5-mini
-  model_version: "2025-08-07"
-  model_format: OpenAI
-  sku_name: GlobalStandard
-  capacity: 10
-```
-
-See
-[`examples/agent.model-deployment.example.yaml`](examples/agent.model-deployment.example.yaml)
-for the complete account-coordinate and command workflow.
-
-Then continue with the online resource workflow:
+Open `azure-agent.yaml` and replace `agent.instructions` with the behavior
+you want. Keep the other generated fields, then review the local result:
 
 ```powershell
-
-# The Foundry account must already exist. If the child project is missing, run:
-fam project create -f agent.yaml
-
-# If the model deployment is missing, add the model_deployment desired state to
-# the manifest. Validate the exact live model/SKU/quota/capacity, then create:
-fam model deployment plan -f agent.yaml
-fam model deployment create -f agent.yaml
-
-# Online preflight (read-only — nothing is created or changed):
-fam prompt preflight -f agent.yaml
-# Expected: checks credentials, project access, and the exact agent.model deployment.
-
-# Deploy (creates an immutable agent version):
-fam prompt deploy -f agent.yaml --if-changed
-# Expected: the first deploy activates the initial version.
-# Later deploys stage a new version behind the current active version.
-# A redacted receipt is written under .foundry-agent-manager/receipts/.
-
-# Promote to production:
-fam prompt promote -f agent.yaml --agent-version 1
-# Expected: routes all stable-endpoint traffic to version 1.
+fam prompt validate -f azure-agent.yaml
+fam prompt plan -f azure-agent.yaml
 ```
+
+**Expected result:** structure-only validation succeeds and the plan shows
+the intended project, agent, and model. `--no-tools` keeps the first deployment
+small; [add tools later](docs/tools-and-grounding.md). The default guardrail is
+inherited from the model deployment; a custom policy is
+[optional](docs/prompt-agents.md#manifest-reference).
+
+Prefer guided input? Run `fam quickstart --type prompt` **instead of**
+the init command, choose a new destination, and follow its printed next steps.
+
+### 3. Check access, then deploy
+
+Run the read-only Azure check first:
+
+```powershell
+fam prompt preflight -f azure-agent.yaml
+```
+
+Continue only after it succeeds. The next command creates an agent version
+in Azure; normal service charges apply.
+
+```powershell
+fam prompt deploy -f azure-agent.yaml --if-changed
+fam prompt status -f azure-agent.yaml
+```
+
+**Expected result:** the first deployment activates its initial version and
+writes a redacted receipt under `.foundry-agent-manager/receipts/`. Status
+shows the deployed and active version. No test message has been sent.
+
+Later deployments stage changes behind the active version. Use the actual
+version returned by FAM when [reviewing and promoting a later release](docs/prompt-agents.md#staged-versions-promotion-and-rollback);
+do not assume it is version `1`.
+
+**If blocked:** start with [Prompt troubleshooting](docs/faq.md#where-should-troubleshooting-start).
+**Next:** [invoke the agent](docs/prompt-agents.md#smoke-tests) (billable) or
+[explore lifecycle operations](#common-next-steps-after-your-first-deployment).
 
 ## Quick start: Hosted agent
 
-Choose this path when the agent needs custom source code, a container, or a
-Hosted Agent runtime. You gain a validated `azure.yaml` workspace, a preview of
-the exact `azd` workflow, pinned tooling checks, change-aware deployment, and
-lifecycle commands for versions, sessions, files, logs, and endpoint traffic.
-Infrastructure provisioning remains a separate operator decision.
+**Goal:** create a workspace for custom application code, then deploy it using
+the pinned Hosted Agent workflow. **Hosted Agents are preview features.**
+
+### 1. Create and inspect a workspace offline
+
+Start in a directory where `hosted-demo` does not already exist:
 
 ```powershell
-# Interactive quickstart scaffolds the workspace and defaults to configuring
-# its workspace-scoped azd environment for an existing Foundry project:
-fam quickstart --type hosted
-# Expected: optionally adopts an existing Python source folder, then prompts
-# for the project resource ID, model deployment, location, and tenant;
-# derives endpoint, subscription, and the Microsoft.DefaultV2 policy ID;
-# creates/reuses the azd environment;
-# then prints authentication/RBAC and deploy steps.
-
-# Adopt existing Python code into a new workspace without modifying the source:
-fam hosted adopt `
-  --source .\existing-python-agent `
-  --destination .\my-agent --name support-agent `
-  --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/my-account/projects/support `
-  --model support-model --location eastus2 `
-  --bootstrap-environment
-
-# The same adoption engine is available through quickstart:
-fam quickstart --type hosted --source .\existing-python-agent `
-  --destination .\my-agent --name support-agent
-
-# Modify the existing source folder only with explicit intent:
-fam hosted adopt --source .\existing-python-agent `
-  --in-place --name support-agent
-
-# Non-interactive bootstrap is explicit:
-fam quickstart --type hosted `
-  --destination my-agent --name support-agent --environment prod `
-  --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/my-account/projects/support `
-  --model support-model `
-  --location eastus2 `
-  --tenant-id 00000000-0000-0000-0000-000000000000 `
-  --bootstrap-environment --non-interactive
-
-# Or manually scaffold:
-fam hosted init --destination my-agent --name support-agent --protocol responses
-# Expected: creates my-agent/ with a validated starter workspace whose
-# deployment metadata references Microsoft.DefaultV2. No Azure contact.
-
-# Optional: use a custom same-account policy, or explicitly omit agent-level filtering:
-fam hosted init --destination custom-agent --name custom-agent `
-  --guardrail-policy-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/my-account/raiPolicies/my-policy
-fam hosted init --destination unguarded-agent --name unguarded-agent --no-guardrail
-# Policy-less workspaces must repeat --no-guardrail on hosted preflight,
-# hosted deploy, and hosted draft deploy as an explicit online acknowledgement.
-
-# Install required tooling (manager never auto-installs):
-azd extension install azure.ai.agents --version 1.0.0-beta.13
-azd auth login --tenant-id <tenant-id>
-
-# Create/select and configure the local azd environment when quickstart did not:
-fam hosted environment create `
-  --workspace my-agent --environment prod `
-  --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/my-account/projects/support `
-  --model-deployment support-model --location eastus2
-
-# Validate offline:
-fam hosted validate --workspace my-agent
-# Expected: confirms azure.yaml and referenced files are valid. Exit 0 = valid.
-
-# Deploy (provisioning is explicit and OFF by default):
-fam hosted deploy --workspace my-agent `
-  --environment prod --accept-preview --provision --preview-provision
-# Expected: provisions through the pinned preview contract, deploys the service, and writes a receipt.
-# Without --provision, deploys into already-provisioned resources only.
-# If this workspace was created with --no-guardrail, add --no-guardrail here.
-
-# Check status:
-fam hosted status --workspace my-agent --environment prod --accept-preview
-# Expected: shows the deployed version, endpoint routing, and agent state.
+fam hosted init --destination hosted-demo --name support-agent
+fam hosted validate --workspace hosted-demo
+fam hosted plan --workspace hosted-demo
 ```
 
-> **Hosted Agents are not dependency-free.** They require `azd`, the pinned
-> extension, provisioned infrastructure, and explicit `--accept-preview`.
+**Expected result:** a new `hosted-demo` workspace containing `azure.yaml` and
+starter source, successful local validation, and a description of the proposed
+deployment actions. No Azure resources, azd environment, or authentication
+session have been created. You can stop here without installing `azd`.
+
+<details>
+<summary>Already have Python source? Adopt it instead of generating starter code</summary>
+
+Replace the source path with your application's directory. Copy mode leaves
+the original source untouched and requires a new destination:
+
+```powershell
+fam hosted adopt --source .\existing-python-agent --destination adopted-agent --name support-agent
+fam hosted validate --workspace adopted-agent
+fam hosted plan --workspace adopted-agent
+```
+
+Continue below with `adopted-agent` instead of `hosted-demo`. Review any
+reported source compatibility actions before deployment. See the
+[adoption guide](docs/hosted-agents.md#adopt-existing-python-source) for
+dependency requirements, entry points, and explicit in-place adoption.
+If you already have `azure.yaml`, use the
+[existing-workspace path](#existing-hosted-agent-workspace) instead.
+
+</details>
+
+### 2. Prepare for Azure deployment
+
+| You need before online operations | Requirement |
+|---|---|
+| Foundry coordinates | An existing AzureCloud project ARM resource ID, model deployment name, and matching Azure location |
+| Azure Developer CLI | `azd` 1.32.0 or later |
+| Hosted extension | Exactly `azure.ai.agents` `1.0.0-beta.13` |
+| Credentials and permissions | Separately authenticated azd and a FAM-resolvable Azure identity with the [Hosted operator permissions](docs/rbac-and-separation-of-duties.md#hosted-agents) |
+| Deployment resources | Already-provisioned infrastructure, or an explicit decision to use the provisioning alternative below |
+
+Install the extension and authenticate azd for the target tenant. Replace the
+quoted placeholder; FAM must also be able to resolve an Azure identity with
+the required permissions:
+
+```powershell
+azd extension install azure.ai.agents --version 1.0.0-beta.13
+azd auth login --tenant-id "<tenant-id>"
+```
+
+Configure the workspace's local environment. Replace all quoted placeholders:
+
+```powershell
+fam hosted environment create `
+  --workspace hosted-demo --environment dev `
+  --project-id "<full-foundry-project-resource-id>" `
+  --model-deployment "<model-deployment-name>" `
+  --location "<azure-location>"
+```
+
+**Expected result:** a local azd environment with project, model, region, and
+derived endpoint settings. This does not create Azure resources, grant RBAC,
+or log in. Default-generated workspaces use `Microsoft.DefaultV2`; see
+[guardrail options](docs/hosted-agents.md#agent-guardrails) for deliberate changes.
+
+Prefer guided setup? Run `fam quickstart --type hosted` **instead of** manually
+creating a workspace and environment. It offers source adoption and asks
+before environment bootstrap. Answer **no** to bootstrap for files-only use.
+
+### 3. Preflight, deploy, and inspect
+
+Check the environment and permissions without mutation:
+
+```powershell
+fam hosted preflight --workspace hosted-demo --environment dev --accept-preview
+```
+
+After preflight succeeds, deploy into **already-provisioned resources**:
+
+```powershell
+fam hosted deploy --workspace hosted-demo --environment dev --accept-preview --if-changed
+fam hosted status --workspace hosted-demo --environment dev --accept-preview
+```
+
+**Expected result:** a deployed Hosted Agent version, status information, and
+a redacted deployment receipt. Normal Azure charges apply. FAM does not send
+a test message as part of deployment.
+
+<details>
+<summary>Need infrastructure provisioning? Use this explicit, potentially billable alternative</summary>
+
+A generated workspace is not provisioned infrastructure. Review `azure.yaml`
+and any infrastructure definitions and obtain the required
+[provisioning permissions](docs/rbac-and-separation-of-duties.md#hosted-agents)
+before opting in.
+
+First inspect the proposed workflow offline:
+
+```powershell
+fam hosted plan --workspace hosted-demo --environment dev --provision --preview-provision
+```
+
+Only after review, replace the non-provisioning deploy command with:
+
+```powershell
+fam hosted deploy --workspace hosted-demo --environment dev --accept-preview --provision --preview-provision
+```
+
+This can create billable infrastructure. `--provision` is off by default.
+See the [deployment contract](docs/hosted-agents.md#deployment-commands)
+for environment setup and preview boundaries.
+
+</details>
+
+**If blocked:** use [Hosted inspection and diagnostics](docs/hosted-agents.md#inspection-and-diagnostics).
+**Next:** [invoke the agent](docs/hosted-agents.md#smoke-tests) (billable) or
+explore [versions, sessions, and logs](docs/hosted-agents.md).
 
 ## What commands are safe to run?
 
@@ -594,8 +712,8 @@ offline commands and work your way down.
 
 | Safety level | What happens | Examples |
 |---|---|---|
-| **Offline** | Runs locally without Azure authentication or Azure API calls. | `prompt validate`, `prompt plan`, `prompt init`, non-interactive `quickstart` without `--bootstrap-environment`, `version` |
-| **Local mutation** | Changes only local workspace/tool state and does not mutate Azure resources. | `hosted adopt`, `hosted environment create`, Hosted `quickstart` environment bootstrap |
+| **Offline** | No Azure authentication or API calls; scaffolding still writes local files. | `prompt validate`, `prompt plan`, `prompt init`, `hosted init`, `hosted validate`, `hosted plan`, non-interactive `quickstart` without `--bootstrap-environment`, `version` |
+| **Local mutation** | Changes local workspace/tool state, not Azure resources. Some operations contact external services. | `hosted adopt`, `hosted environment create`, Hosted `quickstart` environment bootstrap, `update` (GitHub download; `--check` does not replace the executable) |
 | **Read-only online** | Contacts Azure to inspect or verify state without intentional mutation. | `prompt preflight`, `model deployment list/show/plan`, `prompt status`, `prompt diff`, `agent365 blueprint show`, `agent365 binding status`, `agent365 identity list`, `agent365 integration status`, `agent365 observability status`, `agent365 publication status`, targeted `doctor --online` |
 | **Mutating** | Creates, updates, or routes resources. Mutation receipts are written where the command contract provides them. | `model deployment create`, `prompt deploy`, `prompt promote`, `project create`, `agent365 integration set` |
 | **Billable invocation** | Invokes an AI capability and may incur normal service usage charges. | `prompt smoke`, `hosted smoke`, `memory search` |
@@ -603,8 +721,9 @@ offline commands and work your way down.
 
 Use each command's `--help` before a mutation. Commands such as `prompt versions prune` that
 support `--dry-run` can preview their deletion scope. See the full
-[Command Reference](docs/command-reference.md) for every command and flag.
-Bare `fam help` shows the complete catalog, while
+[Command Reference](docs/command-reference.md) for command families and shared
+options; focused command help lists individual flags.
+Bare `fam help` shows the top-level namespaces and getting-started commands, while
 `fam help quickstart` and other `help <command path>` requests
 show only that namespace or command's subcommands, usage, examples, flags, and
 related workflow.
@@ -658,6 +777,7 @@ as a side effect of Prompt deployment.
 fam prompt init -f agent.yaml `
   --name support-agent `
   --model my-model-deployment `
+  --no-tools `
   --metadata owner=platform-team `
   --metadata environment=development `
   --project-resource-id /subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/my-resource-group/providers/Microsoft.CognitiveServices/accounts/my-foundry-account/projects/support-project `
@@ -665,8 +785,18 @@ fam prompt init -f agent.yaml `
 
 fam prompt validate -f agent.yaml
 fam project create -f agent.yaml
-fam model deployment plan -f agent.yaml
-fam model deployment create -f agent.yaml
+```
+
+The model name above must refer to an existing deployment. **If it does not
+exist**, first add the exact `model_deployment` desired state from the
+[model deployment guide](docs/prompt-agents.md#model-deployment-lifecycle),
+then run `fam model deployment plan -f agent.yaml` and
+`fam model deployment create -f agent.yaml`. The init command does not generate
+model creation settings, and creation can incur Azure charges.
+
+Once both project and model deployment exist, continue:
+
+```powershell
 fam prompt preflight -f agent.yaml
 fam prompt deploy -f agent.yaml --if-changed
 fam prompt status -f agent.yaml
@@ -700,17 +830,23 @@ fam hosted plan --workspace support-hosted --environment prod
 fam hosted environment create `
   --workspace support-hosted --environment prod `
   --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/projects/project `
-  --model-deployment support-model
+  --model-deployment support-model --location eastus2
 
 fam hosted preflight --workspace support-hosted `
   --environment prod --accept-preview
 
 fam hosted deploy --workspace support-hosted `
-  --environment prod --accept-preview --provision --preview-provision
+  --environment prod --accept-preview --if-changed
 
 fam hosted status --workspace support-hosted `
   --environment prod --accept-preview
 ```
+
+Replace the example project, deployment, and location with your values.
+The deployment above assumes already-provisioned resources and the required
+credentials/tooling. If infrastructure is missing, review the
+[explicit provisioning alternative](#quick-start-hosted-agent) instead of
+treating workspace creation as Azure provisioning.
 
 ### Existing Hosted Agent workspace
 
@@ -724,7 +860,7 @@ fam hosted plan --workspace C:\src\hosted-agent --environment prod
 fam hosted environment create `
   --workspace C:\src\hosted-agent --environment prod `
   --project-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/account/projects/project `
-  --model-deployment support-model
+  --model-deployment support-model --location eastus2
 fam hosted preflight --workspace C:\src\hosted-agent `
   --environment prod --accept-preview
 fam hosted deploy --workspace C:\src\hosted-agent `
@@ -838,16 +974,19 @@ executed.
 
 | What you want to do next | Command |
 |---|---|
-| See what is deployed | `prompt status -f agent.yaml` or `hosted status --workspace ...` |
-| Check for drift between your manifest and Azure | `diff -f agent.yaml` |
-| Send a test message to the deployed agent | `smoke -f agent.yaml --prompt "Hello"` (billable) |
-| Deploy a new version without disrupting production | `deploy -f agent.yaml --if-changed` (stages it) |
-| Send production traffic to the new version | `promote -f agent.yaml --agent-version N` |
-| Go back to the previous version | `rollback -f agent.yaml --agent-version N --yes` |
+| See what is deployed | `fam prompt status -f agent.yaml` or `fam hosted status --workspace hosted-demo --environment dev --accept-preview` |
+| Check for drift between your manifest and Azure | `fam prompt diff -f agent.yaml` |
+| Send a test message to the deployed agent | `fam prompt smoke -f agent.yaml --prompt "Hello"` (billable) |
+| Deploy a new version without disrupting production | `fam prompt deploy -f agent.yaml --if-changed` (stages later versions) |
+| Send production traffic to a reviewed version | `fam prompt promote -f agent.yaml --agent-version "<version>"` |
+| Preview a rollback to an earlier version | `fam prompt rollback -f agent.yaml --agent-version "<version>" --dry-run`; omit `--dry-run` to apply with confirmation |
 | Add documents the agent can search | See [Grounding](docs/tools-and-grounding.md#managed-document-grounding) |
 | Publish to Microsoft Teams | See [M365 publishing](docs/prompt-agents.md#microsoft-365-and-teams-publishing) |
 | Set up CI/CD | See [CI Templates](docs/ci-templates/) |
-| Clean up old versions | `prune -f agent.yaml --keep 3 --dry-run` then `--yes` |
+| Preview cleanup of old versions | `fam prompt versions prune -f agent.yaml --keep 3 --dry-run`; replace `--dry-run` with `--yes` only after review |
+
+Use your actual manifest path (`azure-agent.yaml` in the Prompt quickstart)
+and a version returned by FAM in place of `"<version>"`.
 
 ## Quick troubleshooting
 
@@ -855,12 +994,14 @@ executed.
 |---|---|---|
 | `project.resource_id is invalid` | Malformed Azure resource ID | Provide a valid Foundry project resource ID with the correct provider and UUID subscription |
 | `destination host "..." is not approved` | The manifest references an external host you haven't approved | Add `--trusted-apim-host` or `--trusted-tool-host` with the exact hostname |
-| `Foundry project "..." does not exist` | The project hasn't been created yet | Run `project create -f agent.yaml` first |
+| `Foundry project "..." does not exist` | The project hasn't been created yet | If creation is intended and authorized, run `fam project create -f agent.yaml` first |
 | `Hosted Agent preview was not explicitly accepted` | Missing flag | Add `--accept-preview` to the command |
 | `Azure Developer CLI version is too old` | `azd` needs updating | Install `azd` 1.32.0 or later |
-| Commands work locally but fail in CI | CI runner missing credentials or tools | Run `doctor -f agent.yaml --online` or the Hosted workspace equivalent in CI |
+| Commands work locally but fail in CI | CI runner missing credentials or tools | Run `fam doctor -f agent.yaml --online` or the Hosted workspace equivalent in CI |
 
-For the full troubleshooting table, see [Security and Operations — Troubleshooting](docs/security-and-operations.md#troubleshooting).
+For task-specific answers, use the [FAQ troubleshooting section](docs/faq.md#troubleshooting).
+For the full error/remediation table, see
+[Security and Operations — Troubleshooting](docs/security-and-operations.md#troubleshooting).
 
 ## VS Code integration
 

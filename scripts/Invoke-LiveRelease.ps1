@@ -394,6 +394,12 @@ function Get-MinimumGate {
         [string]$CommandName,
         [object[]]$Arguments
     )
+    if ($CommandName -eq "update") {
+        if ((Resolve-SecurityBoolFlag -FlagName "check" -Arguments $Arguments) -eq $true) {
+            return "online-read"
+        }
+        return "mutation"
+    }
     # Resolve security-sensitive boolean flags with fail-closed semantics.
     # Throws on duplicates, conflicts, or unrecognized boolean spellings.
     $dryRunValue = Resolve-SecurityBoolFlag -FlagName "dry-run" -Arguments $Arguments
@@ -429,6 +435,22 @@ function Get-MinimumGate {
         return "offline"
     }
     return "online-read"
+}
+
+function Get-QualificationArguments {
+    param(
+        [string]$CommandName,
+        [object[]]$Arguments
+    )
+    if ($CommandName -eq "update") {
+        if ((Resolve-SecurityBoolFlag -FlagName "check" -Arguments $Arguments) -ne $true) {
+            throw "Live qualification permits only update --check; replacing the binary under qualification is not allowed"
+        }
+        # A preceding string option can consume a raw --check token. Pin the
+        # effective flag first; false/conflicting spellings were rejected above.
+        return @("--check=true") + $Arguments
+    }
+    return $Arguments
 }
 
 $disallowedLiteralSecretFlags = @(
@@ -527,6 +549,7 @@ try {
             throw "Command $commandName cannot be both excluded and covered"
         }
         $minimumGate = Get-MinimumGate -CommandName $commandName -Arguments $arguments
+        $arguments = @(Get-QualificationArguments -CommandName $commandName -Arguments $arguments)
         if ($gateRank[$gate] -lt $gateRank[$minimumGate]) {
             throw "Scenario $name declares gate $gate, but $commandName requires at least $minimumGate"
         }

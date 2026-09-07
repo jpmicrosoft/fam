@@ -55,16 +55,28 @@ change from becoming a published binary.
 
 [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on pushes and
 PRs to `main`: `gofmt`, `go vet`, tests, tests with `-race`, build, and
-executable qualification probes.
+executable qualification probes. It also runs the PowerShell live-release gate
+classification regressions, including check-only self-update enforcement.
+
+The `update-native` job also runs the self-updater tests on Windows and macOS,
+including replacement of a disposable running executable. Linux coverage is
+part of `ci`. These tests use local fixtures, not a real release installation.
 
 The `release` job in
 [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs only after the
-same tagged source passes the `ci` job. It cross-compiles six CGO-free targets,
+same tagged source passes `ci` and `update-native`. Historical rebuilds from
+before the updater existed skip its native tests. It cross-compiles six CGO-free targets,
 packages only the `fam` executable,
 generates `SHA256SUMS`, conditionally attests build provenance, and creates the
 GitHub release.
 
-The current application version is **0.16.3**
+`fam update` consumes the same release archives and `SHA256SUMS` as the
+installers. Keep the root `fam`/`fam.exe` archive entry, platform asset naming,
+and exact checksum filenames compatible with the updater. An archive hash is
+verified before extraction; provenance attestation verification is not part
+of the self-update command.
+
+The current application version is **0.17.0**
 ([`../internal/config/config.go`](../internal/config/config.go)).
 
 ## Weekly Foundry capability review
@@ -158,6 +170,12 @@ Copy-Item qa\live-release.example.json qa\live-release.local.json
 | `online-read` | `-RunOnline` | Inspection, diagnostics, dry runs |
 | `mutation` | `-RunOnline -AllowMutations` | Deployment, reversible changes |
 | `destructive` | `-RunOnline -AllowMutations -AllowDestructive` | Real deletion in disposable resources |
+
+The matrix permits only `update --check` (`online-read`); applying a self-update
+is rejected even with mutation authorization, so qualification cannot replace
+the executable under test. The example matrix excludes this command in favor
+of native disposable-executable tests; replace that exclusion with a check-only
+scenario if release availability is part of your acceptance criteria.
 
 ## Release workflow
 

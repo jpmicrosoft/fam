@@ -169,6 +169,44 @@ Assert-Equal "unrelated --dry-runner does not match --dry-run" `
 
 Write-Host "`n=== Get-MinimumGate ===" -ForegroundColor Cyan
 
+Assert-Equal "update -> mutation" `
+    "mutation" (Get-MinimumGate -CommandName "update" -Arguments @("--yes"))
+Assert-Equal "update --check -> online-read" `
+    "online-read" (Get-MinimumGate -CommandName "update" -Arguments @("--check"))
+Assert-Equal "update --check=false -> mutation" `
+    "mutation" (Get-MinimumGate -CommandName "update" -Arguments @("--check=false", "--yes"))
+Assert-Equal "unsupported dry-run cannot neutralize update" `
+    "mutation" (Get-MinimumGate -CommandName "update" -Arguments @("--dry-run"))
+Assert-Throws "update duplicate check rejects" `
+    { Get-MinimumGate -CommandName "update" -Arguments @("--check", "--check") } `
+    "Duplicate security-sensitive flag"
+Assert-Throws "update conflicting check rejects" `
+    { Get-MinimumGate -CommandName "update" -Arguments @("--check", "--check=false") } `
+    "Conflicting duplicate security-sensitive flag"
+Assert-Throws "update ambiguous check rejects" `
+    { Get-MinimumGate -CommandName "update" -Arguments @("--check", "false") } `
+    "Ambiguous security-sensitive flag"
+Assert-Throws "update unknown check value rejects" `
+    { Get-MinimumGate -CommandName "update" -Arguments @("--check=maybe") } `
+    "Unrecognized boolean value"
+Assert-Throws "qualification refuses self replacement" `
+    { Get-QualificationArguments -CommandName "update" -Arguments @("--yes") } `
+    "replacing the binary under qualification is not allowed"
+Assert-Throws "qualification refuses check false" `
+    { Get-QualificationArguments -CommandName "update" -Arguments @("--check=false", "--yes") } `
+    "replacing the binary under qualification is not allowed"
+Assert-Equal "qualification pins check before user arguments" `
+    "--check=true,--check,--yes" `
+    ((Get-QualificationArguments -CommandName "update" -Arguments @("--check", "--yes")) -join ",")
+Assert-Equal "consumed raw check cannot enable replacement" `
+    "--check=true,--tenant-id,--check,--yes" `
+    ((Get-QualificationArguments -CommandName "update" -Arguments @("--tenant-id", "--check", "--yes")) -join ",")
+Assert-Throws "qualification rejects a false check after a consumed true token" `
+    { Get-QualificationArguments -CommandName "update" -Arguments @("--tenant-id", "--check", "--check=false", "--yes") } `
+    "Conflicting duplicate security-sensitive flag"
+Assert-Equal "qualification preserves other command arguments" `
+    "--yes" ((Get-QualificationArguments -CommandName "prompt delete" -Arguments @("--yes")) -join ",")
+
 # Finding #2: receipt upload must be mutation
 Assert-Equal "receipt upload -> mutation" `
     "mutation" (Get-MinimumGate -CommandName "receipt upload" -Arguments @("--file", "r.json"))

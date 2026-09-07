@@ -270,10 +270,11 @@ func TestCIAndReleaseInvokeExecutableQualification(t *testing.T) {
 	ci := repositoryFile(t, ".github", "workflows", "ci.yml")
 	requireText(t, ci,
 		"scripts/Test-Release.ps1",
+		"scripts/Test-LiveReleaseGateClassification.ps1",
 		"-SkipCoreChecks",
 		"-SkipRace",
 		"-SkipCrossCompile",
-		"needs: ci",
+		"needs: [ci, update-native]",
 		"cp scripts/install.sh dist/install.sh",
 		"cp scripts/install.ps1 dist/install.ps1",
 		`bin="fam"`,

@@ -164,7 +164,7 @@ func TestReleaseJobRequiresCIGate(t *testing.T) {
 	document, raw := loadWorkflow(t, "ci.yml")
 	for _, want := range []string{
 		"release:",
-		"needs: ci",
+		"needs: [ci, update-native]",
 		"startsWith(github.ref, 'refs/tags/v')",
 	} {
 		if !strings.Contains(raw, want) {
@@ -173,9 +173,11 @@ func TestReleaseJobRequiresCIGate(t *testing.T) {
 	}
 	jobs := document["jobs"].(map[string]interface{})
 	release := jobs["release"].(map[string]interface{})
-	if release["needs"] != "ci" {
-		t.Fatalf("release job needs = %#v, want ci", release["needs"])
+	needs, ok := release["needs"].([]interface{})
+	if !ok || len(needs) != 2 || needs[0] != "ci" || needs[1] != "update-native" {
+		t.Fatalf("release job needs = %#v, want ci and update-native", release["needs"])
 	}
+
 	permissions, ok := release["permissions"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("release job has no explicit permissions: %#v", release)
@@ -189,6 +191,31 @@ func TestReleaseJobRequiresCIGate(t *testing.T) {
 			t.Fatalf("release permission %q = %#v, want %q", scope, permissions[scope], level)
 		}
 	}
+}
+
+func TestUpdateNativeWorkflow(t *testing.T) {
+	document, _ := loadWorkflow(t, "ci.yml")
+	jobs := document["jobs"].(map[string]interface{})
+	job, ok := jobs["update-native"].(map[string]interface{})
+	if !ok {
+		t.Fatal("missing native updater gate")
+	}
+	if job["runs-on"] != "${{ matrix.os }}" {
+		t.Fatalf("native updater must use its platform matrix: %#v", job)
+	}
+	strategy := job["strategy"].(map[string]interface{})
+	matrix := strategy["matrix"].(map[string]interface{})
+	platforms := matrix["os"].([]interface{})
+	if len(platforms) != 2 || platforms[0] != "windows-latest" || platforms[1] != "macos-latest" {
+		t.Fatalf("native updater platforms: %#v", platforms)
+	}
+	for _, raw := range job["steps"].([]interface{}) {
+		step := raw.(map[string]interface{})
+		if step["run"] == "go test -count=1 ./internal/update" {
+			return
+		}
+	}
+	t.Fatal("native updater gate does not run updater tests")
 }
 
 func TestReleaseWorkflowTagPatternAcceptsOnlySemVer(t *testing.T) {

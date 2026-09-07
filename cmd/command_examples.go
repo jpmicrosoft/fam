@@ -40,7 +40,13 @@ func formatCommandExamples(raw string) string {
 }
 
 var commandExamples = map[string]string{
-	"version":      `fam version`,
+	"version": `fam version`,
+	"update": `
+fam update --check
+fam update
+fam update --yes
+fam update --version v0.17.0 --check
+fam update --version v0.17.0 --yes`,
 	"tool-catalog": `fam tool-catalog --output json`,
 	"receipt-upload": `
 fam receipt-upload --file artifacts\deploy-receipt.json --receipt-log-endpoint https://my-dce.eastus-1.ingest.monitor.azure.com --receipt-log-dcr-id dcr-0123456789abcdef0123456789abcdef

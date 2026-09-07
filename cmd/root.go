@@ -26,6 +26,7 @@ Getting started:
   quickstart   Create starter files and optionally bootstrap a Hosted azd environment
   doctor       Check your setup and diagnose problems
   version      Show installed version
+  update       Update the installed FAM executable
 
 Commands are grouped into resource namespaces. Use --help on any namespace or command for details.
 All commands default to text output; use --output json or --output yaml for automation.`,
@@ -92,8 +93,8 @@ All commands default to text output; use --output json or --output yaml for auto
 	root.PersistentFlags().String("progress", "auto", "Progress display for long-running operations: auto, plain, or off.")
 	root.PersistentFlags().String("cloud", "", "Azure cloud environment (only AzureCloud is currently supported).")
 	root.PersistentFlags().String("tenant-id", "", "Microsoft Entra tenant ID when the target project is in a different tenant.")
-	root.PersistentFlags().Duration("request-timeout", 120*time.Second, "Maximum time for each Azure HTTP request.")
-	root.PersistentFlags().Int("retry-count", 3, "Automatic retries for safe Azure requests that fail transiently.")
+	root.PersistentFlags().Duration("request-timeout", 120*time.Second, "Maximum time for each HTTP request.")
+	root.PersistentFlags().Int("retry-count", 3, "Automatic retries for safe HTTP requests that fail transiently.")
 	root.PersistentFlags().Duration("retry-delay", time.Second, "Wait time before the first retry (increases with each attempt).")
 	root.PersistentFlags().StringArray(
 		"metadata",
@@ -133,6 +134,19 @@ All commands default to text output; use --output json or --output yaml for auto
 		RunE:         cmdVersion,
 		SilenceUsage: true,
 	})
+	updateCommand := &cobra.Command{
+		Use:          "update",
+		Short:        "Update the installed FAM executable from a verified GitHub release.",
+		Long:         "Check for or install a stable FAM release from jpmicrosoft/fam. Verifies SHA256SUMS before replacing the running executable; does not update agents, Azure resources, or external tools.",
+		GroupID:      "getting-started",
+		Args:         noArgs,
+		RunE:         cmdUpdate,
+		SilenceUsage: true,
+	}
+	updateCommand.Flags().Bool("check", false, "Check release availability without downloading or changing the executable.")
+	updateCommand.Flags().Bool("yes", false, "Skip the confirmation before replacing the executable.")
+	updateCommand.Flags().String("version", "", "Exact stable release version, such as v0.16.3 (default: latest stable; no downgrades).")
+	root.AddCommand(updateCommand)
 	quickstart := &cobra.Command{
 		Use:          "quickstart",
 		Short:        "Create starter files and optionally bootstrap a Hosted azd environment.",

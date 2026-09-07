@@ -5,16 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Version status.** `0.16.3` is the version compiled into the executable
+> **Version status.** `0.17.0` is the version compiled into the executable
 > ([`internal/config/config.go`](internal/config/config.go)) and reported by
 > `fam version`. Release archives plus a GitHub Release are
-> produced only after the matching `v0.16.3` tag is pushed; see
+> produced only after the matching `v0.17.0` tag is pushed; see
 > [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-09-07
+
 ### Added
 
+- Added an offline first-success path and task-based documentation navigation,
+  with staged Prompt/Hosted quickstarts that distinguish required setup,
+  optional provisioning, expected outcomes, and troubleshooting.
+- Added `fam update` to check for or install the latest stable FAM release, or
+  an exact `--version`, with confirmation, `--yes`, metadata-only `--check`,
+  mandatory SHA-256 verification, and native executable replacement on Windows,
+  macOS, and Linux. Downgrades and prereleases are not installed.
 - Added a standalone Azure CLI PowerShell quickstart that creates the Log
   Analytics custom table and direct DCR required for optional FAM receipt
   publishing, with table-only and DCR-only modes.

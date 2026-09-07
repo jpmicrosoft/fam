@@ -3,6 +3,23 @@
 Complete reference for Foundry Prompt agent manifest authoring, deployment,
 and lifecycle management with `fam`.
 
+**First deployment?** Follow the [Prompt quickstart](../README.md#quick-start-prompt-agent)
+for prerequisites, a small manifest, and expected outcomes. To try FAM without
+Azure access, use the [offline first-success path](../README.md#first-success-without-azure).
+Return here when you need a specific configuration or lifecycle operation.
+
+## Contents
+
+- [Manifest fields and examples](#manifest-reference)
+- [Create a manifest](#prompt-init)
+- [Create a child project](#project-create) / [Manage model deployments](#model-deployment-lifecycle)
+- [Permissions](#rbac-and-separation-of-duties) / [Read-only preflight](#preflight)
+- [Deploy, receipts, and recovery](#deploy-receipts-and-recovery)
+- [Versions, promotion, and rollback](#staged-versions-promotion-and-rollback)
+- [Endpoint configuration](#stable-endpoint-configuration) / [Microsoft 365 publishing](#microsoft-365-and-teams-publishing)
+- [APIM and secrets](#apim-connection-and-secret-sources) / [Project connections](#project-connection-lifecycle)
+- [Invoke an agent](#smoke-tests) / [Troubleshooting](faq.md#troubleshooting)
+
 ## Why use the Prompt Agent path
 
 Use Prompt Agents when the desired behavior can be expressed as instructions,
@@ -18,9 +35,10 @@ runtime. The manager gives teams:
 - Separate lifecycle commands for projects, connections, grounding, Toolboxes,
   Skills, Memory, publishing, and compatibility resources.
 
-The parent Foundry account and model deployment remain externally managed. The
-manager can create a child project, but it does not conceal account ownership,
-model quota, cost, or RBAC decisions.
+The parent Foundry account remains externally managed. FAM can explicitly
+create a child project or an account-scoped model deployment, but
+`prompt deploy` never creates the model as a side effect. Account ownership,
+model quota, cost, and RBAC remain operator decisions.
 
 ## RBAC and separation of duties
 
@@ -64,7 +82,8 @@ The canonical contract is the embedded JSON Schema at
 [`../schema/manifest.schema.json`](../schema/manifest.schema.json). Unknown properties
 are rejected at every level.
 
-A minimal manifest:
+A minimal manifest template follows. Replace the angle-bracket placeholders
+before using it with Azure; use `prompt init` for a complete offline scaffold.
 
 ```yaml
 apiVersion: foundry-agent-manager/v1
@@ -77,10 +96,10 @@ agent:
 
 project:
   resource_id: /subscriptions/<subscription-uuid>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>
-
-tools:
-  - type: code_interpreter
 ```
+
+Tools are optional. Add them after the basic agent works using
+[Tools and Grounding](tools-and-grounding.md).
 
 ### Top-level sections
 
@@ -90,6 +109,7 @@ tools:
 | `cloud` | no | `AzureCloud` (default and only supported value). |
 | `agent` | yes | `name`, `model`, `instructions`; optional `description`, `metadata`, `rai_policy_id`, and `structured_inputs`. |
 | `project` | no* | Coordinates for the Foundry project. *Required in practice for any online command. |
+| `model_deployment` | no | Exact model/SKU/capacity desired state for explicit [model deployment commands](#model-deployment-lifecycle); never created implicitly by `prompt deploy`. |
 | `endpoint` | no | Desired stable-endpoint protocols, authorization schemes, and agent card. Never controls version routing. |
 | `apim` | no | Optional connection to an existing APIM API. |
 | `tools` | no | Tools attached directly to the prompt agent, including an existing Toolbox attachment. |
@@ -168,6 +188,7 @@ symlink or junction escape, and bounded in size.
 |---|---|
 | [`../examples/agent.example.yaml`](../examples/agent.example.yaml) | Minimal public-cloud deployment. |
 | [`../examples/agent.base.example.yaml`](../examples/agent.base.example.yaml) | Shared manifest driven by CLI overrides. |
+| [`../examples/agent.model-deployment.example.yaml`](../examples/agent.model-deployment.example.yaml) | Explicit account-scoped model planning and creation before agent deployment. |
 | [`../examples/agent.full.example.yaml`](../examples/agent.full.example.yaml) | Every supported public-cloud declarative tool, plus an `endpoint` section. |
 | [`../examples/agent.grounding.example.yaml`](../examples/agent.grounding.example.yaml) | Managed document upload, indexing, and logical File Search attachment. |
 | [`../examples/agent.toolbox.example.yaml`](../examples/agent.toolbox.example.yaml) | Reusable Toolbox lifecycle, Tool Search, a skill reference, and prompt-agent attachment. |
@@ -180,9 +201,14 @@ Use `prompt init` to avoid starting from a blank file. It writes a starter manif
 adds safe defaults, and validates the result against the embedded schema:
 
 ```powershell
-fam prompt init -f agent.yaml --name support-agent --model gpt-4o \
+fam prompt init -f agent.yaml --name support-agent --model "<model-deployment-name>" `
   --project-resource-id /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/agents-rg/providers/Microsoft.CognitiveServices/accounts/contoso/projects/support
 ```
+
+Replace the example project resource ID and model placeholder with your values.
+`--model` is the name of an existing **deployment**, not a catalog model
+selection. Run `fam prompt validate -f agent.yaml` and
+`fam prompt plan -f agent.yaml` after editing the generated instructions.
 
 Seed values come from `--name`, `--model`, `--description`,
 `--instructions-file`, `--project-resource-id`,
@@ -190,8 +216,9 @@ and `--location`. `--cloud` accepts
 only `AzureCloud`; `--no-tools` omits the default `code_interpreter` tool;
 `--force` allows overwriting an existing file.
 
-`quickstart` and the minimal `prompt init` form assume the named Foundry child
-project and model deployment already exist. If the project is missing, the
+For deployment, the minimal `quickstart`/`prompt init` workflow expects the
+named Foundry child project and model deployment to exist. Offline exploration
+can use the generated placeholders instead. If the project is missing, the
 target project resource ID is still deterministic; `project create` will create it
 under the parent account. `project.location` is required only by
 `project create` and defaults to the Foundry account's region.

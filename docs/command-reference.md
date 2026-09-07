@@ -1,10 +1,12 @@
 # Command Reference
 
-Complete command listing, global options, exit codes, and output contracts for
-the current source tree (`0.16.3` is the prepared release version).
+Command-family catalog, shared options, exit codes, and output contracts for
+the current source tree (`0.17.0` is the prepared release version).
 
-For task-oriented answers and common troubleshooting, start with the
-[`FAQ`](faq.md).
+**Starting out?** Use the [documentation hub](README.md) and
+[quickstarts](../README.md#first-success-without-azure). This page is for
+looking up a command once you know the task. For individual flags, use
+`fam <command path> --help`; for common failures, use the [FAQ](faq.md#troubleshooting).
 
 Every command is invoked through the canonical `fam` executable. The exact
 root flag `-version` is accepted as a compatibility spelling of `--version`.
@@ -14,6 +16,7 @@ matches the outcome you need:
 
 | Goal | Start with |
 |---|---|
+| Update the FAM executable | `update --check`, then `update` |
 | Create a starter configuration | `quickstart`, `prompt init`, or `hosted init` |
 | Prove local configuration is valid | `prompt validate`, `prompt plan`, `hosted validate`, or `hosted plan` |
 | Plan or create a model deployment | `model deployment plan`, then `model deployment create` |
@@ -61,20 +64,46 @@ execution examples.
 
 ## Commands
 
+Jump to the family you need:
+
+- [Getting started and local authoring](#getting-started-and-local-authoring)
+- [Projects and models](#projects-and-model-deployments) / [Agent 365](#agent-365)
+- [Connections and connectors](#connections-and-connectors)
+- [Prompt deployment and inspection](#prompt-inspection-and-deployment) / [Routing and publishing](#prompt-invocation-and-publishing) / [Cleanup](#prompt-cleanup)
+- [Tool catalogs and Toolboxes](#tool-catalogs-and-toolboxes) / [Skills](#skills)
+- [Grounding](#grounding) / [Memory](#memory)
+- [Hosted Agents](#hosted-agents) / [Experimental Autopilot](#autopilot)
+
+Shared reference: [update options](#update), [global options](#global-options),
+[shell completion](#shell-completion), and [exit codes](#exit-codes-and-error-envelope).
+
+### Getting started and local authoring
+
 | Command | Azure | Purpose |
 |---|---|---|
 | `version` | no | Print version, commit, and build time. |
+| `update` | no (GitHub access; local mutation unless `--check`) | Update the running FAM executable to the latest stable or exact `--version` release after confirmation and SHA-256 verification. |
 | `doctor` | no (or read-only with `--online`) | Diagnose a Prompt `--manifest` or Hosted `--workspace` without mutation. Reports scoped local/online/deployment readiness, all independently testable failures, structured check metadata, and explicit coverage gaps. `--fail-on-not-ready` provides a CI exit code after writing the report. |
 | `quickstart` | no, or local mutation | Scaffold a Prompt manifest or Hosted workspace and print the next commands. `--guardrail-policy-id` selects an optional same-account custom RAI policy. Prompt omission inherits the model deployment policy. Hosted omission defaults to `Microsoft.DefaultV2`; Hosted-only `--no-guardrail` explicitly omits the agent-level policy. Interactive Hosted quickstart can adopt an existing Python source folder or generate starter code, then defaults to creating/configuring the workspace azd environment; answer no to keep it files-only. `--source` routes through the same engine as `hosted adopt`. Non-interactive use remains files-only unless `--bootstrap-environment` is passed with `--project-id`, `--model`, and `--location`. Endpoint, subscription, and the default Hosted policy ID are derived from the project resource ID; `--tenant-id` records optional cross-tenant context. Bootstrap never authenticates azd or assigns RBAC. |
 | `receipt upload` | mutating external audit data | Upload one preserved manager-generated v1/v2 receipt to Azure Monitor Logs through an existing DCR. |
 | `prompt init` | no | Write a schema-valid starter manifest to a new file. Optional `--guardrail-policy-id` writes `agent.rai_policy_id`; omission inherits the model deployment policy. |
 | `prompt validate` | no | Validate the manifest and build every local tool payload. |
 | `prompt plan` | no | Print the resolved offline deployment plan. |
+
+### Projects and model deployments
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `project create` | mutating | Idempotently create or reconcile the manifest's Foundry child project, verify ARM and data-plane readiness, and write a v2 receipt. |
 | `model deployment list` / `model deployment show` | read-only | Inspect account-scoped model deployments through ARM, including exact model version, format, SKU, capacity, and provisioning state. |
 | `model deployment plan` | read-only | Validate the exact account and regional model catalogs, SKU capacity shape, quota, regional capacity, and optional RAI/spillover dependencies. Existing exact state returns `unchanged`; drift fails. |
 | `model deployment create` | mutating, potentially billable | Explicitly create the planned deployment with create-only concurrency protection, wait for `Succeeded`, reject drift, and write a receipt. It is never called by `prompt deploy`. |
 | `model deployment delete` | destructive | Preview with `--dry-run`; otherwise require confirmation, wait for ARM-confirmed absence, and write a receipt. |
+
+### Agent 365
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `agent365 info` | no | Explain the read-only Graph contract, identity layers, and unsupported arbitrary-blueprint binding boundary. |
 | `agent365 blueprint list` | read-only (AzureCloud only) | List up to 100 Microsoft Entra Agent ID blueprints through Microsoft Graph v1.0, including each friendly display name and application/object ID, and report whether the page is truncated. Use `--all` for bounded continuation up to 5,000 results. |
 | `agent365 blueprint show` | read-only (AzureCloud only) | Show selected non-secret blueprint metadata by application/client ID or directory object ID. |
@@ -98,6 +127,11 @@ execution examples.
 | `agent365 publication plan` | plan/read-only (AzureCloud only) | Plan publication for exactly one Prompt or Hosted target. Preserves modern identity/RBAC guidance and emits migration steps only for legacy identities. Does not mutate. |
 | `agent365 publication status` | read-only (AzureCloud only) | Show Foundry publication and identity evidence for exactly one Prompt or Hosted target. Registry state remains unverified because no documented manager status API exists. |
 | `agent365 publication admin-handoff` | plan/read-only (AzureCloud only) | Generate tenant-admin, governance, observability, and identity-appropriate RBAC handoff steps for exactly one Prompt or Hosted target. |
+
+### Connections and connectors
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `project connection list` / `project connection show` | read-only | Inspect ARM project connections; credential values are removed before output. |
 | `project connection create` / `project connection update` | mutating | Create or update a project connection from non-secret flags plus a credential file/environment source; writes a v2 receipt. |
 | `project connection delete` | destructive | Delete one project connection after `--yes`. |
@@ -111,6 +145,11 @@ execution examples.
 | `connector status` / `connector wait` | read-only, preview (AzureCloud only) | Inspect or wait for `Connected` status and the platform-generated MCP target. |
 | `connector toolbox deploy` | mutating, preview (AzureCloud only) | Create an immutable Toolbox version from a connected managed connector, skip unchanged payloads, optionally promote, and emit Prompt/Hosted attachment configuration. |
 | `connector delete` | destructive, preview (AzureCloud only) | Delete one managed connector after `--yes`. |
+
+### Prompt inspection and deployment
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `prompt preflight` | read-only | Verify credentials, project access, the exact model deployment, APIM inputs, and data-plane reachability without mutation or inference. |
 | `prompt deploy` | mutating | Run preflight, then stage an immutable agent version behind the current active version (or pin the first version). |
 | `prompt status` | read-only | Agent lifecycle state, latest version, active version, selector mode, and optional APIM connection status. |
@@ -119,6 +158,11 @@ execution examples.
 | `prompt endpoint configure` | mutating | Apply manifest endpoint protocols, authorization, and agent card **without** changing which version is active. |
 | `prompt versions list` | read-only | List immutable versions and provisioning status. |
 | `prompt diff` | read-only | Compare manifest-managed fields with the latest remote version and APIM connection. |
+
+### Tool catalogs and Toolboxes
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `tool-catalog` | no | List manager-supported direct, Toolbox, and Hosted runtime contracts and report that managed connector discovery is available through `connector list`. |
 | `prompt compatibility` | no | Evaluate documented model/tool and region/tool combinations from the source-stamped Microsoft compatibility snapshot; uncovered combinations return `unknown`. |
 | `toolbox validate` | no (AzureCloud definitions only) | Validate all managed Toolbox definitions and contained files. |
@@ -128,24 +172,44 @@ execution examples.
 | `toolbox versions list` | read-only (AzureCloud only) | List immutable Toolbox versions. |
 | `toolbox promote` | mutating (AzureCloud only) | Make one existing Toolbox version the consumer default. |
 | `toolbox versions delete` | destructive (AzureCloud only) | Delete one non-default immutable Toolbox version. |
+
+### Skills
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `skill create` | mutating, preview (AzureCloud only) | Create an immutable Skill version from inline instructions, a directory, or a zip; optionally make it default. |
 | `skill list` / `skill show` | read-only, preview (AzureCloud only) | Inspect Skills without downloading content. |
 | `skill version list` / `skill version show` | read-only, preview (AzureCloud only) | Inspect immutable Skill versions. |
 | `skill version set-default` | mutating, preview (AzureCloud only) | Change the logical Skill's default version. |
 | `skill download` | read-only, preview (AzureCloud only) | Download the default or selected Skill version as a zip. |
 | `skill delete` / `skill version delete` | destructive, preview (AzureCloud only) | Delete a Skill or one immutable version after `--yes`. |
+
+### Grounding
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `grounding validate` | no | Validate document paths, formats, sizes, and hashes. |
 | `grounding plan` | no | Print desired vector-store and document hashes without Azure access. |
 | `grounding sync` | mutating | Create or reconcile a manager-owned vector store, upload changed documents, and wait for indexing. |
 | `grounding status` | read-only | Compare local desired document hashes with remote indexing state. |
 | `grounding file delete` | destructive | Detach one manager-owned document; optionally delete its project upload globally. |
 | `grounding store delete` | destructive | Delete one manager-owned vector store; optionally delete its manager-owned project uploads globally. |
+
+### Memory
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `memory store validate` / `memory store plan` | no | Validate top-level preview Memory store definitions and desired hashes. |
 | `memory store list` / `memory store show` | read-only, preview (AzureCloud only) | Inspect preview Memory stores. |
 | `memory store sync` | mutating, preview (AzureCloud only) | Create or reconcile one manifest-managed Memory store. |
 | `memory store delete` | destructive, preview (AzureCloud only) | Delete one Memory store after `--yes`. |
 | `memory search` / `memory update` | preview, billable (AzureCloud only) | Search one scope or extract/consolidate memories from Responses conversation items. |
 | `memory item create/list/show/update/delete` / `memory scope delete` | preview (AzureCloud only) | Create, inspect, update, or delete explicit Memory items, or delete an entire scope. |
+
+### Prompt invocation and publishing
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `prompt smoke` | mutating (billable) | Invoke the deployed prompt agent once. |
 | `prompt disable` / `prompt enable` | mutating | Suspend or resume the agent endpoint. |
 | `prompt promote` | mutating | Route all stable-endpoint traffic to `--agent-version`, or explicitly restore `--latest`. |
@@ -154,6 +218,11 @@ execution examples.
 | `prompt legacy status` | read-only (AzureCloud only) | Inspect explicit legacy Agent Application compatibility resources. |
 | `prompt legacy deploy` | mutating (AzureCloud only) | Ensure an explicit legacy Agent Application and Managed Responses deployment. |
 | `prompt legacy delete` | destructive (AzureCloud only) | Delete explicit legacy compatibility resources. |
+
+### Hosted Agents
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `hosted info` | no | Show the verified Hosted Agent preview, tooling, cloud, mode, and protocol boundary. |
 | `hosted adopt` | local mutation | Adopt an existing Python source folder as a net-new Hosted Agent workspace. The generated deployment metadata defaults to `Microsoft.DefaultV2`; use `--guardrail-policy-id` for a same-account custom policy or `--no-guardrail` for explicit opt-out. Python source is not rewritten for guardrails. Copy mode requires a new relative `--destination` and leaves `--source` untouched; explicit `--in-place` writes `azure.yaml`, merged `.agentignore`, and optional `.env.example` into the source with rollback on validation failure. Detects entry points and Python dependency metadata, excludes local secrets/caches, and can bootstrap existing-project azd context without authenticating, provisioning, or deploying. |
 | `hosted validate` | no | Validate one Hosted Agent service and every contained local `$ref` in an existing `azure.yaml` workspace. |
@@ -186,13 +255,25 @@ execution examples.
 | `hosted delete` | destructive (AzureCloud only) | Permanently delete a Hosted Agent, all versions, and active sessions. |
 | `hosted draft deploy` | mutating, preview (AzureCloud only) | Create and verify a preview Hosted Agent draft version from code or prebuilt image (Docker context rejected). The command verifies and serializes the configured policy as `rai_config.rai_policy_name`; a policy-less workspace requires `--no-guardrail`, which is recorded in the receipt. |
 | `hosted init` | no | Create a validated Python Hosted Agent workspace scaffold; defaults deployment metadata to `Microsoft.DefaultV2`, accepts `--guardrail-policy-id`, and supports explicit `--no-guardrail`. It can also wire Bing Grounding, Bing Custom Search, and a Foundry Toolbox runtime. |
+
+### Autopilot
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `autopilot info` | no | Print the pinned experimental Hosted-agent Autopilot boundary (repository, commit, required tools, manual steps). |
 | `autopilot preflight` | read-only (AzureCloud only) | Validate required executables, cloud, region, preview acceptance, and the pinned sample commit. |
 | `autopilot deploy` | mutating, experimental (AzureCloud only) | Check out and provision the pinned Microsoft Hosted-agent Autopilot sample into an isolated `--work-dir`. |
+
+### Prompt cleanup
+
+| Command | Azure | Purpose |
+|---|---|---|
 | `prompt versions prune` | destructive | Retain the newest `--keep N` versions and delete the rest. |
 | `prompt versions delete` | destructive | Delete one explicit immutable version. |
 | `prompt delete` | destructive | Delete the logical agent and all versions. |
 | `prompt decommission` | destructive | Delete the agent and, unless `--no-apim`, the Foundry APIM project connection. |
+
+### Choosing manifest and workspace inputs
 
 Prompt-agent lifecycle commands require `-f/--manifest`; for `prompt init`,
 `-f/--manifest` is the path to *write*, not read. Commands under `hosted`
@@ -206,6 +287,76 @@ ID) or `--blueprint-object-id` (directory object ID). Binding commands use
 exactly one target: `-f/--manifest` for Prompt or `--workspace` for Hosted.
 Hosted correlation also requires `--accept-preview`. Integration commands
 require `--account-id` (full Foundry account resource ID).
+
+## `update`
+
+```powershell
+fam update --check
+fam update
+fam update --yes --output json
+fam update --version v0.17.0 --check
+fam update --version v0.17.0 --yes
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--check` | `false` | Query release metadata only. No archive/checksum download, prompt, or filesystem writes. |
+| `--version` | latest stable | Select an exact published stable `major.minor.patch` version, with or without `v`. Not the root `fam --version` display flag; `-v` remains verbose. |
+| `--yes` | `false` | Skip confirmation only; does not bypass checksum, version, or replacement safeguards. Required for installation with JSON/YAML output. |
+
+Updates come only from `jpmicrosoft/fam` GitHub releases, for the running
+binary's OS and architecture (`windows`, `darwin`, `linux`; `amd64`, `arm64`).
+The executable path is resolved through symlinks. The installation directory
+must be writable; there is no automatic elevation, PATH modification, or
+package-manager integration. Use your package manager for its installations.
+Standalone source builds with a stable version can update, but are replaced
+with the published binary and any local modifications are lost.
+
+The selected archive must have a unique matching entry in `SHA256SUMS`; a
+missing or mismatched checksum stops installation before replacement. Equal
+versions are a successful no-op. When latest is older than the installed
+version, the executable is left alone; explicitly requesting an older version
+is an error. Prereleases, build-metadata versions, unknown current versions,
+and forced reinstalls are not supported. `--check` exits `0` on a successful
+lookup whether or not an update is available; it does not prove archive integrity.
+
+Public releases need no GitHub token. Optional authentication checks
+`FAM_INSTALL_TOKEN`, then `GITHUB_TOKEN`, then `GH_TOKEN` (first nonempty value).
+Unlike the installer, the command does not invoke `gh auth token`.
+GitHub credentials are not sent to redirected asset hosts. Global
+`--request-timeout`, `--retry-count`, and `--retry-delay` apply; no Azure
+credentials or manifest are needed.
+
+For this command, the per-attempt timeout is at most one hour, retries at most
+10, and initial retry delay at most one minute. Each check or installation
+phase has an overall 30-minute limit, including retries and lock waits.
+
+Successful text, JSON, and YAML results include `status`, `currentVersion`,
+`targetVersion`, `executable`, `asset`, `updateAvailable`, and `changed`.
+Statuses are `available`, `up-to-date`, `newer-installed`, and `updated`.
+`updateAvailable` describes the comparison made before installation;
+`changed` is true only after replacement. When an old executable is retained,
+`backupPath` identifies it. Remove that backup only after the updater exits and
+the new FAM runs successfully.
+
+Updates stage a verified executable beside the installed one and reject a
+target changed by another updater. Windows replacement uses two renames and
+is **not crash-atomic**: a process interruption between them may require
+restoring the retained original executable. Replacement errors preserve
+recovery information; do not delete a backup needed to restore a missing
+`fam.exe`. No downloaded executable or installer script is run as part of the
+update. Agents, Azure resources, `azd`, and extensions remain unchanged.
+
+Recovery files live in a private `.fam-update-<random-suffix>` directory beside
+the executable. Its `recovery.json` records absolute `executable`, `backup`,
+and `staged` paths plus the target `version`. The backup is named `original`
+(without `.exe`); the staged file is `replacement`. This marker records the
+prepared paths, not whether replacement completed. After all affected FAM
+processes exit, inspect those paths: if the executable is missing, restore
+`original` to the recorded executable path without overwriting another file.
+If the new executable works, remove the retained backup and recovery directory.
+Do not delete `<executable>.update.lock`: it intentionally persists, while
+its operating-system lock is released automatically when the process exits.
 
 ## Global options
 
@@ -421,7 +572,7 @@ In text mode the same failure is written to stderr as `error: <message>`.
 
 ```powershell
 fam version
-# fam 0.16.3 commit=<commit> built=<timestamp>
+# fam 0.17.0 commit=<commit> built=<timestamp>
 ```
 
 | Format | Contract |
@@ -432,12 +583,12 @@ fam version
 
 ```json
 {
-  "version": "0.16.3",
+  "version": "0.17.0",
   "commit": "<commit>",
   "builtAt": "<timestamp>"
 }
 ```
 
-An unstamped `go build` prints `fam 0.16.3` and `{"version": "0.16.3"}`.
+An unstamped `go build` prints `fam 0.17.0` and `{"version": "0.17.0"}`.
 `fam --version` prints only `fam <version>`; use the
 `version` subcommand when you need commit and build time.

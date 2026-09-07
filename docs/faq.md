@@ -3,9 +3,21 @@
 Practical answers for installing, configuring, deploying, operating, and
 troubleshooting `fam`.
 
-Use [`command-reference.md`](command-reference.md) for the complete command and
-flag catalog, and run `fam help <command>` for focused,
-copyable examples.
+New users can start with the [documentation hub](README.md) or
+[first success without Azure](../README.md#first-success-without-azure).
+Use the [command reference](command-reference.md#commands) to browse command
+families and shared options; run `fam help <command path>` for exact flags
+and copyable examples.
+
+## Common questions
+
+- [Can I try FAM without Azure?](#can-i-evaluate-the-tool-without-azure-access)
+- [Prompt or Hosted?](#should-i-use-a-prompt-agent-or-a-hosted-agent)
+- [Which tools do I actually need?](#what-tooling-must-i-install)
+- [Why is the installed command not found?](#why-does-installation-finish-but-fam-is-not-recognized)
+- [How do I update FAM?](#how-do-i-update-fam)
+- [Where should troubleshooting start?](#where-should-troubleshooting-start)
+- [Why is the model deployment missing?](#why-does-preflight-report-that-the-model-deployment-is-missing)
 
 ## Contents
 
@@ -51,6 +63,10 @@ also remains files-only unless `--bootstrap-environment` is supplied.
 Interactive Hosted quickstart asks before creating/configuring local azd
 environment state; it does not create Azure resources or deploy an agent.
 
+For a first run without supplying Azure coordinates, follow the
+[three-command offline example](../README.md#first-success-without-azure).
+It creates a placeholder manifest and makes the expected local result explicit.
+
 ### Does the tool create every required Azure resource?
 
 No. The parent Foundry account must already exist. The tool can explicitly
@@ -94,7 +110,7 @@ when Azure CLI should supply FAM's local developer credential, and authenticate
 `azd` separately for Hosted deployment:
 
 ```powershell
-azd auth login --tenant-id <tenant-id>
+azd auth login --tenant-id "<tenant-id>"
 ```
 
 ### Do users need Go installed?
@@ -135,12 +151,13 @@ and build timestamp.
 ### How do I get help for one command without printing the entire catalog?
 
 ```powershell
-fam help deploy
+fam help prompt deploy
 fam hosted preflight --help
 ```
 
 Focused help includes that command's usage, examples, flags, and related
-workflow. Bare `fam help` prints the complete grouped catalog.
+workflow. Bare `fam help` shows top-level namespaces and getting-started
+commands; `fam help prompt` narrows the listing to Prompt commands.
 
 ### Does the tool support shell completion?
 
@@ -152,6 +169,25 @@ fam completion powershell | Out-String | Invoke-Expression
 
 Run `fam completion <shell> --help` for persistent
 installation guidance.
+
+### How do I update FAM?
+
+Run `fam update --check` to inspect the latest stable release without changing
+anything, then `fam update` and confirm the displayed version and executable
+path. Use `fam update --yes` in automation, or
+`fam update --version v0.17.0 --yes` for an exact published stable version.
+Downgrades and prereleases are not supported; an equal version is unchanged.
+
+Only FAM itself is replaced, after mandatory SHA-256 verification. Your agents,
+Azure resources, `azd`, and extensions are not updated. The installation
+directory must be writable. For package-managed installations, use that
+package manager instead. If your installed FAM has no `update` command yet,
+upgrade once with the installer or a downloaded archive.
+
+Private-release access can use `FAM_INSTALL_TOKEN`, `GITHUB_TOKEN`, or `GH_TOKEN`,
+in that order. The updater does not automatically use `gh auth token`.
+See [`update`](command-reference.md#update) for structured results and
+Windows backup/recovery behavior.
 
 ### How should I run a downloaded `install.ps1`?
 
@@ -843,7 +879,7 @@ Reauthenticate azd to the project tenant when necessary:
 
 ```powershell
 azd auth logout
-azd auth login --tenant-id <tenant-id>
+azd auth login --tenant-id "<tenant-id>"
 ```
 
 Then ensure that identity has `Foundry Project Manager` on the target project
@@ -1151,12 +1187,13 @@ For Hosted Agents, use `hosted validate`, `hosted plan`,
 
 ### Why does preflight return a Foundry data-plane 404?
 
-First verify the project endpoint shape. Use either the account origin plus
-`project.name`, or one complete `project.endpoint`. A duplicated
-`/api/projects/<project>` path targets a resource that does not exist.
+Check `project.resource_id` first. FAM derives the project name and endpoint
+from that full Foundry project ARM resource ID; inspect the derived values with
+`fam prompt plan -f agent.yaml`. Do not add legacy `project.name` or
+`project.endpoint` input fields: the current schema rejects them.
 
-If the endpoint is correct, verify the child project exists and that the
-current identity can read it.
+If the resource ID and derived endpoint are correct, verify the child project
+exists and that the current identity can read it.
 
 ### Why does preflight report that the model deployment is missing?
 

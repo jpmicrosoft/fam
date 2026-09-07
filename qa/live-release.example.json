@@ -215,6 +215,10 @@
   ],
   "exclusions": [
     {
+      "command": "update",
+      "reason": "Self-update replacement is qualified with disposable executables in native tests, never by replacing the binary running this acceptance matrix. A separate update --check online-read scenario may be used instead of this exclusion."
+    },
+    {
       "command": "autopilot deploy",
       "reason": "Experimental pinned sample deployment is qualified separately in a dedicated disposable subscription."
     },

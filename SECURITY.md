@@ -19,13 +19,13 @@ does and does not make, and how to operate and report issues against it.
 
 | Version | Status |
 |---|---|
-| `0.16.x` (current application version) | Supported. Fixes land here. |
+| `0.17.x` (current application version) | Supported. Fixes land here. |
 | Current `main` | Supported. This is where fixes are developed. |
 | Anything older | Not supported. |
 
-`0.16.3` is the version compiled into the binary
+`0.17.0` is the version compiled into the binary
 ([`internal/config/config.go`](internal/config/config.go)). Release assets are
-created only after the matching `v0.16.3` tag is pushed.
+created only after the matching `v0.17.0` tag is pushed.
 
 Always report against the current `main` if you can reproduce there.
 
@@ -288,6 +288,28 @@ any key that has been passed this way.
 13. **Treat grounding cleanup as global deletion.** Use
     `--delete-replaced-uploads`, `--delete-pruned-uploads`, `--delete-upload`,
     or `--delete-uploads` only after confirming the project file is not shared.
+
+## Self-update boundary
+
+`fam update` trusts the publishing authority of `jpmicrosoft/fam`. It downloads
+only a supported stable release for the running OS/architecture and requires a
+matching SHA-256 entry in that release's `SHA256SUMS` before extracting the
+executable. This detects archive corruption or substitution without a matching
+checksum change; it is **not independent signature or provenance verification**
+and does not protect against compromise of the release publisher.
+
+GitHub metadata and archive sizes, extraction, retries, and redirects are
+bounded. Authentication is restricted to the GitHub API and stripped from
+redirected downloads. The updater never executes a downloaded installer or
+binary, elevates permissions, or modifies PATH. `--yes` skips only confirmation.
+`--check` is metadata-only and does not validate downloaded artifact integrity.
+
+The installation directory and its owner are trusted. Replacement is serialized
+and a changed executable aborts a stale update. Windows uses a recoverable
+two-rename sequence, not a crash-atomic replacement; interruption can leave
+the original at its backup path and require manual recovery. Retained backups
+should be removed only after the updater exits and the new executable works.
+Use the owning package manager for package-managed installations.
 
 ## Known and accepted operational risks
 

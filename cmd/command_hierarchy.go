@@ -438,7 +438,7 @@ func rewriteCommandExamples(example, legacy string, canonical []string) string {
 
 func isCoreCommand(name string) bool {
 	switch name {
-	case "version", "quickstart", "doctor", "tool-catalog":
+	case "version", "update", "quickstart", "doctor", "tool-catalog":
 		return true
 	default:
 		return false

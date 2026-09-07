@@ -35,6 +35,9 @@ func configureCommandCompletions(root *cobra.Command) {
 			command.ValidArgsFunction = cobra.NoFileCompletions
 		}
 
+		if command.Name() == "update" && command.Parent() == root {
+			mustRegisterFlagCompletion(command, "version", cobra.NoFileCompletions)
+		}
 		if command.Flags().Lookup("type") != nil {
 			mustRegisterFlagCompletion(command, "type", fixedCompletions(
 				cobra.CompletionWithDesc("prompt", "Prompt Agent manifest"),
