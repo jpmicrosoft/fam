@@ -109,6 +109,13 @@ requests. Recompile after editing the Markdown source:
 gh aw compile weekly-foundry-capability-review --strict --approve --validate
 ```
 
+When upgrading `github/gh-aw-actions/setup`, use the matching `gh-aw` compiler
+version and regenerate the workflow from its Markdown source. Commit both the
+generated `.lock.yml` and `.github/aw/actions-lock.json`. A pin-only Dependabot
+update can reference scripts that the newer runtime no longer includes; do not
+merge it without regeneration. The workflow contract test requires the emitted
+setup references and action lock to match the compiler version.
+
 ## Repository layout
 
 ```text
