@@ -32,7 +32,9 @@ requires no runtime language dependency or external state backend.
 > **Independent project.** FAM is independently maintained and is not an
 > official Microsoft product or supported Microsoft offering.
 
-## First success without Azure
+<a id="first-success-without-azure"></a>
+
+## Try FAM locally
 
 **Start here if you are evaluating FAM.** You need only the
 [installed `fam` executable](#install): no Azure account, Go, `azd`, or
@@ -123,7 +125,7 @@ the [FAQ](docs/faq.md) for practical answers, and the
 
 ## Contents
 
-- [First success without Azure](#first-success-without-azure)
+- [Try FAM locally](#try-fam-locally)
 - [Documentation hub](docs/README.md)
 - [Why teams adopt FAM](#why-teams-adopt-fam)
 - [FAM and `azd`](#fam-and-azd)
@@ -157,7 +159,7 @@ Answer one question: **Does your agent need custom application code?**
 | **No** — my agent is instructions + a model + declarative tools | **[Prompt Agent](#quick-start-prompt-agent)** | A Foundry account, an existing or explicitly planned model deployment, and a supported Azure identity such as an applicable developer credential or managed identity |
 | **Yes** — I need Python, .NET, or a container runtime | **[Hosted Agent](#quick-start-hosted-agent)** | A Foundry account plus `azd` 1.32.0+ and the pinned Hosted extension; model infrastructure remains declared in `azure.yaml` |
 | **I already have an Agent 365 blueprint** | **[Inspect and correlate it](#agent-365-blueprint-inspection)** | Microsoft Graph `AgentIdentityBlueprint.Read.All`; this path does not deploy source or bind the blueprint |
-| **I'm not sure yet** | [Try the offline first-success path](#first-success-without-azure) | The `fam` executable only; no Azure coordinates or login |
+| **I'm not sure yet** | [Try FAM locally](#try-fam-locally) | The `fam` executable only; no Azure coordinates or login |
 
 The Azure prerequisites above apply to deployment, not to trying the CLI.
 You can also [create and inspect a Hosted workspace offline](#quick-start-hosted-agent)
@@ -348,8 +350,8 @@ Open a new terminal after the PATH change. Alternatively, omit
 fam version
 ```
 
-You should see `fam` and the installed version. Continue with
-[first success without Azure](#first-success-without-azure), or use
+You should see `fam` and the installed version. Next,
+[try FAM locally](#try-fam-locally), or use
 [installer troubleshooting](#common-powershell-installer-issues) if the
 command is not found.
 
