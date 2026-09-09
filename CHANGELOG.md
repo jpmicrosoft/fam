@@ -5,13 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Version status.** `0.17.0` is the version compiled into the executable
+> **Version status.** `0.17.1` is the version compiled into the executable
 > ([`internal/config/config.go`](internal/config/config.go)) and reported by
 > `fam version`. Release archives plus a GitHub Release are
-> produced only after the matching `v0.17.0` tag is pushed; see
+> produced only after the matching `v0.17.1` tag is pushed; see
 > [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## [Unreleased]
+
+## [0.17.1] - 2026-09-09
+
+### Fixed
+
+- Fixed POSIX installations on systems without curl by using GNU Wget for
+  release metadata, archive, and checksum downloads. Curl remains preferred;
+  curl failures do not trigger a retry through wget.
+
+### Security
+
+- Restricted the GNU Wget fallback to public releases. It does not look up or
+  send GitHub tokens or load wget configuration files or `.netrc` credentials,
+  preventing GitHub authorization headers from being forwarded across
+  redirects. Authenticated access still requires curl, whose existing
+  authentication behavior is unchanged. SHA-256 checksum verification remains
+  mandatory for both download clients.
 
 ## [0.17.0] - 2026-09-07
 

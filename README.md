@@ -115,7 +115,7 @@ auditable deployment evidence.
 - **AzureCloud only.** Azure Government is rejected before credential
   acquisition or network access until dedicated qualification is complete.
 
-> **Preview status.** This tool is version 0.17.0. Hosted Agents require
+> **Preview status.** This tool is version 0.17.1. Hosted Agents require
 > `--accept-preview`. See [Support status](#support-status-and-release-boundaries)
 > for the full boundary table.
 
@@ -341,6 +341,20 @@ curl -fsSL https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/instal
 sh ./install.sh --modify-profile
 ```
 
+If curl is unavailable, download the same script with wget instead:
+
+```bash
+wget -O install.sh https://raw.githubusercontent.com/jpmicrosoft/fam/main/scripts/install.sh
+```
+
+Review the saved script, then run the same `sh` command above. The installer
+prefers curl and falls back to GNU Wget only when curl is unavailable, not
+when a download fails. The wget fallback supports public releases only and
+does not use GitHub tokens, wget configuration files, or `.netrc` credentials,
+so authentication headers are not forwarded across redirects. Install curl
+for private repositories or authenticated API access. Both download paths
+verify the archive checksum before installation.
+
 Open a new terminal after the PATH change. Alternatively, omit
 `--modify-profile` and use the printed full executable path.
 
@@ -385,7 +399,7 @@ Both installers:
   install directory when upgrading from an earlier release.
 - Install to a configurable directory (default: `$LOCALAPPDATA\foundry-agent-manager` on Windows, `$HOME/.local/bin` on POSIX).
 - **Never modify PATH** unless `-ModifyProfile` / `--modify-profile` is explicitly passed.
-- Support private repositories via `GITHUB_TOKEN` / `GH_TOKEN` environment variable or `FAM_INSTALL_TOKEN` secret (token is used only as an HTTP authorization header and never printed).
+- Support private repositories via `GITHUB_TOKEN` / `GH_TOKEN` environment variable or `FAM_INSTALL_TOKEN` secret (token is used only as an HTTP authorization header and never printed; the POSIX installer requires curl for authentication).
 - Accept `--repo` / `-Repo` to override the source GitHub repository.
 
 #### Common PowerShell installer issues

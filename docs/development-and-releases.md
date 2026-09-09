@@ -76,7 +76,7 @@ and exact checksum filenames compatible with the updater. An archive hash is
 verified before extraction; provenance attestation verification is not part
 of the self-update command.
 
-The current application version is **0.17.0**
+The current application version is **0.17.1**
 ([`../internal/config/config.go`](../internal/config/config.go)).
 
 ## Weekly Foundry capability review

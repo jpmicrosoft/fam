@@ -1,7 +1,7 @@
 # Command Reference
 
 Command-family catalog, shared options, exit codes, and output contracts for
-the current source tree (`0.17.0` is the prepared release version).
+the current source tree (`0.17.1` is the prepared release version).
 
 **Starting out?** Use the [documentation hub](README.md) and
 [local walkthrough](../README.md#try-fam-locally). This page is for

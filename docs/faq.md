@@ -274,9 +274,14 @@ gh auth status
 .\install.ps1 -Repo owner/repository -Version v0.16.3
 ```
 
-The installer checks `FAM_INSTALL_TOKEN`, then `GITHUB_TOKEN`, then `GH_TOKEN`,
-and finally `gh auth token`. Tokens are sent only as HTTP authorization headers
-and are never printed.
+The PowerShell installer checks `FAM_INSTALL_TOKEN`, then `GITHUB_TOKEN`, then
+`GH_TOKEN`, and finally `gh auth token`. Tokens are sent only as HTTP
+authorization headers and are never printed.
+
+The POSIX `install.sh` requires curl for authenticated access. Its GNU Wget
+fallback is public-only and does not look up tokens or load wget configuration
+files or `.netrc` credentials. See the
+[POSIX installer guidance](../README.md#1-checksum-verifying-installers-recommended).
 
 ### Why does `-Version` fail validation?
 

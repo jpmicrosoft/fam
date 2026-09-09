@@ -29,6 +29,7 @@ Usage: install.sh [OPTIONS]
 
 Downloads and installs the prebuilt fam release binary.
 Go is not required; this script does not compile source code.
+Requires curl, or GNU Wget for public releases.
 
 Options:
   --version VERSION     Install a specific published tag (e.g. v0.16.3).
@@ -89,33 +90,49 @@ if [ "$ARCH" = "UNSUPPORTED" ]; then
   exit 1
 fi
 
-# --- Resolve authentication header ---
-AUTH_HEADER=""
-TOKEN="${FAM_INSTALL_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}"
-if [ -z "$TOKEN" ] && command -v gh >/dev/null 2>&1; then
-  TOKEN="$(gh auth token 2>/dev/null || true)"
+# --- Select downloader and resolve authentication ---
+if command -v curl >/dev/null 2>&1; then
+  DOWNLOADER=curl
+elif command -v wget >/dev/null 2>&1; then
+  DOWNLOADER=wget
+  echo "Using wget for public releases only; authenticated/private access requires curl." >&2
+else
+  echo "ERROR: Install curl or GNU Wget to download fam releases." >&2
+  exit 1
 fi
-if [ -n "$TOKEN" ]; then
-  AUTH_HEADER="Authorization: token ${TOKEN}"
+
+AUTH_HEADER=""
+if [ "$DOWNLOADER" = curl ]; then
+  TOKEN="${FAM_INSTALL_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}"
+  if [ -z "$TOKEN" ] && command -v gh >/dev/null 2>&1; then
+    TOKEN="$(gh auth token 2>/dev/null || true)"
+  fi
+  if [ -n "$TOKEN" ]; then
+    AUTH_HEADER="Authorization: token ${TOKEN}"
+  fi
 fi
 
 http_get() {
   url="$1"
   dest="$2"
-  if [ -n "$AUTH_HEADER" ]; then
-    curl -fsSL -H "$AUTH_HEADER" -H "Accept: application/octet-stream" -o "$dest" "$url"
+  accept="${3:-application/octet-stream}"
+  if [ "$DOWNLOADER" = curl ]; then
+    set -- -fsSL -o "$dest" -H "Accept: $accept"
+    if [ -n "$AUTH_HEADER" ]; then
+      set -- "$@" -H "$AUTH_HEADER"
+    fi
   else
-    curl -fsSL -H "Accept: application/octet-stream" -o "$dest" "$url"
+    # Wget custom headers follow redirects; do not load or forward credentials.
+    set -- --no-config --no-netrc -q -O "$dest" --header="Accept: $accept"
+  fi
+  if ! "$DOWNLOADER" "$@" -- "$url"; then
+    echo "ERROR: Failed to download ${url} with ${DOWNLOADER}." >&2
+    return 1
   fi
 }
 
 api_get() {
-  url="$1"
-  if [ -n "$AUTH_HEADER" ]; then
-    curl -fsSL -H "$AUTH_HEADER" -H "Accept: application/vnd.github+json" "$url"
-  else
-    curl -fsSL -H "Accept: application/vnd.github+json" "$url"
-  fi
+  http_get "$1" "-" "application/vnd.github+json"
 }
 
 # --- Resolve version and release assets ---
