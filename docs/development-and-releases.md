@@ -95,6 +95,27 @@ open one draft pull request against `main`; it cannot merge or publish a
 release. Runs without a validated high-confidence change do not create an empty
 pull request.
 
+Before inference, trusted setup installs Go from `go.mod`, downloads and verifies
+the module dependencies, and compiles the packages and tests with downloads
+disabled. The sandbox inherits the selected toolchain and writable Go caches;
+automatic toolchain switching, module downloads, and module-file updates are
+disabled during inference. Setup failures stop the agent before it spends
+inference credits. The agent also checks compilation inside the sandbox before
+researching sources or making changes.
+
+The Copilot SDK driver enforces a five-tool-denial stop, with inference retries
+disabled and an explicit 1,000-AI-credit limit. The review must stop on denied
+operations, unavailable prerequisites or sources, and failed validation, and
+report a blocked no-op rather than try alternate shells, executables, or package
+mirrors. These controls do not broaden the tool or network allowlists.
+
+The detection job runs only when the agent produced safe outputs or a patch.
+This job-level guard avoids the gh-aw v0.88.4 skipped-detection conclusion bug
+that reports a missing detector even though installation was intentionally
+skipped. Real outputs and patches still go through the existing threat detector;
+safe-output publication still requires successful detection. Agent failures
+remain visible in the run and the framework's failure reporting.
+
 The repository requires these Actions secrets:
 
 | Secret | Purpose | Minimum scope |

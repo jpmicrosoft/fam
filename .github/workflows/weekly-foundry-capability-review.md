@@ -8,7 +8,49 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-engine: copilot
+engine:
+  id: copilot
+  copilot-sdk: true
+  harness:
+    max-retries: 0
+  env:
+    GOTOOLCHAIN: local
+    GOFLAGS: -mod=readonly
+    GOPROXY: "off"
+    GOSUMDB: "off"
+max-tool-denials: 5
+max-ai-credits: 1000
+steps:
+  - name: Set up Go for the weekly review
+    uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+    with:
+      go-version-file: go.mod
+      cache: false
+  - name: Prepare offline Go validation
+    timeout-minutes: 10
+    shell: bash
+    run: |
+      set -euo pipefail
+      export GOTOOLCHAIN=local
+      export GOFLAGS=-mod=readonly
+      export GOMODCACHE="$HOME/go/pkg/mod"
+      export GOCACHE="$HOME/.cache/go-build"
+      GOROOT="$(go env GOROOT)"
+      export GOROOT
+      {
+        echo "GOROOT=$GOROOT"
+        echo "GOTOOLCHAIN=$GOTOOLCHAIN"
+        echo "GOFLAGS=$GOFLAGS"
+        echo "GOMODCACHE=$GOMODCACHE"
+        echo "GOCACHE=$GOCACHE"
+      } >> "$GITHUB_ENV"
+      go version
+      go mod download
+      go mod verify
+      GOPROXY=off GOSUMDB=off go test -run '^$' ./...
+jobs:
+  detection:
+    if: needs.agent.outputs.output_types != '' || needs.agent.outputs.has_patch == 'true'
 tools:
   github:
     toolsets: [repos, search]
@@ -100,6 +142,28 @@ Use only first-party Microsoft sources as evidence:
 Do not use blogs, social media, search-result summaries, third-party
 documentation, or generated answers as evidence. A sample demonstrates an
 example; it does not override a documented API contract.
+
+## Runtime readiness and stop conditions
+
+Trusted setup installs Go from `go.mod`, downloads and verifies dependencies,
+and prepares the Go caches before inference. The sandbox inherits that
+toolchain and those caches; module downloads and automatic toolchain switching
+are disabled during inference.
+
+Before fetching sources or editing files, run `go test -run '^$' ./...` once.
+If it fails, stop and report the exact prerequisite failure.
+
+If a tool request is denied, do not retry it or attempt alternative commands,
+shells, executable paths, copies, environment overrides, proxies, or downloads.
+Stop and report the denied operation. The runtime also stops after five tool
+denials and does not restart failed inference sessions.
+
+If a required source is unavailable or validation fails, stop instead of
+repairing the runner or bypassing its restrictions. Emit a no-op run summary
+that clearly says **blocked**, records the failing operation and any completed
+work, and explains why no pull request was created. Do not claim that the review
+or validation succeeded or that no actionable changes exist when work was
+blocked. Never submit a pull request with unvalidated changes.
 
 ## Verified baseline
 
