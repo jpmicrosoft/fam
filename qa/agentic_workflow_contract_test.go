@@ -325,6 +325,29 @@ func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 	}
 }
 
+func TestWeeklyFoundryToolUseGuidance(t *testing.T) {
+	source := repositoryFile(t, ".github", "workflows", "weekly-foundry-capability-review.md")
+	guidance := strings.Join(strings.Fields(source), " ")
+	for _, required := range []string{
+		"## Tool-use contract",
+		"`view` for file contents and line ranges",
+		"`ls` for directory listings",
+		"`git grep` for tracked-repository searches",
+		"`git status` without additional flags",
+		"Do not use `find`, `sed`, `awk`, `rg`, `xargs`, `curl`, `wget`, or language interpreters",
+		"Every command in a pipeline must be permitted",
+		"Stop after the first permission denial",
+		"The five-denial runtime limit is a backstop, not a retry budget",
+		"Do not switch to `view` or another permitted tool after a denial",
+		"Only emit the blocked no-op summary, then end the review",
+		"Do not pipe readiness or validation commands through output filters",
+	} {
+		if !strings.Contains(guidance, required) {
+			t.Errorf("weekly review is missing required tool-use guidance %q", required)
+		}
+	}
+}
+
 func TestWeeklyFoundryGoCachesMounted(t *testing.T) {
 	source, compiled := weeklyReviewDocuments(t)
 	wantMounts := []string{

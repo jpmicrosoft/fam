@@ -22,6 +22,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   unchanged.
 - Covered both repository and SHA-pinned subdirectory names when excluding
   the compiler-managed gh-aw runtime from Dependabot updates.
+- Clarified the weekly review's permitted inspection tools and first-denial
+  stop instructions, without broadening shell grants or changing runtime limits.
 
 ## [0.17.1] - 2026-09-09
 

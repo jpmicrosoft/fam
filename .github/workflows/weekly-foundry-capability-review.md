@@ -149,6 +149,35 @@ Do not use blogs, social media, search-result summaries, third-party
 documentation, or generated answers as evidence. A sample demonstrates an
 example; it does not override a documented API contract.
 
+## Tool-use contract
+
+The shell is allowlisted. A command being read-only does not make it permitted.
+After passing the readiness check below, use these already-permitted tools for
+repository inspection:
+
+- Use `view` for file contents and line ranges, including long files.
+- Use `ls` for directory listings and `git grep` for tracked-repository searches.
+  Plain `grep` is also available for searching known files or command output.
+- Use `head` and `tail` to limit inspection output. Every command in a pipeline
+  must be permitted; an allowed final command does not authorize earlier ones.
+- Use `git status` without additional flags and `git diff` to inspect changes.
+- Use the provided GitHub tools and `web_fetch` for remote evidence, and the
+  available editing tools for repository changes.
+
+Examples of permitted inspection commands, from the repository root:
+
+```bash
+ls docs examples internal
+git grep -n -i "autopilot" -- docs internal examples
+grep -n "AgenticIdentityToken" internal/connection/managed_connector.go | head -n 80
+```
+
+Do not use `find`, `sed`, `awk`, `rg`, `xargs`, `curl`, `wget`, or language
+interpreters for repository inspection or shell-based workarounds. Use `view`
+for a specific line range instead of constructing a `sed` command. Do not pipe
+readiness or validation commands through output filters; preserve their actual
+exit status.
+
 ## Runtime readiness and stop conditions
 
 Trusted setup installs Go from `go.mod`, downloads and verifies dependencies,
@@ -161,10 +190,14 @@ toolchain switching are disabled during inference.
 Before fetching sources or editing files, run `go test -run '^$' ./...` once.
 If it fails, stop and report the exact prerequisite failure.
 
-If a tool request is denied, do not retry it or attempt alternative commands,
-shells, executable paths, copies, environment overrides, proxies, or downloads.
-Stop and report the denied operation. The runtime also stops after five tool
-denials and does not restart failed inference sessions.
+Stop after the first permission denial. Make no further inspection, research,
+validation, or editing calls. Do not retry or simplify the denied command, or
+attempt alternative shells, executable paths, copies, environment overrides,
+proxies, or downloads. Do not switch to `view` or another permitted tool after
+a denial. Only emit the blocked no-op summary, then end the review.
+
+The five-denial runtime limit is a backstop, not a retry budget. Do not keep
+working until it is reached. Failed inference sessions are not restarted.
 
 If a required source is unavailable or validation fails, stop instead of
 repairing the runner or bypassing its restrictions. Emit a no-op run summary
