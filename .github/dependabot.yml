@@ -21,6 +21,9 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
+    ignore:
+      # Managed together with the pinned gh-aw compiler, not as standalone action updates.
+      - dependency-name: "jpmicrosoft/gh-aw"
     groups:
       github-actions:
         patterns:

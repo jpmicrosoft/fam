@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -102,8 +103,9 @@ func TestWeeklyFoundryCompilerMatchesRuntime(t *testing.T) {
 	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
 		t.Fatalf("parse compiler metadata: %v", err)
 	}
-	if metadata.CompilerVersion == "" {
-		t.Fatal("compiled workflow has no compiler version")
+	const compilerRevision = "f8cd109d6040cc4feda3e6ee9c4d94f42ddd859e"
+	if metadata.CompilerVersion != compilerRevision {
+		t.Fatalf("compiler revision = %q, want fixed fork revision %s", metadata.CompilerVersion, compilerRevision)
 	}
 
 	var lock struct {
@@ -117,14 +119,19 @@ func TestWeeklyFoundryCompilerMatchesRuntime(t *testing.T) {
 	if err := json.Unmarshal([]byte(lockJSON), &lock); err != nil {
 		t.Fatalf("parse action lock: %v", err)
 	}
-	const action = "github/gh-aw-actions/setup"
+	const action = "jpmicrosoft/gh-aw/actions/setup"
 	entry, ok := lock.Entries[action+"@"+metadata.CompilerVersion]
 	if !ok {
 		t.Fatalf("action lock has no runtime for compiler %s; regenerate with the matching gh-aw compiler", metadata.CompilerVersion)
 	}
 	if entry.Repo != action || entry.Version != metadata.CompilerVersion ||
-		!regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(entry.SHA) {
+		entry.SHA != compilerRevision {
 		t.Fatalf("invalid locked runtime for compiler %s: %#v", metadata.CompilerVersion, entry)
+	}
+	for _, upstream := range []string{"github/gh-aw-actions/setup@", "github/gh-aw/actions/setup@"} {
+		if strings.Contains(workflow, upstream) {
+			t.Errorf("compiled workflow still references upstream runtime %s instead of the fixed fork", upstream)
+		}
 	}
 
 	usesPattern := regexp.MustCompile(`(?m)^\s*uses:\s*` + regexp.QuoteMeta(action) + `@(\S+)`)
@@ -137,6 +144,80 @@ func TestWeeklyFoundryCompilerMatchesRuntime(t *testing.T) {
 			t.Errorf("setup runtime %s does not match compiler %s pin %s; regenerate the workflow instead of updating only action references",
 				use[1], metadata.CompilerVersion, entry.SHA)
 		}
+	}
+}
+
+func TestWeeklyFoundryRuntimeNotUpdatedIndependently(t *testing.T) {
+	var config struct {
+		Updates []struct {
+			Ecosystem string `yaml:"package-ecosystem"`
+			Directory string `yaml:"directory"`
+			Ignore    []struct {
+				Name        string   `yaml:"dependency-name"`
+				Versions    []string `yaml:"versions"`
+				UpdateTypes []string `yaml:"update-types"`
+			} `yaml:"ignore"`
+		} `yaml:"updates"`
+	}
+	if err := yaml.Unmarshal([]byte(repositoryFile(t, ".github", "dependabot.yml")), &config); err != nil {
+		t.Fatalf("parse Dependabot configuration: %v", err)
+	}
+	foundActions := false
+	for _, update := range config.Updates {
+		if update.Ecosystem != "github-actions" {
+			continue
+		}
+		foundActions = true
+		ignored := false
+		for _, rule := range update.Ignore {
+			if rule.Name == "jpmicrosoft/gh-aw" && len(rule.Versions) == 0 && len(rule.UpdateTypes) == 0 {
+				ignored = true
+			}
+		}
+		if !ignored {
+			t.Errorf("GitHub Actions updates for %q must ignore all versions of jpmicrosoft/gh-aw independently of the compiler",
+				update.Directory)
+		}
+	}
+	if !foundActions {
+		t.Fatal("Dependabot must retain GitHub Actions updates for unrelated actions")
+	}
+}
+
+func TestWeeklyFoundryChangelogPublicationProtection(t *testing.T) {
+	_, compiled := weeklyReviewDocuments(t)
+	for _, target := range []struct {
+		job  string
+		step string
+		env  string
+	}{
+		{"agent", "Generate Safe Outputs Config", "GH_AW_SAFE_OUTPUTS_CONFIG"},
+		{"safe_outputs", "process_safe_outputs", "GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG"},
+	} {
+		t.Run(target.job, func(t *testing.T) {
+			steps := compiled.Jobs[target.job].Steps
+			step := steps[weeklyReviewStepIndex(t, steps, target.step)]
+			var config struct {
+				CreatePullRequest struct {
+					ProtectedFiles       []string `json:"protected_files"`
+					ProtectedFilesPolicy string   `json:"protected_files_policy"`
+					ExcludedFiles        []string `json:"excluded_files"`
+				} `json:"create_pull_request"`
+			}
+			if err := json.Unmarshal([]byte(step.Env[target.env]), &config); err != nil {
+				t.Fatalf("parse %s: %v", target.env, err)
+			}
+			pr := config.CreatePullRequest
+			if pr.ProtectedFilesPolicy != "blocked" || !slices.Contains(pr.ProtectedFiles, "CHANGELOG.md") {
+				t.Fatal("CHANGELOG.md must retain basename protection, including nested changelogs, with publication blocked")
+			}
+			if slices.Contains(pr.ProtectedFiles, "README.md") {
+				t.Fatal("the explicit README.md protection exception must remain in effect")
+			}
+			if !reflect.DeepEqual(pr.ExcludedFiles, []string{".github/**", ".release-qualification/**", "CHANGELOG.md", "LICENSE"}) {
+				t.Fatal("patch exclusions must remain unchanged; do not silently strip nested changelogs instead of blocking publication")
+			}
+		})
 	}
 }
 

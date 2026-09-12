@@ -13,6 +13,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Fixed
+
+- Pinned the weekly Foundry capability review to the matching compiler and
+  runtime from the `jpmicrosoft/gh-aw` fix for granted Git subcommands and
+  denial-guard hangs. Existing inference limits, allowlists, and
+  publication/recovery policy, including nested changelog protection, remain
+  unchanged.
+
 ## [0.17.1] - 2026-09-09
 
 ### Fixed

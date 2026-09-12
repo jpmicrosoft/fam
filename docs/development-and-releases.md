@@ -129,18 +129,74 @@ The repository requires these Actions secrets:
 | `GH_AW_CI_TRIGGER_TOKEN` | Trigger normal CI for the generated PR | Fine-grained PAT limited to this repository with **Contents: Read and write** |
 
 The repository Actions settings must also allow GitHub Actions to create pull
-requests. Recompile after editing the Markdown source:
+requests.
+
+### Pinned gh-aw fork
+
+All gh-aw workflows currently use
+[`jpmicrosoft/gh-aw` at `f8cd109d60`](https://github.com/jpmicrosoft/gh-aw/commit/f8cd109d6040cc4feda3e6ee9c4d94f42ddd859e).
+This fixes scoped Git command permissions and bounded Copilot SDK shutdown
+after repeated denials. A separate compatibility change retains protection of
+`CHANGELOG.md` by basename, so nested changelog edits still block publication.
+The workflow's command/network allowlists, denial and credit limits, and
+publication/recovery policy are unchanged.
+
+The compiler and setup runtime must come from the same commit. The fix is on
+the fork's `main`, but compilation pins the full commit SHA rather than a moving
+branch. The installed upstream `gh aw` extension is not used for regeneration.
+The fork compiler requires Go 1.26.7 or later.
+
+From the FAM checkout, set `$ghAwSource` to a separate, clean checkout of the
+fork at the pinned commit. The example uses the sibling checkout created during
+setup. Build the compiler with its source revision recorded, then regenerate
+**all** gh-aw workflows:
 
 ```powershell
-gh aw compile weekly-foundry-capability-review --strict --approve --validate
+$ghAwSource = '..\gh-aw'
+$forkCommit = 'f8cd109d6040cc4feda3e6ee9c4d94f42ddd859e'
+if ((git -C $ghAwSource rev-parse HEAD) -ne $forkCommit) {
+    throw "Check out gh-aw commit $forkCommit before compiling."
+}
+if (git -C $ghAwSource status --porcelain) {
+    throw 'Build the compiler from a clean fork checkout.'
+}
+go -C $ghAwSource build -ldflags "-X main.version=$forkCommit" -o gh-aw.exe .\cmd\gh-aw
+if ($LASTEXITCODE -ne 0) { throw 'Failed to build the pinned gh-aw compiler.' }
+
+& "$ghAwSource\gh-aw.exe" compile --strict --approve --validate --no-check-update `
+    --action-mode action --actions-repo jpmicrosoft/gh-aw/actions --action-tag $forkCommit
+if ($LASTEXITCODE -ne 0) { throw 'Agentic workflow compilation failed.' }
 ```
 
-When upgrading `github/gh-aw-actions/setup`, use the matching `gh-aw` compiler
-version and regenerate the workflow from its Markdown source. Commit both the
-generated `.lock.yml` and `.github/aw/actions-lock.json`. A pin-only Dependabot
-update can reference scripts that the newer runtime no longer includes; do not
-merge it without regeneration. The workflow contract test requires the emitted
-setup references and action lock to match the compiler version.
+The `/actions` suffix is required by the source fork's directory layout. The
+generated setup references must resolve to
+`jpmicrosoft/gh-aw/actions/setup@f8cd109d6040cc4feda3e6ee9c4d94f42ddd859e`.
+
+This compiler emits trailing spaces in its banner comments. Normalize only
+top-level comment whitespace and line endings after generation; do not edit
+the generated workflow's behavior by hand:
+
+```powershell
+Get-ChildItem .github\workflows\*.lock.yml | ForEach-Object {
+    $text = [IO.File]::ReadAllText($_.FullName)
+    $text = [regex]::Replace($text, '(?m)^(#[^\r\n]*?)[ \t]+(?=\r?$)', '$1')
+    [IO.File]::WriteAllText(
+        $_.FullName, $text.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false)
+    )
+}
+```
+
+Commit the generated `.lock.yml` and `.github/aw/actions-lock.json` together.
+Dependabot ignores this runtime because independent pin updates can select
+scripts that do not match the compiler. Its dependency name is the repository,
+`jpmicrosoft/gh-aw`, not the action's subdirectory path. The workflow contract
+test requires the compiler metadata, every setup reference, and the action lock
+to use the fixed fork revision. It also enforces the unchanged changelog
+protection and patch-exclusion policy in both generated configuration copies.
+
+To adopt a newer fork commit or return to an upstream release, regenerate with
+the matching compiler and update the runtime contract and Dependabot ignore
+rule in the same change. Do not replace only the setup SHA.
 
 ## Repository layout
 
