@@ -108,10 +108,19 @@ and module-file updates remain disabled during inference. Setup failures stop
 the agent before it spends inference credits. The agent also checks compilation
 inside the sandbox before researching sources or making changes.
 
+Repository inspection uses `view` for files and line ranges, `ls` for
+directories, and `git grep` or `grep` for searches; `head` and `tail` may limit
+inspection output. The prompt explicitly rules out unapproved `find` and `sed`
+calls instead of adding broader shell grants. Readiness and validation commands
+must retain their real exit status, without output-filtering pipelines.
+
 The Copilot SDK driver enforces a five-tool-denial stop, with inference retries
-disabled and an explicit 1,000-AI-credit limit. The review must stop on denied
-operations, unavailable prerequisites or sources, and failed validation, and
-report a blocked no-op rather than try alternate shells, executables, or package
+disabled and an explicit 1,000-AI-credit limit. The prompt requires stopping
+after the first permission denial and emitting only a blocked no-op summary.
+It forbids retrying, simplifying the command, or switching even to an otherwise
+allowed reader after denial; the runtime's five-denial limit is a backstop, not
+a retry allowance. Unavailable prerequisites or sources and failed validation
+also require a blocked report rather than runner repair or alternate package
 mirrors. These controls do not broaden the tool or network allowlists.
 
 The detection job runs only when the agent produced safe outputs or a patch.
