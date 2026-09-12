@@ -24,6 +24,7 @@ updates:
     ignore:
       # Managed together with the pinned gh-aw compiler, not as standalone action updates.
       - dependency-name: "jpmicrosoft/gh-aw"
+      - dependency-name: "jpmicrosoft/gh-aw/actions/*"
     groups:
       github-actions:
         patterns:
