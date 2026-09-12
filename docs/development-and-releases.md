@@ -97,11 +97,16 @@ pull request.
 
 Before inference, trusted setup installs Go from `go.mod`, downloads and verifies
 the module dependencies, and compiles the packages and tests with downloads
-disabled. The sandbox inherits the selected toolchain and writable Go caches;
-automatic toolchain switching, module downloads, and module-file updates are
-disabled during inference. Setup failures stop the agent before it spends
-inference credits. The agent also checks compilation inside the sandbox before
-researching sources or making changes.
+disabled. The sandbox inherits the selected toolchain and explicitly mounts
+`GOMODCACHE` read-only and `GOCACHE` read-write at their prepared host paths.
+Passing their environment variables alone does not expose those directories
+inside the container. Custom mounts use Actions `env` expressions because the
+compiler quotes plain shell-variable references literally. These mounts expose
+only the two Go caches, not the runner's entire home directory.
+Automatic toolchain switching, module downloads,
+and module-file updates remain disabled during inference. Setup failures stop
+the agent before it spends inference credits. The agent also checks compilation
+inside the sandbox before researching sources or making changes.
 
 The Copilot SDK driver enforces a five-tool-denial stop, with inference retries
 disabled and an explicit 1,000-AI-credit limit. The review must stop on denied
