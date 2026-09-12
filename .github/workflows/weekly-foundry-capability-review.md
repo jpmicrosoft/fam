@@ -20,6 +20,12 @@ engine:
     GOSUMDB: "off"
 max-tool-denials: 5
 max-ai-credits: 1000
+sandbox:
+  agent:
+    id: awf
+    mounts:
+      - "${{ env.GOMODCACHE }}:${{ env.GOMODCACHE }}:ro"
+      - "${{ env.GOCACHE }}:${{ env.GOCACHE }}:rw"
 steps:
   - name: Set up Go for the weekly review
     uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -146,9 +152,11 @@ example; it does not override a documented API contract.
 ## Runtime readiness and stop conditions
 
 Trusted setup installs Go from `go.mod`, downloads and verifies dependencies,
-and prepares the Go caches before inference. The sandbox inherits that
-toolchain and those caches; module downloads and automatic toolchain switching
-are disabled during inference.
+and prepares the Go caches before inference. The sandbox inherits the selected
+toolchain and explicitly mounts the verified module cache read-only and the
+build cache read-write. Environment variables alone do not make host cache
+directories visible inside the container. Module downloads and automatic
+toolchain switching are disabled during inference.
 
 Before fetching sources or editing files, run `go test -run '^$' ./...` once.
 If it fails, stop and report the exact prerequisite failure.

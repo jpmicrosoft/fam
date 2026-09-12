@@ -44,6 +44,12 @@ type weeklyReviewDocument struct {
 	Tools struct {
 		Bash []string `yaml:"bash"`
 	} `yaml:"tools"`
+	Sandbox struct {
+		Agent struct {
+			ID     string   `yaml:"id"`
+			Mounts []string `yaml:"mounts"`
+		} `yaml:"agent"`
+	} `yaml:"sandbox"`
 	SafeOutputs map[string]any     `yaml:"safe-outputs"`
 	Steps       []weeklyReviewStep `yaml:"steps"`
 	Jobs        map[string]struct {
@@ -233,6 +239,25 @@ func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 	if !ok || pr["draft"] != true || pr["max"] != 1 ||
 		pr["target-repo"] != "jpmicrosoft/fam" || pr["base-branch"] != "main" {
 		t.Fatal("review must retain its single-draft-PR publication boundary")
+	}
+}
+
+func TestWeeklyFoundryGoCachesMounted(t *testing.T) {
+	source, compiled := weeklyReviewDocuments(t)
+	wantMounts := []string{
+		"${{ env.GOMODCACHE }}:${{ env.GOMODCACHE }}:ro",
+		"${{ env.GOCACHE }}:${{ env.GOCACHE }}:rw",
+	}
+	if source.Sandbox.Agent.ID != "awf" ||
+		!reflect.DeepEqual(source.Sandbox.Agent.Mounts, wantMounts) {
+		t.Fatal("sandbox must mount only the verified module cache read-only and the build cache read-write")
+	}
+	agent := compiled.Jobs["agent"]
+	execution := agent.Steps[weeklyReviewStepIndex(t, agent.Steps, "agentic_execution")]
+	for _, mount := range wantMounts {
+		if !strings.Contains(execution.Run, `--mount "`+mount+`"`) {
+			t.Errorf("compiled sandbox is missing cache mount %q; inheriting environment variables does not expose host files", mount)
+		}
 	}
 }
 
