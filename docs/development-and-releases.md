@@ -188,15 +188,18 @@ Get-ChildItem .github\workflows\*.lock.yml | ForEach-Object {
 
 Commit the generated `.lock.yml` and `.github/aw/actions-lock.json` together.
 Dependabot ignores this runtime because independent pin updates can select
-scripts that do not match the compiler. Its dependency name is the repository,
-`jpmicrosoft/gh-aw`, not the action's subdirectory path. The workflow contract
-test requires the compiler metadata, every setup reference, and the action lock
-to use the fixed fork revision. It also enforces the unchanged changelog
-protection and patch-exclusion policy in both generated configuration copies.
+scripts that do not match the compiler. Ignore both the repository name,
+`jpmicrosoft/gh-aw`, and subdirectory actions, `jpmicrosoft/gh-aw/actions/*`.
+Dependabot's parser can name SHA-pinned subdirectory actions by their full
+action path, so the repository-only rule is insufficient coverage.
+The workflow contract test requires both ignore rules and keeps the compiler
+metadata, every setup reference, and the action lock on the fixed fork revision.
+It also enforces the unchanged changelog protection and patch-exclusion policy
+in both generated configuration copies.
 
 To adopt a newer fork commit or return to an upstream release, regenerate with
 the matching compiler and update the runtime contract and Dependabot ignore
-rule in the same change. Do not replace only the setup SHA.
+rules in the same change. Do not replace only the setup SHA.
 
 ## Repository layout
 

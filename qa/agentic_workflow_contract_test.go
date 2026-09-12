@@ -168,15 +168,17 @@ func TestWeeklyFoundryRuntimeNotUpdatedIndependently(t *testing.T) {
 			continue
 		}
 		foundActions = true
-		ignored := false
+		var ignored []string
 		for _, rule := range update.Ignore {
-			if rule.Name == "jpmicrosoft/gh-aw" && len(rule.Versions) == 0 && len(rule.UpdateTypes) == 0 {
-				ignored = true
+			if len(rule.Versions) == 0 && len(rule.UpdateTypes) == 0 {
+				ignored = append(ignored, rule.Name)
 			}
 		}
-		if !ignored {
-			t.Errorf("GitHub Actions updates for %q must ignore all versions of jpmicrosoft/gh-aw independently of the compiler",
-				update.Directory)
+		for _, pattern := range []string{"jpmicrosoft/gh-aw", "jpmicrosoft/gh-aw/actions/*"} {
+			if !slices.Contains(ignored, pattern) {
+				t.Errorf("GitHub Actions updates for %q must ignore all versions of %s independently of the compiler",
+					update.Directory, pattern)
+			}
 		}
 	}
 	if !foundActions {

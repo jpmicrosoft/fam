@@ -20,6 +20,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   denial-guard hangs. Existing inference limits, allowlists, and
   publication/recovery policy, including nested changelog protection, remain
   unchanged.
+- Covered both repository and SHA-pinned subdirectory names when excluding
+  the compiler-managed gh-aw runtime from Dependabot updates.
 
 ## [0.17.1] - 2026-09-09
 
