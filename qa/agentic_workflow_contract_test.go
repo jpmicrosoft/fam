@@ -1,6 +1,7 @@
 package qa
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -53,6 +55,7 @@ type weeklyReviewDocument struct {
 	} `yaml:"sandbox"`
 	SafeOutputs map[string]any     `yaml:"safe-outputs"`
 	Steps       []weeklyReviewStep `yaml:"steps"`
+	PostSteps   []weeklyReviewStep `yaml:"post-steps"`
 	Jobs        map[string]struct {
 		If          string             `yaml:"if"`
 		Permissions map[string]string  `yaml:"permissions"`
@@ -271,7 +274,7 @@ func TestWeeklyFoundryGoReadinessBeforeInference(t *testing.T) {
 func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 	source, compiled := weeklyReviewDocuments(t)
 	if source.Engine.ID != "copilot" || !source.Engine.CopilotSDK ||
-		source.MaxToolDenials != 5 || source.MaxAICredits != 1000 ||
+		source.MaxToolDenials != 1 || source.MaxAICredits != 1000 ||
 		source.Engine.Harness.MaxRetries == nil || *source.Engine.Harness.MaxRetries != 0 {
 		t.Fatal("review must use the Copilot SDK denial limit, no retries, and a 1000-credit cap")
 	}
@@ -279,7 +282,7 @@ func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 	execution := agent.Steps[weeklyReviewStepIndex(t, agent.Steps, "agentic_execution")]
 	for key, want := range map[string]string{
 		"GH_AW_COPILOT_SDK_DRIVER":  "1",
-		"GH_AW_MAX_TOOL_DENIALS":    "5",
+		"GH_AW_MAX_TOOL_DENIALS":    "1",
 		"GH_AW_HARNESS_MAX_RETRIES": "0",
 	} {
 		if execution.Env[key] != want {
@@ -337,14 +340,195 @@ func TestWeeklyFoundryToolUseGuidance(t *testing.T) {
 		"Do not use `find`, `sed`, `awk`, `rg`, `xargs`, `curl`, `wget`, or language interpreters",
 		"Every command in a pipeline must be permitted",
 		"Stop after the first permission denial",
-		"The five-denial runtime limit is a backstop, not a retry budget",
+		"The runtime aborts on the first denial",
 		"Do not switch to `view` or another permitted tool after a denial",
-		"Only emit the blocked no-op summary, then end the review",
+		"Do not attempt a reporting call after a permission denial",
 		"Do not pipe readiness or validation commands through output filters",
+		"## Completion reporting",
+		"Use the `safeoutputs` CLI through the shell",
+		"Do not invoke bare native `noop` or `create_pull_request` tools",
+		`safeoutputs noop --message "COMPLETE:`,
+		`safeoutputs noop --message "BLOCKED:`,
+		"safeoutputs create_pull_request . < /tmp/gh-aw/foundry-review-output.json",
+		"A blocked no-op is a failure report, not successful completion",
 	} {
 		if !strings.Contains(guidance, required) {
 			t.Errorf("weekly review is missing required tool-use guidance %q", required)
 		}
+	}
+}
+
+func TestWeeklyFoundryCompletionGateWiring(t *testing.T) {
+	source, compiled := weeklyReviewDocuments(t)
+	sourceGate := source.PostSteps[weeklyReviewStepIndex(t, source.PostSteps, "review_completion")]
+	steps := compiled.Jobs["agent"].Steps
+	gateIndex := weeklyReviewStepIndex(t, steps, "review_completion")
+	gate := steps[gateIndex]
+	sourceScript, sourceOK := sourceGate.With["script"].(string)
+	script, ok := gate.With["script"].(string)
+	if !sourceOK || !ok {
+		t.Fatal("completion gate is missing its inline script")
+	}
+	sourceGate.With["script"] = strings.TrimSpace(sourceScript)
+	gate.With["script"] = strings.TrimSpace(script)
+	if !reflect.DeepEqual(sourceGate, gate) {
+		t.Fatal("completion gate must compile unchanged from trusted inline source")
+	}
+	if gate.If != "success()" || gate.ContinueOnError ||
+		gate.Uses != "actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3" ||
+		gate.Env["GH_AW_AGENT_OUTPUT"] != "/tmp/gh-aw/agent_output.json" ||
+		gate.TimeoutMinutes != 1 {
+		t.Fatal("completion gate must be pinned, bounded, fail closed, and preserve earlier failures")
+	}
+	if !strings.Contains(script, "require('node:fs')") ||
+		!strings.Contains(script, "core.setFailed(") ||
+		strings.Contains(script, "require('./") || strings.Contains(script, "GITHUB_WORKSPACE") {
+		t.Fatal("completion validation must run inline, not execute agent-writable worktree code")
+	}
+	order := []int{
+		weeklyReviewStepIndex(t, steps, "agentic_execution"),
+		weeklyReviewStepIndex(t, steps, "collect_output"),
+		weeklyReviewStepIndex(t, steps, "Write agent output placeholder if missing"),
+		gateIndex,
+		weeklyReviewStepIndex(t, steps, "Upload agent output fallback artifact"),
+		weeklyReviewStepIndex(t, steps, "Upload agent artifacts"),
+	}
+	for index := 1; index < len(order); index++ {
+		if order[index-1] >= order[index] {
+			t.Fatal("gate must follow ingestion and placeholder creation, but precede both agent uploads")
+		}
+	}
+	for _, name := range []string{"Copy Safe Outputs", "collect_output", "Upload agent output fallback artifact", "Upload agent artifacts"} {
+		step := steps[weeklyReviewStepIndex(t, steps, name)]
+		if step.If != "always()" {
+			t.Errorf("%s must preserve queued outputs after failure", name)
+		}
+		if strings.HasPrefix(name, "Upload ") && !step.ContinueOnError {
+			t.Errorf("%s must retain failure-tolerant artifact recovery", name)
+		}
+	}
+}
+
+func TestWeeklyFoundryCompletionGateBehavior(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatal("node is required to exercise the completion gate in CI")
+		}
+		t.Skip("node is unavailable; completion behavior is exercised by CI")
+	}
+	source, _ := weeklyReviewDocuments(t)
+	gate := source.PostSteps[weeklyReviewStepIndex(t, source.PostSteps, "review_completion")]
+	script, ok := gate.With["script"].(string)
+	if !ok {
+		t.Fatal("completion gate is missing its inline script")
+	}
+	const noop = `{"type":"noop","message":"COMPLETE: All baseline comparisons completed; no actionable changes."}`
+	const pr = `{"type":"create_pull_request","title":"Correct a verified contract","body":"Evidence and validation results.","branch":"automation/foundry-capability-review-20260913","base_commit":"fixture-base"}`
+	envelope := func(items string) string { return `{"items":[` + items + `],"errors":[]}` }
+	validNoop := envelope(noop)
+	const limit = 1024 * 1024
+	tests := []struct {
+		name    string
+		content string
+		valid   bool
+	}{
+		{"missing", "", false},
+		{"empty file", "", false},
+		{"directory", "", false},
+		{"invalid JSON", `{"items":[PAYLOAD_MUST_NOT_BE_LOGGED]}`, false},
+		{"null envelope", `null`, false},
+		{"array envelope", `[]`, false},
+		{"text-only blocked", "BLOCKED: tool failure", false},
+		{"placeholder", `{"items":[]}`, false},
+		{"empty collected output", envelope(""), false},
+		{"missing items", `{"errors":[]}`, false},
+		{"object items", `{"items":{},"errors":[]}`, false},
+		{"missing errors", `{"items":[` + noop + `]}`, false},
+		{"malformed errors", `{"items":[` + noop + `],"errors":{}}`, false},
+		{"reported ingestion error", `{"items":[` + noop + `],"errors":["PAYLOAD_MUST_NOT_BE_LOGGED"]}`, false},
+		{"null item", envelope("null"), false},
+		{"string item", envelope(`"noop"`), false},
+		{"missing type", envelope(`{"message":"COMPLETE: Done"}`), false},
+		{"missing noop message", envelope(`{"type":"noop"}`), false},
+		{"empty noop message", envelope(`{"type":"noop","message":" "}`), false},
+		{"nonstring noop message", envelope(`{"type":"noop","message":true}`), false},
+		{"untagged noop", envelope(`{"type":"noop","message":"No changes"}`), false},
+		{"blocked noop", envelope(`{"type":"noop","message":"BLOCKED: validation failed"}`), false},
+		{"completion tag without explanation", envelope(`{"type":"noop","message":"COMPLETE: "}`), false},
+		{"missing tool", envelope(`{"type":"missing_tool","tool":"sed","reason":"Unavailable"}`), false},
+		{"missing data", envelope(`{"type":"missing_data","data_type":"source","reason":"Unavailable"}`), false},
+		{"incomplete report", envelope(`{"type":"report_incomplete","reason":"Unavailable"}`), false},
+		{"missing PR title", envelope(`{"type":"create_pull_request","body":"Evidence","branch":"automation/foundry-capability-review-20260913"}`), false},
+		{"empty PR body", envelope(`{"type":"create_pull_request","title":"Fix","body":" ","branch":"automation/foundry-capability-review-20260913"}`), false},
+		{"missing PR branch", envelope(`{"type":"create_pull_request","title":"Fix","body":"Evidence"}`), false},
+		{"wrong PR branch", envelope(`{"type":"create_pull_request","title":"Fix","body":"Evidence","branch":"main"}`), false},
+		{"noop mixed with diagnostic", envelope(noop + `,{"type":"missing_data"}`), false},
+		{"PR mixed with error", `{"items":[` + pr + `],"errors":["PAYLOAD_MUST_NOT_BE_LOGGED"]}`, false},
+		{"duplicate PR declarations", envelope(pr + "," + pr), false},
+		{"duplicate noops", envelope(noop + "," + noop), false},
+		{"completed noop", validNoop, true},
+		{"PR declaration before publication", envelope(pr), true},
+		{"PR with completed summary", envelope(pr + "," + noop), true},
+		{"at size limit", validNoop + strings.Repeat(" ", limit-len(validNoop)), true},
+		{"over size limit", validNoop + strings.Repeat(" ", limit-len(validNoop)+1), false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+			outputPath := filepath.Join(directory, "agent_output.json")
+			if test.name == "directory" {
+				if err := os.Mkdir(outputPath, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			} else if test.name != "missing" {
+				if err := os.WriteFile(outputPath, []byte(test.content), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			patchPath := filepath.Join(directory, "aw-fixture.patch")
+			const patch = "already-queued patch must survive completion failure\n"
+			if err := os.WriteFile(patchPath, []byte(patch), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			command := exec.CommandContext(ctx, node, "-e", `
+const core = {
+  setFailed: message => { console.error(message); process.exitCode = 1; },
+  info: message => console.log(message)
+};
+(async () => {
+`+script+`
+})().catch(error => { console.error(error); process.exitCode = 2; });
+`)
+			command.Dir = directory
+			command.Env = append(os.Environ(), "GH_AW_AGENT_OUTPUT="+outputPath)
+			output, runErr := command.CombinedOutput()
+			if test.valid {
+				if runErr != nil {
+					t.Fatalf("valid completion failed: %v\n%s", runErr, output)
+				}
+			} else {
+				exit, ok := runErr.(*exec.ExitError)
+				if !ok || exit.ExitCode() != 1 || !strings.Contains(string(output), "Weekly review completion") {
+					t.Fatalf("invalid completion must fail explicitly: %v\n%s", runErr, output)
+				}
+			}
+			if strings.Contains(string(output), "PAYLOAD_MUST_NOT_BE_LOGGED") {
+				t.Fatal("completion diagnostics must not echo untrusted payloads")
+			}
+			if test.name != "missing" && test.name != "directory" {
+				data, err := os.ReadFile(outputPath)
+				if err != nil || string(data) != test.content {
+					t.Fatal("gate must not rewrite or discard collected safe outputs")
+				}
+			}
+			data, err := os.ReadFile(patchPath)
+			if err != nil || string(data) != patch {
+				t.Fatal("gate must not rewrite or discard queued patches")
+			}
+		})
 	}
 }
 

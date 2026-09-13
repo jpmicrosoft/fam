@@ -18,7 +18,7 @@ engine:
     GOFLAGS: -mod=readonly
     GOPROXY: "off"
     GOSUMDB: "off"
-max-tool-denials: 5
+max-tool-denials: 1
 max-ai-credits: 1000
 sandbox:
   agent:
@@ -54,6 +54,58 @@ steps:
       go mod download
       go mod verify
       GOPROXY=off GOSUMDB=off go test -run '^$' ./...
+post-steps:
+  - name: Require completed weekly review
+    id: review_completion
+    if: success()
+    timeout-minutes: 1
+    uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+    env:
+      GH_AW_AGENT_OUTPUT: /tmp/gh-aw/agent_output.json
+    with:
+      script: |
+        const fs = require('node:fs');
+        let output;
+        try {
+          const file = process.env.GH_AW_AGENT_OUTPUT;
+          const stat = fs.statSync(file);
+          if (!stat.isFile() || stat.size > 1024 * 1024) {
+            core.setFailed('Weekly review completion output must be a regular file of at most 1 MiB.');
+            return;
+          }
+          output = JSON.parse(fs.readFileSync(file, 'utf8'));
+        } catch {
+          core.setFailed('Weekly review completion output is missing, unreadable, or invalid JSON.');
+          return;
+        }
+        const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+        const nonblank = value => typeof value === 'string' && value.trim().length > 0;
+        if (!record(output) || !Array.isArray(output.items) || !Array.isArray(output.errors) || output.items.length === 0) {
+          core.setFailed('Weekly review completion is missing a valid terminal output document.');
+          return;
+        }
+        if (output.errors.length !== 0) {
+          core.setFailed('Weekly review completion contains ingestion errors.');
+          return;
+        }
+        const seen = new Set();
+        for (const item of output.items) {
+          if (!record(item) || seen.has(item.type)) {
+            core.setFailed('Weekly review completion contains an invalid or duplicate declaration.');
+            return;
+          }
+          const completeNoop = item.type === 'noop' && nonblank(item.message) &&
+            item.message.startsWith('COMPLETE:') && nonblank(item.message.slice('COMPLETE:'.length));
+          const pullRequest = item.type === 'create_pull_request' && nonblank(item.title) &&
+            nonblank(item.body) && nonblank(item.branch) &&
+            /^automation\/foundry-capability-review-[^\s/]+$/.test(item.branch);
+          if (!completeNoop && !pullRequest) {
+            core.setFailed('Weekly review completion is blocked or has an invalid terminal declaration.');
+            return;
+          }
+          seen.add(item.type);
+        }
+        core.info('Weekly review completion: a completed no-op or pull request declaration was recorded.');
 jobs:
   detection:
     if: needs.agent.outputs.output_types != '' || needs.agent.outputs.has_patch == 'true'
@@ -161,7 +213,7 @@ repository inspection:
 - Use `head` and `tail` to limit inspection output. Every command in a pipeline
   must be permitted; an allowed final command does not authorize earlier ones.
 - Use `git status` without additional flags and `git diff` to inspect changes.
-- Use the provided GitHub tools and `web_fetch` for remote evidence, and the
+- Use the provided `github` CLI and `web_fetch` for remote evidence, and the
   available editing tools for repository changes.
 
 Examples of permitted inspection commands, from the repository root:
@@ -194,17 +246,56 @@ Stop after the first permission denial. Make no further inspection, research,
 validation, or editing calls. Do not retry or simplify the denied command, or
 attempt alternative shells, executable paths, copies, environment overrides,
 proxies, or downloads. Do not switch to `view` or another permitted tool after
-a denial. Only emit the blocked no-op summary, then end the review.
+a denial. Do not attempt a reporting call after a permission denial.
 
-The five-denial runtime limit is a backstop, not a retry budget. Do not keep
-working until it is reached. Failed inference sessions are not restarted.
+The runtime aborts on the first denial and records the failure without waiting
+for another agent call. Failed inference sessions are not restarted.
 
 If a required source is unavailable or validation fails, stop instead of
-repairing the runner or bypassing its restrictions. Emit a no-op run summary
-that clearly says **blocked**, records the failing operation and any completed
-work, and explains why no pull request was created. Do not claim that the review
-or validation succeeded or that no actionable changes exist when work was
-blocked. Never submit a pull request with unvalidated changes.
+repairing the runner or bypassing its restrictions. Unless the runtime has
+already aborted, emit the blocked report described below. Record the failing
+operation and any completed work, and explain why no pull request was created.
+Do not claim that the review or validation succeeded or that no actionable
+changes exist when work was blocked. Never submit a pull request with
+unvalidated changes.
+
+## Completion reporting
+
+Use the `safeoutputs` CLI through the shell to record the final outcome.
+Do not invoke bare native `noop` or `create_pull_request` tools. Use
+`safeoutputs --help` for syntax; never make a probe or placeholder output call.
+Assistant text alone does not record completion.
+
+For a completed review with no pull request, record a no-op whose message starts
+with `COMPLETE:` and explains the findings and why no change was made:
+
+```bash
+safeoutputs noop --message "COMPLETE: All baseline comparisons completed; no high-confidence actionable changes."
+```
+
+For an unavailable prerequisite or source, or failed validation, use `BLOCKED:`
+instead and describe the actual failure:
+
+```bash
+safeoutputs noop --message "BLOCKED: Required validation failed; no pull request was created."
+```
+
+A blocked no-op is a failure report, not successful completion. The trusted
+completion gate fails blocked, empty, malformed, or missing output. Do not use
+`COMPLETE:` until all required review work has finished.
+
+When a validated change is ready, use the available editing tool to write a JSON
+object containing `title`, `body`, and `branch` to
+`/tmp/gh-aw/foundry-review-output.json`, then submit the real PR declaration:
+
+```bash
+safeoutputs create_pull_request . < /tmp/gh-aw/foundry-review-output.json
+```
+
+The `.` argument reads JSON from stdin. Do not construct the payload with a
+heredoc, `jq`, or a language interpreter. Keep the branch, evidence, validation,
+and draft-PR requirements below. Confirm the reporting command succeeded, then
+end the review without further work.
 
 ## Verified baseline
 
@@ -319,7 +410,8 @@ The pull request body must contain:
 Do not merge, approve, mark ready for review, publish a release, push to
 `main`, or modify cloud resources.
 
-If there is no high-confidence actionable change, validation fails, or the
-evidence remains contradictory, do not create an empty pull request. Finish
-with a no-op run summary that records all findings and explains why no pull
-request was created.
+If the completed review finds no high-confidence actionable change or leaves
+contradictory evidence unresolved, do not create an empty pull request. Finish
+with a `COMPLETE:` no-op that records all findings and explains why no pull
+request was created. Unavailable sources or failed validation instead require
+the `BLOCKED:` report and must not be described as a completed review.
