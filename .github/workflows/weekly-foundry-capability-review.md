@@ -11,6 +11,7 @@ permissions:
 engine:
   id: copilot
   copilot-sdk: true
+  tool-profile: go-repository
   harness:
     max-retries: 0
   env:
@@ -123,15 +124,8 @@ tools:
       - microsoft-foundry/foundry-samples
   web-fetch:
   edit:
-  bash:
-    - "git status"
-    - "git diff"
-    - "git diff:*"
-    - "git grep:*"
-    - "gofmt:*"
-    - "go test:*"
-    - "go vet:*"
-    - "go build:*"
+  bash: false
+  cli-proxy: false
 network:
   allowed:
     - defaults
@@ -203,32 +197,23 @@ example; it does not override a documented API contract.
 
 ## Tool-use contract
 
-The shell is allowlisted. A command being read-only does not make it permitted.
-After passing the readiness check below, use these already-permitted tools for
-repository inspection:
+The `go-repository` profile has no general shell, CLI proxy, or task/subagent
+tools. Use the registered native tools; do not construct shell commands.
+After passing the readiness check below:
 
 - Use `view` for file contents and line ranges, including long files.
-- Use `ls` for directory listings and `git grep` for tracked-repository searches.
-  Plain `grep` is also available for searching known files or command output.
-- Use `head` and `tail` to limit inspection output. Every command in a pipeline
-  must be permitted; an allowed final command does not authorize earlier ones.
-- Use `git status` without additional flags and `git diff` to inspect changes.
-- Use the provided `github` CLI and `web_fetch` for remote evidence, and the
-  available editing tools for repository changes.
+- Use native `grep` for content searches and `glob` for file discovery.
+  These are SDK tools, not executables or shell pipelines.
+- Use `go_repository` actions `status` and `diff` to inspect local changes.
+- Use the provided native GitHub MCP tools and `web_fetch` for remote evidence,
+  and native editing tools for repository changes.
+- Run `go_repository` operations sequentially. Its fixed actions accept no
+  command, executable, arguments, working directory, or environment overrides.
+  Only `prepare_branch` accepts a `branch` name.
 
-Examples of permitted inspection commands, from the repository root:
-
-```bash
-ls docs examples internal
-git grep -n -i "autopilot" -- docs internal examples
-grep -n "AgenticIdentityToken" internal/connection/managed_connector.go | head -n 80
-```
-
-Do not use `find`, `sed`, `awk`, `rg`, `xargs`, `curl`, `wget`, or language
-interpreters for repository inspection or shell-based workarounds. Use `view`
-for a specific line range instead of constructing a `sed` command. Do not pipe
-readiness or validation commands through output filters; preserve their actual
-exit status.
+Do not invoke Bash, PowerShell, `find`, `sed`, `awk`, `xargs`, `curl`, `wget`,
+language interpreters, or Git/Go executables directly. Do not attempt another
+tool, helper program, or MCP server as a shell workaround.
 
 ## Runtime readiness and stop conditions
 
@@ -239,8 +224,10 @@ build cache read-write. Environment variables alone do not make host cache
 directories visible inside the container. Module downloads and automatic
 toolchain switching are disabled during inference.
 
-Before fetching sources or editing files, run `go test -run '^$' ./...` once.
-If it fails, stop and report the exact prerequisite failure.
+Before fetching sources or editing files, call `go_repository` with
+`{"action":"readiness"}` once. It compiles the projected repository's Go tests
+inside AWF without selecting tests. If it fails, stop and report the exact
+prerequisite failure.
 
 Stop after the first permission denial. Make no further inspection, research,
 validation, or editing calls. Do not retry or simplify the denied command, or
@@ -251,7 +238,7 @@ a denial. Do not attempt a reporting call after a permission denial.
 The runtime aborts on the first denial and records the failure without waiting
 for another agent call. Failed inference sessions are not restarted.
 
-If a required source is unavailable or validation fails, stop instead of
+If a required tool or source is unavailable, or validation fails, stop instead of
 repairing the runner or bypassing its restrictions. Unless the runtime has
 already aborted, emit the blocked report described below. Record the failing
 operation and any completed work, and explain why no pull request was created.
@@ -261,41 +248,37 @@ unvalidated changes.
 
 ## Completion reporting
 
-Use the `safeoutputs` CLI through the shell to record the final outcome.
-Do not invoke bare native `noop` or `create_pull_request` tools. Use
-`safeoutputs --help` for syntax; never make a probe or placeholder output call.
-Assistant text alone does not record completion.
+Use the native `safeoutputs-noop` and `safeoutputs-create_pull_request` tools
+to record the final outcome. Do not use a CLI, a bare `noop` or
+`create_pull_request` name, or a JSON file piped through a shell. Never make a
+probe or placeholder output call. Assistant text alone does not record completion.
 
 For a completed review with no pull request, record a no-op whose message starts
 with `COMPLETE:` and explains the findings and why no change was made:
 
-```bash
-safeoutputs noop --message "COMPLETE: All baseline comparisons completed; no high-confidence actionable changes."
+Call `safeoutputs-noop` with:
+
+```json
+{"message":"COMPLETE: All baseline comparisons completed; no high-confidence actionable changes."}
 ```
 
 For an unavailable prerequisite or source, or failed validation, use `BLOCKED:`
 instead and describe the actual failure:
 
-```bash
-safeoutputs noop --message "BLOCKED: Required validation failed; no pull request was created."
+```json
+{"message":"BLOCKED: Required validation failed; no pull request was created."}
 ```
 
 A blocked no-op is a failure report, not successful completion. The trusted
 completion gate fails blocked, empty, malformed, or missing output. Do not use
 `COMPLETE:` until all required review work has finished.
 
-When a validated change is ready, use the available editing tool to write a JSON
-object containing `title`, `body`, and `branch` to
-`/tmp/gh-aw/foundry-review-output.json`, then submit the real PR declaration:
-
-```bash
-safeoutputs create_pull_request . < /tmp/gh-aw/foundry-review-output.json
-```
-
-The `.` argument reads JSON from stdin. Do not construct the payload with a
-heredoc, `jq`, or a language interpreter. Keep the branch, evidence, validation,
-and draft-PR requirements below. Confirm the reporting command succeeded, then
-end the review without further work.
+When a validated change is ready, call `go_repository` with `{"action":"commit"}`
+to record the validated changes on the prepared branch. Then call
+`safeoutputs-create_pull_request` with the real `title`, `body`, and returned
+`branch` as structured arguments. The native PR tool requires committed changes.
+Keep the evidence and draft-PR requirements below. Confirm the reporting tool
+succeeded, then end the review without further work.
 
 ## Verified baseline
 
@@ -365,7 +348,10 @@ repository path and commit when repository evidence is material.
    - **Low confidence**: the evidence is preview-only, sample-only, inferred,
      ambiguous, or not corroborated.
    - **Unresolved**: first-party sources conflict.
-5. Implement only high-confidence findings. Do not implement a change that
+5. For a high-confidence change, first call `go_repository` with
+   `action: prepare_branch` and an
+   `automation/foundry-capability-review-YYYYMMDD` branch. Implement only
+   high-confidence findings using native editors. Do not implement a change that
    requires a product decision, live Azure validation, tenant-specific
    behavior, undocumented payloads, or assumptions about a missing contract.
 6. Keep implementation, tests, schemas, examples, and documentation consistent.
@@ -374,13 +360,18 @@ repository path and commit when repository evidence is material.
    changelog entries, licenses, versions, release metadata, repository settings,
    secrets, or cloud resources. Do not run Azure deployment or mutation
    commands.
-8. Format changed Go files and run:
-   - `gofmt -l .` and require no output.
-   - `go vet ./...`.
-   - `go test -count=1 ./...`.
-   - `go build -o fam ./cmd`.
-9. Review the final diff for unsupported claims, unrelated edits, generated
-   artifacts, credentials, and accidental changes.
+8. After the final edits, call `go_repository` actions `format` and `validate`.
+   Validation checks formatting throughout the projected repository. If an
+   unchanged baseline file prevents it from passing, report BLOCKED rather than
+   widening the allowed change scope.
+   Validation requires clean Go formatting, fresh Go tests, vet, and build.
+   It runs against the exact projected publication tree inside AWF; excluded
+   edits and ignored files cannot make unpublished code satisfy validation.
+   Build output stays in owned temporary storage, not the worktree.
+9. Use `go_repository` action `diff` to review the complete change set for
+   unsupported claims, unrelated edits, generated artifacts, credentials, and
+   accidental changes. If further edits are needed, run `format` and `validate`
+   again before `commit`.
 
 ## Pull request policy
 

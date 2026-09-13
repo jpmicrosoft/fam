@@ -32,10 +32,11 @@ type weeklyReviewStep struct {
 type weeklyReviewDocument struct {
 	Permissions map[string]string `yaml:"permissions"`
 	Engine      struct {
-		ID         string            `yaml:"id"`
-		CopilotSDK bool              `yaml:"copilot-sdk"`
-		Env        map[string]string `yaml:"env"`
-		Harness    struct {
+		ID          string            `yaml:"id"`
+		CopilotSDK  bool              `yaml:"copilot-sdk"`
+		ToolProfile string            `yaml:"tool-profile"`
+		Env         map[string]string `yaml:"env"`
+		Harness     struct {
 			MaxRetries *int `yaml:"max-retries"`
 		} `yaml:"harness"`
 	} `yaml:"engine"`
@@ -45,7 +46,8 @@ type weeklyReviewDocument struct {
 		Allowed []string `yaml:"allowed"`
 	} `yaml:"network"`
 	Tools struct {
-		Bash []string `yaml:"bash"`
+		Bash     *bool `yaml:"bash"`
+		CLIProxy *bool `yaml:"cli-proxy"`
 	} `yaml:"tools"`
 	Sandbox struct {
 		Agent struct {
@@ -106,7 +108,7 @@ func TestWeeklyFoundryCompilerMatchesRuntime(t *testing.T) {
 	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
 		t.Fatalf("parse compiler metadata: %v", err)
 	}
-	const compilerRevision = "f8cd109d6040cc4feda3e6ee9c4d94f42ddd859e"
+	const compilerRevision = "2275b858aa1bd145b44ddf733854a72a687dd2d3"
 	if metadata.CompilerVersion != compilerRevision {
 		t.Fatalf("compiler revision = %q, want fixed fork revision %s", metadata.CompilerVersion, compilerRevision)
 	}
@@ -274,6 +276,7 @@ func TestWeeklyFoundryGoReadinessBeforeInference(t *testing.T) {
 func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 	source, compiled := weeklyReviewDocuments(t)
 	if source.Engine.ID != "copilot" || !source.Engine.CopilotSDK ||
+		source.Engine.ToolProfile != "go-repository" ||
 		source.MaxToolDenials != 1 || source.MaxAICredits != 1000 ||
 		source.Engine.Harness.MaxRetries == nil || *source.Engine.Harness.MaxRetries != 0 {
 		t.Fatal("review must use the Copilot SDK denial limit, no retries, and a 1000-credit cap")
@@ -291,6 +294,17 @@ func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 	}
 	if !strings.Contains(execution.Run, "copilot_sdk_driver.cjs") {
 		t.Fatal("denial limit must be wired to the SDK driver, not the CLI-only path")
+	}
+	sdkInstalledOutsideCheckout := false
+	for _, step := range agent.Steps {
+		if step.Name == "Install GitHub Copilot SDK (Node.js)" {
+			sdkInstalledOutsideCheckout = strings.Contains(step.Run, "${RUNNER_TEMP}/gh-aw/copilot-sdk") &&
+				!strings.Contains(step.Run, "GITHUB_WORKSPACE")
+		}
+	}
+	if !sdkInstalledOutsideCheckout ||
+		!strings.Contains(execution.Run, `export NODE_PATH="${RUNNER_TEMP}/gh-aw/copilot-sdk/node_modules"`) {
+		t.Fatal("SDK dependencies must be installed and resolved outside the clean reviewed checkout")
 	}
 	configPattern := regexp.MustCompile(`(?m)^\s*printf '%s\\n' '(\{.*\})' > `)
 	match := configPattern.FindStringSubmatch(execution.Run)
@@ -316,15 +330,86 @@ func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 	if !reflect.DeepEqual(source.Network.Allowed, []string{"defaults", "learn.microsoft.com"}) {
 		t.Fatal("review must not broaden the sandbox network allowlist")
 	}
-	wantBash := []string{"git status", "git diff", "git diff:*", "git grep:*",
-		"gofmt:*", "go test:*", "go vet:*", "go build:*"}
-	if !reflect.DeepEqual(source.Tools.Bash, wantBash) {
-		t.Fatal("review must not broaden the command allowlist")
+	if source.Tools.Bash == nil || *source.Tools.Bash ||
+		source.Tools.CLIProxy == nil || *source.Tools.CLIProxy {
+		t.Fatal("review must explicitly disable general Bash and CLI proxies")
+	}
+	var toolConfig struct {
+		Version      int `json:"version"`
+		Capabilities struct {
+			Bash     bool `json:"bash"`
+			CLIProxy bool `json:"cliProxy"`
+			Edit     bool `json:"edit"`
+			MCP      bool `json:"mcp"`
+		} `json:"capabilities"`
+		Permissions struct {
+			AllowedTools []string `json:"allowedTools"`
+		} `json:"permissions"`
+		ExplicitlyDisabledTools []string `json:"explicitlyDisabledTools"`
+		Profile                 struct {
+			ID                      string         `json:"id"`
+			RepositoryDefaultBranch string         `json:"repositoryDefaultBranch"`
+			Policy                  map[string]any `json:"policy"`
+		} `json:"profile"`
+	}
+	rawToolConfig := execution.Env["GH_AW_COPILOT_SDK_TOOL_CONFIG"]
+	if err := json.Unmarshal([]byte(rawToolConfig), &toolConfig); err != nil {
+		t.Fatalf("parse compiler-owned SDK tool contract: %v", err)
+	}
+	if toolConfig.Version != 2 || toolConfig.Profile.ID != "go-repository" ||
+		toolConfig.Capabilities.Bash || toolConfig.Capabilities.CLIProxy ||
+		!toolConfig.Capabilities.Edit || !toolConfig.Capabilities.MCP {
+		t.Fatal("compiled SDK contract must expose the native no-shell repository profile")
+	}
+	for _, permission := range []string{"read", "write", "go_repository", "safeoutputs"} {
+		if !slices.Contains(toolConfig.Permissions.AllowedTools, permission) {
+			t.Errorf("SDK contract is missing %s", permission)
+		}
+	}
+	for _, permission := range toolConfig.Permissions.AllowedTools {
+		if permission == "*" || permission == "shell" || strings.HasPrefix(permission, "shell(") {
+			t.Errorf("SDK repository profile must not grant %s", permission)
+		}
+	}
+	for _, disabled := range []string{"bash", "cli-proxy"} {
+		if !slices.Contains(toolConfig.ExplicitlyDisabledTools, disabled) {
+			t.Errorf("SDK contract must explicitly disable %s", disabled)
+		}
+	}
+	if toolConfig.Profile.Policy["target-repo"] != "jpmicrosoft/fam" ||
+		toolConfig.Profile.Policy["base_branch"] != "main" ||
+		toolConfig.Profile.Policy["protected_files_policy"] != "blocked" {
+		t.Fatal("repository tool must retain FAM's publication policy")
+	}
+	if toolConfig.Profile.RepositoryDefaultBranch != "${GH_AW_GITHUB_EVENT_REPOSITORY_DEFAULT_BRANCH}" ||
+		execution.Env["GH_AW_GITHUB_EVENT_REPOSITORY_DEFAULT_BRANCH"] != "${{ github.event.repository.default_branch }}" {
+		t.Fatal("SDK default-branch metadata must use the trusted runtime binding")
+	}
+	if strings.Contains(rawToolConfig, "github-token") || strings.Contains(rawToolConfig, "secrets.") {
+		t.Fatal("SDK repository policy must not contain publication credentials")
+	}
+	if !strings.Contains(execution.Run, "mcp-config/copilot-sdk.json") {
+		t.Fatal("SDK native MCP configuration must be staged in the already-mounted runtime directory")
 	}
 	pr, ok := source.SafeOutputs["create-pull-request"].(map[string]any)
 	if !ok || pr["draft"] != true || pr["max"] != 1 ||
 		pr["target-repo"] != "jpmicrosoft/fam" || pr["base-branch"] != "main" {
 		t.Fatal("review must retain its single-draft-PR publication boundary")
+	}
+	for runtime, authoring := range map[string]string{
+		"allowed_files": "allowed-files", "excluded_files": "excluded-files",
+		"allowed_branches": "allowed-branches",
+	} {
+		if !reflect.DeepEqual(toolConfig.Profile.Policy[runtime], pr[authoring]) {
+			t.Errorf("SDK policy %s differs from the publication policy", runtime)
+		}
+	}
+	protected, ok := toolConfig.Profile.Policy["protected_files"].([]any)
+	if !ok || !slices.ContainsFunc(protected, func(value any) bool {
+		filename, ok := value.(string)
+		return ok && filename == "CHANGELOG.md"
+	}) {
+		t.Fatal("SDK repository policy must preserve changelog protection by basename")
 	}
 }
 
@@ -334,26 +419,32 @@ func TestWeeklyFoundryToolUseGuidance(t *testing.T) {
 	for _, required := range []string{
 		"## Tool-use contract",
 		"`view` for file contents and line ranges",
-		"`ls` for directory listings",
-		"`git grep` for tracked-repository searches",
-		"`git status` without additional flags",
-		"Do not use `find`, `sed`, `awk`, `rg`, `xargs`, `curl`, `wget`, or language interpreters",
-		"Every command in a pipeline must be permitted",
+		"native `grep` for content searches and `glob` for file discovery",
+		"no general shell, CLI proxy, or task/subagent tools",
+		"`go_repository` actions `status` and `diff`",
+		"Do not invoke Bash, PowerShell",
+		"Run `go_repository` operations sequentially",
+		`{"action":"readiness"}`,
 		"Stop after the first permission denial",
 		"The runtime aborts on the first denial",
 		"Do not switch to `view` or another permitted tool after a denial",
 		"Do not attempt a reporting call after a permission denial",
-		"Do not pipe readiness or validation commands through output filters",
+		"the exact projected publication tree inside AWF",
 		"## Completion reporting",
-		"Use the `safeoutputs` CLI through the shell",
-		"Do not invoke bare native `noop` or `create_pull_request` tools",
-		`safeoutputs noop --message "COMPLETE:`,
-		`safeoutputs noop --message "BLOCKED:`,
-		"safeoutputs create_pull_request . < /tmp/gh-aw/foundry-review-output.json",
+		"native `safeoutputs-noop` and `safeoutputs-create_pull_request` tools",
+		`{"message":"COMPLETE:`,
+		`{"message":"BLOCKED:`,
+		`{"action":"commit"}`,
+		"The native PR tool requires committed changes",
 		"A blocked no-op is a failure report, not successful completion",
 	} {
 		if !strings.Contains(guidance, required) {
 			t.Errorf("weekly review is missing required tool-use guidance %q", required)
+		}
+		for _, obsolete := range []string{"safeoutputs noop --message", "safeoutputs create_pull_request . <", "git grep -n", "gofmt -l .", "go build -o fam"} {
+			if strings.Contains(guidance, obsolete) {
+				t.Errorf("weekly review still instructs the model to run obsolete shell command %q", obsolete)
+			}
 		}
 	}
 }

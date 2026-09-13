@@ -108,11 +108,23 @@ and module-file updates remain disabled during inference. Setup failures stop
 the agent before it spends inference credits. The agent also checks compilation
 inside the sandbox before researching sources or making changes.
 
-Repository inspection uses `view` for files and line ranges, `ls` for
-directories, and `git grep` or `grep` for searches; `head` and `tail` may limit
-inspection output. The prompt explicitly rules out unapproved `find` and `sed`
-calls instead of adding broader shell grants. Readiness and validation commands
-must retain their real exit status, without output-filtering pipelines.
+The opt-in `go-repository` profile removes general shell access, CLI proxies,
+and task/subagent tools. Inspection uses native `view`, `grep`, and `glob`;
+remote evidence uses native GitHub MCP tools and `web_fetch`. Before inference,
+the driver verifies and locks the actual tool catalog, including the canonical
+MCP names used by SDK permission requests.
+SDK dependencies live outside the reviewed checkout in the existing read-only
+runtime mount, so setup does not dirty the Go repository.
+
+The single `go_repository` tool provides fixed `status`, `diff`, `prepare_branch`,
+`format`, `readiness`, `validate`, and `commit` operations. Only branch preparation
+accepts a branch name; no operation accepts arbitrary commands or environment
+overrides. Go validation runs against an owned copy of the exact publication
+tree inside AWF, so excluded edits and ignored files cannot satisfy checks for
+code that will not be committed. Formatting, fresh tests, vet, and build must
+succeed before a local commit; changing the files afterward requires validation
+again. Child processes have bounded execution/output; their environments omit
+SDK/provider credentials, and build output stays outside the worktree.
 
 The Copilot SDK driver aborts on the first permission denial, with inference
 retries disabled and the existing 1,000-AI-credit limit. The agent must not retry,
@@ -121,13 +133,13 @@ denial; the runtime records that failure. Unavailable prerequisites or sources
 and failed validation also require stopping, not runner repair or alternate
 package mirrors. These controls do not broaden the tool or network allowlists.
 
-Completion is recorded through the existing `safeoutputs` CLI, not a bare native
-tool call or final assistant text. A finished review with no PR uses
-`safeoutputs noop --message "COMPLETE: ..."`; an incomplete review uses
-`BLOCKED:` with the actual failure. A validated PR uses
-`safeoutputs create_pull_request . < /tmp/gh-aw/foundry-review-output.json`,
-with the JSON payload written by an editing tool, without heredocs or extra
-shell helpers.
+Completion is recorded through native MCP tools, not a CLI or final assistant
+text. A finished review with no PR calls `safeoutputs-noop` with a `COMPLETE:`
+message; an incomplete review uses `BLOCKED:` with the actual failure. After
+`validate` and `commit`, a real PR is declared through
+`safeoutputs-create_pull_request` with structured title, body, and branch
+arguments. Bare tool names, shell redirection, and temporary JSON submission
+files are not used.
 
 A trusted inline post-step checks `/tmp/gh-aw/agent_output.json` after ingestion
 and before both agent-artifact uploads. It accepts a nonblank `COMPLETE:` no-op
@@ -160,13 +172,12 @@ requests.
 ### Pinned gh-aw fork
 
 All gh-aw workflows currently use
-[`jpmicrosoft/gh-aw` at `f8cd109d60`](https://github.com/jpmicrosoft/gh-aw/commit/f8cd109d6040cc4feda3e6ee9c4d94f42ddd859e).
-This fixes scoped Git command permissions and bounded Copilot SDK shutdown
-after repeated denials. A separate compatibility change retains protection of
-`CHANGELOG.md` by basename, so nested changelog edits still block publication.
-The fork changes preserve the workflow's command/network allowlists and
-publication/recovery policy. The workflow-specific first-denial and completion
-checks described above do not require another fork change.
+[`jpmicrosoft/gh-aw` at `2275b858aa`](https://github.com/jpmicrosoft/gh-aw/commit/2275b858aa1bd145b44ddf733854a72a687dd2d3).
+The fork retains the scoped Git permission and bounded SDK-shutdown fixes, plus
+`CHANGELOG.md` protection by basename so nested changelog edits still block
+publication. It also adds the opt-in native Go repository profile described
+above. The rollout removes the model-facing shell without broadening network
+access, raising budgets, or weakening publication/recovery policy.
 
 The compiler and setup runtime must come from the same commit. The fix is on
 the fork's `main`, but compilation pins the full commit SHA rather than a moving
@@ -180,7 +191,7 @@ setup. Build the compiler with its source revision recorded, then regenerate
 
 ```powershell
 $ghAwSource = '..\gh-aw'
-$forkCommit = 'f8cd109d6040cc4feda3e6ee9c4d94f42ddd859e'
+$forkCommit = '2275b858aa1bd145b44ddf733854a72a687dd2d3'
 if ((git -C $ghAwSource rev-parse HEAD) -ne $forkCommit) {
     throw "Check out gh-aw commit $forkCommit before compiling."
 }
@@ -197,7 +208,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Agentic workflow compilation failed.' }
 
 The `/actions` suffix is required by the source fork's directory layout. The
 generated setup references must resolve to
-`jpmicrosoft/gh-aw/actions/setup@f8cd109d6040cc4feda3e6ee9c4d94f42ddd859e`.
+`jpmicrosoft/gh-aw/actions/setup@2275b858aa1bd145b44ddf733854a72a687dd2d3`.
 
 This compiler emits trailing spaces in its banner comments. Normalize only
 top-level comment whitespace and line endings after generation; do not edit
