@@ -24,10 +24,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   the compiler-managed gh-aw runtime from Dependabot updates.
 - Clarified the weekly review's permitted inspection tools and first-denial
   stop instructions, without broadening shell grants or changing runtime limits.
-- Enforced weekly-review shutdown on the first permission denial and completion
-  reporting through the existing safe-output CLI. A trusted gate now rejects
+- Enforced weekly-review shutdown on the first permission denial. A trusted gate rejects
   empty, malformed, or blocked completion reports while preserving queued-output
   recovery and the existing publication safeguards.
+- Replaced the weekly review's general shell with native inspection and MCP
+  reporting plus fixed, sandboxed Go/Git operations. Validation checks the exact
+  publication tree before committing, with the existing denial, credit, and
+  publication limits preserved.
 
 ## [0.17.1] - 2026-09-09
 
