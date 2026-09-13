@@ -108,7 +108,7 @@ func TestWeeklyFoundryCompilerMatchesRuntime(t *testing.T) {
 	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
 		t.Fatalf("parse compiler metadata: %v", err)
 	}
-	const compilerRevision = "2275b858aa1bd145b44ddf733854a72a687dd2d3"
+	const compilerRevision = "d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462"
 	if metadata.CompilerVersion != compilerRevision {
 		t.Fatalf("compiler revision = %q, want fixed fork revision %s", metadata.CompilerVersion, compilerRevision)
 	}

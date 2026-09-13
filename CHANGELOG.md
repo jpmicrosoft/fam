@@ -31,6 +31,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   reporting plus fixed, sandboxed Go/Git operations. Validation checks the exact
   publication tree before committing, with the existing denial, credit, and
   publication limits preserved.
+- Included the shared branch-policy helper in the safe-outputs runtime bundle
+  so the native reporting backend can start.
 
 ## [0.17.1] - 2026-09-09
 

@@ -172,7 +172,7 @@ requests.
 ### Pinned gh-aw fork
 
 All gh-aw workflows currently use
-[`jpmicrosoft/gh-aw` at `2275b858aa`](https://github.com/jpmicrosoft/gh-aw/commit/2275b858aa1bd145b44ddf733854a72a687dd2d3).
+[`jpmicrosoft/gh-aw` at `d87e2de188`](https://github.com/jpmicrosoft/gh-aw/commit/d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462).
 The fork retains the scoped Git permission and bounded SDK-shutdown fixes, plus
 `CHANGELOG.md` protection by basename so nested changelog edits still block
 publication. It also adds the opt-in native Go repository profile described
@@ -191,7 +191,7 @@ setup. Build the compiler with its source revision recorded, then regenerate
 
 ```powershell
 $ghAwSource = '..\gh-aw'
-$forkCommit = '2275b858aa1bd145b44ddf733854a72a687dd2d3'
+$forkCommit = 'd87e2de188c20d3e6f8b4a445a6d1dd3efdc7462'
 if ((git -C $ghAwSource rev-parse HEAD) -ne $forkCommit) {
     throw "Check out gh-aw commit $forkCommit before compiling."
 }
@@ -208,7 +208,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Agentic workflow compilation failed.' }
 
 The `/actions` suffix is required by the source fork's directory layout. The
 generated setup references must resolve to
-`jpmicrosoft/gh-aw/actions/setup@2275b858aa1bd145b44ddf733854a72a687dd2d3`.
+`jpmicrosoft/gh-aw/actions/setup@d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462`.
 
 This compiler emits trailing spaces in its banner comments. Normalize only
 top-level comment whitespace and line endings after generation; do not edit
