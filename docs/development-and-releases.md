@@ -114,14 +114,31 @@ inspection output. The prompt explicitly rules out unapproved `find` and `sed`
 calls instead of adding broader shell grants. Readiness and validation commands
 must retain their real exit status, without output-filtering pipelines.
 
-The Copilot SDK driver enforces a five-tool-denial stop, with inference retries
-disabled and an explicit 1,000-AI-credit limit. The prompt requires stopping
-after the first permission denial and emitting only a blocked no-op summary.
-It forbids retrying, simplifying the command, or switching even to an otherwise
-allowed reader after denial; the runtime's five-denial limit is a backstop, not
-a retry allowance. Unavailable prerequisites or sources and failed validation
-also require a blocked report rather than runner repair or alternate package
-mirrors. These controls do not broaden the tool or network allowlists.
+The Copilot SDK driver aborts on the first permission denial, with inference
+retries disabled and the existing 1,000-AI-credit limit. The agent must not retry,
+simplify the command, switch tools, or attempt another reporting call after
+denial; the runtime records that failure. Unavailable prerequisites or sources
+and failed validation also require stopping, not runner repair or alternate
+package mirrors. These controls do not broaden the tool or network allowlists.
+
+Completion is recorded through the existing `safeoutputs` CLI, not a bare native
+tool call or final assistant text. A finished review with no PR uses
+`safeoutputs noop --message "COMPLETE: ..."`; an incomplete review uses
+`BLOCKED:` with the actual failure. A validated PR uses
+`safeoutputs create_pull_request . < /tmp/gh-aw/foundry-review-output.json`,
+with the JSON payload written by an editing tool, without heredocs or extra
+shell helpers.
+
+A trusted inline post-step checks `/tmp/gh-aw/agent_output.json` after ingestion
+and before both agent-artifact uploads. It accepts a nonblank `COMPLETE:` no-op
+or a PR declaration with title, body, and an allowed automation branch; a PR
+number or URL is not required before publication. Missing, malformed, blocked,
+diagnostic-only, duplicate, or ingestion-error output fails the agent job.
+The input is limited to 1 MiB, and errors never print raw payloads. The gate
+does not execute agent-modifiable worktree code, rewrite outputs, or discard
+patches. It skips after an earlier failure so the original diagnostic stays
+primary. This verifies the completion protocol, not the truth of the agent's
+research. QA executes the inline validator with Node, which is required in CI.
 
 The detection job runs only when the agent produced safe outputs or a patch.
 This job-level guard avoids the gh-aw v0.88.4 skipped-detection conclusion bug
@@ -147,8 +164,9 @@ All gh-aw workflows currently use
 This fixes scoped Git command permissions and bounded Copilot SDK shutdown
 after repeated denials. A separate compatibility change retains protection of
 `CHANGELOG.md` by basename, so nested changelog edits still block publication.
-The workflow's command/network allowlists, denial and credit limits, and
-publication/recovery policy are unchanged.
+The fork changes preserve the workflow's command/network allowlists and
+publication/recovery policy. The workflow-specific first-denial and completion
+checks described above do not require another fork change.
 
 The compiler and setup runtime must come from the same commit. The fix is on
 the fork's `main`, but compilation pins the full commit SHA rather than a moving
