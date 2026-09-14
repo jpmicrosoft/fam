@@ -1,9 +1,9 @@
 {
   "entries": {
-    "jpmicrosoft/gh-aw/actions/setup@d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462": {
+    "jpmicrosoft/gh-aw/actions/setup@5109ac6b80b80c8443870c2449943c5fac9aeec4": {
       "repo": "jpmicrosoft/gh-aw/actions/setup",
-      "version": "d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462",
-      "sha": "d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462"
+      "version": "5109ac6b80b80c8443870c2449943c5fac9aeec4",
+      "sha": "5109ac6b80b80c8443870c2449943c5fac9aeec4"
     }
   }
 }

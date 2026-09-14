@@ -54,6 +54,10 @@ type weeklyReviewDocument struct {
 			ID     string   `yaml:"id"`
 			Mounts []string `yaml:"mounts"`
 		} `yaml:"agent"`
+		MCP struct {
+			Container string `yaml:"container"`
+			Version   string `yaml:"version"`
+		} `yaml:"mcp"`
 	} `yaml:"sandbox"`
 	SafeOutputs map[string]any     `yaml:"safe-outputs"`
 	Steps       []weeklyReviewStep `yaml:"steps"`
@@ -104,13 +108,17 @@ func TestWeeklyFoundryCompilerMatchesRuntime(t *testing.T) {
 	}
 	var metadata struct {
 		CompilerVersion string `json:"compiler_version"`
+		Strict          bool   `json:"strict"`
 	}
 	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
 		t.Fatalf("parse compiler metadata: %v", err)
 	}
-	const compilerRevision = "d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462"
+	const compilerRevision = "5109ac6b80b80c8443870c2449943c5fac9aeec4"
 	if metadata.CompilerVersion != compilerRevision {
 		t.Fatalf("compiler revision = %q, want fixed fork revision %s", metadata.CompilerVersion, compilerRevision)
+	}
+	if !metadata.Strict {
+		t.Fatal("weekly review must retain strict compilation when selecting the fork gateway")
 	}
 
 	var lock struct {
@@ -188,6 +196,103 @@ func TestWeeklyFoundryRuntimeNotUpdatedIndependently(t *testing.T) {
 	}
 	if !foundActions {
 		t.Fatal("Dependabot must retain GitHub Actions updates for unrelated actions")
+	}
+}
+
+func TestWeeklyFoundryGatewayUsesScopedImmutableImage(t *testing.T) {
+	authoring, compiled := weeklyReviewDocuments(t)
+	const container = "ghcr.io/jpmicrosoft/gh-aw-mcpg"
+	const sourceImage = "ghcr.io/github/gh-aw-mcpg:v0.4.20"
+	if authoring.Sandbox.MCP.Container != "" || authoring.Sandbox.MCP.Version != "" {
+		t.Fatal("strict mode requires the repository image mapping, not sandbox.mcp runtime overrides")
+	}
+	var config struct {
+		ContainerPins map[string]struct {
+			Image  string `json:"image"`
+			Digest string `json:"digest"`
+		} `json:"container_pins"`
+	}
+	if err := json.Unmarshal([]byte(repositoryFile(t, ".github", "workflows", "aw.json")), &config); err != nil {
+		t.Fatalf("parse gateway pin configuration: %v", err)
+	}
+	pin, ok := config.ContainerPins[sourceImage]
+	if len(config.ContainerPins) != 1 || !ok {
+		t.Fatalf("container mapping must replace only the selected gateway %s, got %#v", sourceImage, config.ContainerPins)
+	}
+	if !regexp.MustCompile(`^` + regexp.QuoteMeta(container) + `:[0-9a-f]{40}$`).MatchString(pin.Image) {
+		t.Fatalf("weekly gateway must use the fork's full source-revision tag, got %q", pin.Image)
+	}
+	if !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(pin.Digest) {
+		t.Fatalf("weekly gateway requires an immutable SHA-256 digest, got %q", pin.Digest)
+	}
+	pinnedImage := pin.Image + "@" + pin.Digest
+
+	workflow := repositoryFile(t, ".github", "workflows", "weekly-foundry-capability-review.lock.yml")
+	_, manifestLine, ok := strings.Cut(workflow, "\n# gh-aw-manifest: ")
+	if !ok {
+		t.Fatal("compiled workflow is missing its container manifest")
+	}
+	manifestJSON, _, _ := strings.Cut(manifestLine, "\n")
+	var manifest struct {
+		Containers []struct {
+			Image string `json:"image"`
+		} `json:"containers"`
+	}
+	if err := json.Unmarshal([]byte(manifestJSON), &manifest); err != nil {
+		t.Fatalf("parse container manifest: %v", err)
+	}
+	locked := 0
+	for _, entry := range manifest.Containers {
+		// Explicit digest mappings are recorded as complete image literals.
+		if entry.Image == pinnedImage {
+			locked++
+		} else if strings.Contains(entry.Image, "/gh-aw-mcpg") {
+			t.Errorf("manifest contains an unexpected gateway image %q", entry.Image)
+		}
+	}
+	if locked != 1 {
+		t.Errorf("manifest must contain exactly one matching gateway pin, got %d", locked)
+	}
+	predownloads, launches := 0, 0
+	for _, step := range compiled.Jobs["agent"].Steps {
+		if strings.Contains(step.Run, "download_docker_images.sh") {
+			predownloads++
+			if !slices.Contains(strings.Fields(step.Run), pinnedImage) {
+				t.Errorf("gateway predownload must use %s", pinnedImage)
+			}
+		}
+		for _, line := range strings.Split(step.Run, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "export MCP_GATEWAY_DOCKER_COMMAND=") {
+				launches++
+				if !strings.HasSuffix(line, " "+pinnedImage+"'") {
+					t.Errorf("gateway launch must end with the same immutable image, got %s", line)
+				}
+			}
+		}
+	}
+	if predownloads != 1 || launches != 1 {
+		t.Errorf("expected one pinned predownload and launch, got %d and %d", predownloads, launches)
+	}
+	var workflows []string
+	for _, pattern := range []string{"*.yml", "*.yaml"} {
+		matches, err := filepath.Glob(filepath.Join("..", ".github", "workflows", pattern))
+		if err != nil {
+			t.Fatalf("list other workflows: %v", err)
+		}
+		workflows = append(workflows, matches...)
+	}
+	for _, filename := range workflows {
+		if filepath.Base(filename) == "weekly-foundry-capability-review.lock.yml" {
+			continue
+		}
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("read %s: %v", filename, err)
+		}
+		if strings.Contains(string(data), container) {
+			t.Errorf("fork gateway must remain scoped to the weekly review, not %s", filename)
+		}
 	}
 }
 
