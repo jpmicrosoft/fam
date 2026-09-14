@@ -126,6 +126,26 @@ succeed before a local commit; changing the files afterward requires validation
 again. Child processes have bounded execution/output; their environments omit
 SDK/provider credentials, and build output stays outside the worktree.
 
+Validation failures remain native SDK failures, with bounded, sanitized
+diagnostics rather than a generic tool error. Command failures retain labeled
+stdout and stderr; integrity failures identify relative paths that changed or
+appeared. The serialized SDK failure is limited to 8 KiB, and driver logs retain
+the useful sections. Failed validation cannot authorize a later commit without
+a fresh successful validation.
+
+Tests must also leave the checkout unchanged, including ignored operational
+files. Current-source CI checks this after the normal and race suites; historical
+release rebuilds retain their original test behavior. Tests invoking
+receipt-writing commands must pass a receipt path inside `t.TempDir()`, even
+when testing cancellation: cancelled operations still write audit receipts.
+
+A separate `weekly-review-validation` CI job also runs the fixed repository
+runtime against the full FAM candidate and its compiled publication policy.
+It reads the matching compiler/runtime pin, installs dependencies outside the
+FAM checkout, and executes tests, vet, build, and projected-tree checks without
+creating an inference session. This catches repository-specific validation
+failures before a paid review; it is not a live AI review or an AWF network test.
+
 The Copilot SDK driver aborts on the first permission denial, with inference
 retries disabled and the existing 1,000-AI-credit limit. The agent must not retry,
 simplify the command, switch tools, or attempt another reporting call after
@@ -172,7 +192,7 @@ requests.
 ### Pinned gh-aw fork
 
 All gh-aw workflows currently use
-[`jpmicrosoft/gh-aw` at `5109ac6b80`](https://github.com/jpmicrosoft/gh-aw/commit/5109ac6b80b80c8443870c2449943c5fac9aeec4).
+[`jpmicrosoft/gh-aw` at `a5e64668db`](https://github.com/jpmicrosoft/gh-aw/commit/a5e64668dbc0a4ea93cc0733ee3adf3aec1ebe47).
 The fork retains the scoped Git permission and bounded SDK-shutdown fixes, plus
 `CHANGELOG.md` protection by basename so nested changelog edits still block
 publication. It also adds the opt-in native Go repository profile described
@@ -209,7 +229,7 @@ setup. Build the compiler with its source revision recorded, then regenerate
 
 ```powershell
 $ghAwSource = '..\gh-aw'
-$forkCommit = '5109ac6b80b80c8443870c2449943c5fac9aeec4'
+$forkCommit = 'a5e64668dbc0a4ea93cc0733ee3adf3aec1ebe47'
 if ((git -C $ghAwSource rev-parse HEAD) -ne $forkCommit) {
     throw "Check out gh-aw commit $forkCommit before compiling."
 }
@@ -226,7 +246,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Agentic workflow compilation failed.' }
 
 The `/actions` suffix is required by the source fork's directory layout. The
 generated setup references must resolve to
-`jpmicrosoft/gh-aw/actions/setup@5109ac6b80b80c8443870c2449943c5fac9aeec4`.
+`jpmicrosoft/gh-aw/actions/setup@a5e64668dbc0a4ea93cc0733ee3adf3aec1ebe47`.
 
 This compiler emits trailing spaces in its banner comments. Normalize only
 top-level comment whitespace and line endings after generation; do not edit
