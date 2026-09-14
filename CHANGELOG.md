@@ -38,7 +38,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   budgets, and publication gates remain unchanged.
 - Isolated cancelled-operation test receipts so they do not dirty the weekly
   review's validation tree. CI now rejects test-created checkout artifacts,
-  including ignored files.
+  including ignored files, and exercises FAM's full pinned repository-validation
+  path without model inference.
 
 ## [0.17.1] - 2026-09-09
 

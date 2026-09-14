@@ -127,9 +127,17 @@ again. Child processes have bounded execution/output; their environments omit
 SDK/provider credentials, and build output stays outside the worktree.
 
 Tests must also leave the checkout unchanged, including ignored operational
-files. CI checks this after the normal and race suites. Tests invoking
+files. Current-source CI checks this after the normal and race suites; historical
+release rebuilds retain their original test behavior. Tests invoking
 receipt-writing commands must pass a receipt path inside `t.TempDir()`, even
 when testing cancellation: cancelled operations still write audit receipts.
+
+A separate `weekly-review-validation` CI job also runs the fixed repository
+runtime against the full FAM candidate and its compiled publication policy.
+It reads the matching compiler/runtime pin, installs dependencies outside the
+FAM checkout, and executes tests, vet, build, and projected-tree checks without
+creating an inference session. This catches repository-specific validation
+failures before a paid review; it is not a live AI review or an AWF network test.
 
 The Copilot SDK driver aborts on the first permission denial, with inference
 retries disabled and the existing 1,000-AI-credit limit. The agent must not retry,

@@ -17,16 +17,17 @@ import (
 )
 
 type weeklyReviewStep struct {
-	Name            string            `yaml:"name"`
-	ID              string            `yaml:"id"`
-	Uses            string            `yaml:"uses"`
-	Run             string            `yaml:"run"`
-	If              string            `yaml:"if"`
-	Shell           string            `yaml:"shell"`
-	Env             map[string]string `yaml:"env"`
-	With            map[string]any    `yaml:"with"`
-	TimeoutMinutes  int               `yaml:"timeout-minutes"`
-	ContinueOnError bool              `yaml:"continue-on-error"`
+	Name             string            `yaml:"name"`
+	ID               string            `yaml:"id"`
+	Uses             string            `yaml:"uses"`
+	Run              string            `yaml:"run"`
+	If               string            `yaml:"if"`
+	Shell            string            `yaml:"shell"`
+	WorkingDirectory string            `yaml:"working-directory"`
+	Env              map[string]string `yaml:"env"`
+	With             map[string]any    `yaml:"with"`
+	TimeoutMinutes   int               `yaml:"timeout-minutes"`
+	ContinueOnError  bool              `yaml:"continue-on-error"`
 }
 
 type weeklyReviewDocument struct {
@@ -63,9 +64,10 @@ type weeklyReviewDocument struct {
 	Steps       []weeklyReviewStep `yaml:"steps"`
 	PostSteps   []weeklyReviewStep `yaml:"post-steps"`
 	Jobs        map[string]struct {
-		If          string             `yaml:"if"`
-		Permissions map[string]string  `yaml:"permissions"`
-		Steps       []weeklyReviewStep `yaml:"steps"`
+		If             string             `yaml:"if"`
+		TimeoutMinutes int                `yaml:"timeout-minutes"`
+		Permissions    map[string]string  `yaml:"permissions"`
+		Steps          []weeklyReviewStep `yaml:"steps"`
 	} `yaml:"jobs"`
 }
 
@@ -293,6 +295,144 @@ func TestWeeklyFoundryGatewayUsesScopedImmutableImage(t *testing.T) {
 		if strings.Contains(string(data), container) {
 			t.Errorf("fork gateway must remain scoped to the weekly review, not %s", filename)
 		}
+	}
+}
+
+func TestWeeklyFoundryOfflineValidationUsesCompiledRuntime(t *testing.T) {
+	var ci weeklyReviewDocument
+	if err := yaml.Unmarshal([]byte(repositoryFile(t, ".github", "workflows", "ci.yml")), &ci); err != nil {
+		t.Fatalf("parse CI workflow: %v", err)
+	}
+	coreSteps := ci.Jobs["ci"].Steps
+	guardIndex := weeklyReviewStepIndex(t, coreSteps, "Verify tests preserve the checkout")
+	if guardIndex <= weeklyReviewStepIndex(t, coreSteps, "Test with the race detector") ||
+		guardIndex >= weeklyReviewStepIndex(t, coreSteps, "Build") {
+		t.Fatal("checkout integrity must be checked after tests and before intentional build artifacts")
+	}
+	guard := coreSteps[guardIndex]
+	if guard.If != "${{ github.event_name != 'workflow_dispatch' }}" {
+		t.Error("historical release rebuilds must retain their original test behavior")
+	}
+	requireText(t, guard.Run, "git diff --exit-code HEAD --", "git ls-files --others", "exit 1")
+	if strings.Contains(guard.Run, "--exclude-standard") {
+		t.Error("checkout integrity must include ignored test artifacts")
+	}
+	job, ok := ci.Jobs["weekly-review-validation"]
+	if !ok {
+		t.Fatal("CI must retain full repository validation without inference")
+	}
+	if job.If != "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}" {
+		t.Errorf("offline validation must cover PR/main without changing historical release rebuilds: %s", job.If)
+	}
+	if job.TimeoutMinutes != 10 || !reflect.DeepEqual(job.Permissions, map[string]string{"contents": "read"}) {
+		t.Errorf("offline validation must remain bounded and read-only: %#v", job)
+	}
+	source := job.Steps[weeklyReviewStepIndex(t, job.Steps, "Checkout FAM candidate")]
+	if source.With["path"] != "fam" || source.With["persist-credentials"] != false {
+		t.Error("FAM source must have its own credential-free checkout")
+	}
+	pinIndex := weeklyReviewStepIndex(t, job.Steps, "runtime")
+	checkoutIndex := weeklyReviewStepIndex(t, job.Steps, "Checkout the pinned validation runtime")
+	validateIndex := weeklyReviewStepIndex(t, job.Steps, "Validate the full FAM publication tree without inference")
+	if pinIndex >= checkoutIndex || checkoutIndex >= validateIndex {
+		t.Fatal("resolve the compiler pin before checking out and executing the runtime")
+	}
+	requireText(t, job.Steps[pinIndex].Run,
+		"node scripts/Test-WeeklyReviewValidation.cjs pin",
+		"^[0-9a-f]{40}$",
+	)
+	checkout := job.Steps[checkoutIndex]
+	if checkout.With["repository"] != "jpmicrosoft/gh-aw" ||
+		checkout.With["ref"] != "${{ steps.runtime.outputs.sha }}" ||
+		checkout.With["path"] != "runtime" || checkout.With["persist-credentials"] != false {
+		t.Fatalf("offline validation must use the compiled fork revision outside FAM: %#v", checkout.With)
+	}
+	install := job.Steps[weeklyReviewStepIndex(t, job.Steps, "Install the pinned runtime dependencies outside FAM")]
+	if install.WorkingDirectory != "runtime/actions/setup/js" {
+		t.Error("SDK dependencies must not be installed into the FAM checkout")
+	}
+	validation := job.Steps[validateIndex]
+	if validation.WorkingDirectory != "fam" ||
+		validation.Run != `node scripts/Test-WeeklyReviewValidation.cjs validate "$GITHUB_WORKSPACE/runtime"` {
+		t.Fatalf("CI must exercise the full FAM publication-tree validator: %#v", validation)
+	}
+}
+
+func TestWeeklyFoundryOfflinePinRejectsIncoherentConfiguration(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatal("Node is required for the weekly validation CI contract")
+		}
+		t.Skip("Node is unavailable")
+	}
+	script := repositoryFile(t, "scripts", "Test-WeeklyReviewValidation.cjs")
+	revision := strings.Repeat("a", 40)
+	cases := []struct {
+		name     string
+		compiler string
+		runtime  string
+		strict   bool
+		wantPass bool
+	}{
+		{name: "coherent", compiler: revision, runtime: revision, strict: true, wantPass: true},
+		{name: "non-strict", compiler: revision, runtime: revision},
+		{name: "moving-ref", compiler: "main", runtime: "main", strict: true},
+		{name: "mismatched-runtime", compiler: revision, runtime: strings.Repeat("b", 40), strict: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			write := func(parts []string, data []byte) string {
+				t.Helper()
+				filename := filepath.Join(append([]string{root}, parts...)...)
+				if err := os.MkdirAll(filepath.Dir(filename), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filename, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				return filename
+			}
+			filename := write([]string{"scripts", "Test-WeeklyReviewValidation.cjs"}, []byte(script))
+			metadata, err := json.Marshal(map[string]any{"compiler_version": tc.compiler, "strict": tc.strict})
+			if err != nil {
+				t.Fatal(err)
+			}
+			write([]string{".github", "workflows", "weekly-foundry-capability-review.lock.yml"},
+				[]byte("# gh-aw-metadata: "+string(metadata)+"\n"))
+			const action = "jpmicrosoft/gh-aw/actions/setup"
+			lock, err := json.Marshal(map[string]any{"entries": map[string]any{
+				action + "@" + tc.compiler: map[string]string{"repo": action, "version": tc.compiler, "sha": tc.runtime},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			write([]string{".github", "aw", "actions-lock.json"}, lock)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			output, err := exec.CommandContext(ctx, node, filename, "pin").CombinedOutput()
+			if tc.wantPass {
+				if err != nil || strings.TrimSpace(string(output)) != revision {
+					t.Fatalf("coherent pin failed: %v\n%s", err, output)
+				}
+				return
+			}
+			exit, ok := err.(*exec.ExitError)
+			if !ok || exit.ExitCode() != 1 {
+				t.Fatalf("invalid pin did not fail explicitly: %v\n%s", err, output)
+			}
+			var failure struct {
+				Validation string   `json:"validation"`
+				Errors     []string `json:"errors"`
+			}
+			if err := json.Unmarshal(output, &failure); err != nil {
+				t.Fatalf("failure is not one valid JSON diagnostic: %v\n%s", err, output)
+			}
+			if failure.Validation != "failed" || len(failure.Errors) == 0 {
+				t.Fatalf("invalid pin produced no diagnostic: %s", output)
+			}
+		})
 	}
 }
 
