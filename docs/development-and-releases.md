@@ -172,12 +172,30 @@ requests.
 ### Pinned gh-aw fork
 
 All gh-aw workflows currently use
-[`jpmicrosoft/gh-aw` at `d87e2de188`](https://github.com/jpmicrosoft/gh-aw/commit/d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462).
+[`jpmicrosoft/gh-aw` at `5109ac6b80`](https://github.com/jpmicrosoft/gh-aw/commit/5109ac6b80b80c8443870c2449943c5fac9aeec4).
 The fork retains the scoped Git permission and bounded SDK-shutdown fixes, plus
 `CHANGELOG.md` protection by basename so nested changelog edits still block
 publication. It also adds the opt-in native Go repository profile described
 above. The rollout removes the model-facing shell without broadening network
 access, raising budgets, or weakening publication/recovery policy.
+
+The weekly review is FAM's only MCP-enabled workflow. Its
+`jpmicrosoft/gh-aw-mcpg` gateway corrects native SDK protocol negotiation while
+retaining the authenticated, stateful MCP handshake. Strict mode rejects
+`sandbox.mcp.container` and `sandbox.mcp.version` overrides, so
+`.github/workflows/aw.json` maps the compiler's exact default gateway reference
+to the fork's full source-commit tag and published SHA-256 digest. Predownload
+and gateway startup therefore use the same immutable image without disabling
+strict compilation or changing the compiler's global defaults.
+
+This is repository-wide configuration. QA rejects the fork image in any other
+workflow; revisit the mapping before adding another MCP-enabled workflow.
+
+Before updating the gateway tag and digest, confirm anonymous registry access and
+the gateway fork's `native-image` publishing job. That job runs the pinned native
+SDK fixture against the published image with synthetic loopback backends and no
+model requests. A live weekly review is a separate operation that consumes
+inference credits.
 
 The compiler and setup runtime must come from the same commit. The fix is on
 the fork's `main`, but compilation pins the full commit SHA rather than a moving
@@ -191,7 +209,7 @@ setup. Build the compiler with its source revision recorded, then regenerate
 
 ```powershell
 $ghAwSource = '..\gh-aw'
-$forkCommit = 'd87e2de188c20d3e6f8b4a445a6d1dd3efdc7462'
+$forkCommit = '5109ac6b80b80c8443870c2449943c5fac9aeec4'
 if ((git -C $ghAwSource rev-parse HEAD) -ne $forkCommit) {
     throw "Check out gh-aw commit $forkCommit before compiling."
 }
@@ -208,7 +226,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Agentic workflow compilation failed.' }
 
 The `/actions` suffix is required by the source fork's directory layout. The
 generated setup references must resolve to
-`jpmicrosoft/gh-aw/actions/setup@d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462`.
+`jpmicrosoft/gh-aw/actions/setup@5109ac6b80b80c8443870c2449943c5fac9aeec4`.
 
 This compiler emits trailing spaces in its banner comments. Normalize only
 top-level comment whitespace and line endings after generation; do not edit
