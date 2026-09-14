@@ -126,6 +126,11 @@ succeed before a local commit; changing the files afterward requires validation
 again. Child processes have bounded execution/output; their environments omit
 SDK/provider credentials, and build output stays outside the worktree.
 
+Tests must also leave the checkout unchanged, including ignored operational
+files. CI checks this after the normal and race suites. Tests invoking
+receipt-writing commands must pass a receipt path inside `t.TempDir()`, even
+when testing cancellation: cancelled operations still write audit receipts.
+
 The Copilot SDK driver aborts on the first permission denial, with inference
 retries disabled and the existing 1,000-AI-credit limit. The agent must not retry,
 simplify the command, switch tools, or attempt another reporting call after

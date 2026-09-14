@@ -36,6 +36,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Selected a stateful-compatible, digest-pinned MCP gateway for the weekly
   Foundry review to correct native SDK tool discovery. First-denial stopping,
   budgets, and publication gates remain unchanged.
+- Isolated cancelled-operation test receipts so they do not dirty the weekly
+  review's validation tree. CI now rejects test-created checkout artifacts,
+  including ignored files.
 
 ## [0.17.1] - 2026-09-09
 

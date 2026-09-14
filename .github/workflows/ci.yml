@@ -65,6 +65,20 @@ jobs:
       - name: Test with the race detector
         run: go test -count=1 -race ./...
 
+      - name: Verify tests preserve the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code HEAD --
+          untracked="$(git ls-files --others)"
+          if [ -n "$untracked" ]; then
+            echo "::error::Tests left untracked files in the checkout, including ignored files."
+            while IFS= read -r file; do
+              printf 'Test output: %s\n' "$file"
+            done <<< "$untracked"
+            exit 1
+          fi
+
       - name: Build
         run: go build -o fam ./cmd
 

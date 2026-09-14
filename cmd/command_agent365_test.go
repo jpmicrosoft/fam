@@ -556,6 +556,7 @@ func TestAgent365IntegrationSetRequiresConfirmationBeforePatch(t *testing.T) {
 			}`),
 	}}
 	stubCredentialAndHTTP(t, httpClient)
+	receiptPath := filepath.Join(t.TempDir(), "agent365-integration-cancelled.json")
 
 	run := runCLI(
 		t,
@@ -563,6 +564,7 @@ func TestAgent365IntegrationSetRequiresConfirmationBeforePatch(t *testing.T) {
 		"agent365", "integration", "set",
 		"--account-id", "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/foundry-rg/providers/Microsoft.CognitiveServices/accounts/foundry-account",
 		"--enabled=true",
+		"--receipt", receiptPath,
 		"--output", "json",
 	)
 	if run.code == 0 || !strings.Contains(run.stderr, "--yes") {
@@ -572,6 +574,19 @@ func TestAgent365IntegrationSetRequiresConfirmationBeforePatch(t *testing.T) {
 		if request.Method == http.MethodPatch {
 			t.Fatal("integration set patched before confirmation")
 		}
+	}
+	data, err := os.ReadFile(receiptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recorded struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(data, &recorded); err != nil {
+		t.Fatal(err)
+	}
+	if recorded.Status != "cancelled" {
+		t.Fatalf("confirmation failure must retain a cancelled audit receipt, got %q", recorded.Status)
 	}
 }
 
