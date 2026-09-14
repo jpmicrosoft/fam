@@ -447,6 +447,13 @@ broader or older wording, the manager follows this dedicated REST contract
 rather than treating migration guidance that describes portal-only
 publication as the current automation boundary.
 
+The stable `v1` request contract now also documents `publishAsAutopilot`,
+`accessBoundaries`, and `optionalPermissionScopes` fields for publishing an
+agent as an autopilot (digital worker). FAM does not send these fields: Prompt
+Autopilot publishing is not implemented pending the access-boundary and
+permission-scope decisions that field requires, not because no stable request
+contract exists.
+
 ```powershell
 fam prompt promote -f agent.yaml --agent-version 7
 fam prompt m365 publish -f agent.yaml --publication examples\publication.example.yaml
@@ -472,8 +479,11 @@ CLI.
 
 Prompt Agents support Agent 365 registry synchronization after standard
 Microsoft 365 publication, but Prompt Autopilot publishing is not supported.
-The Hosted Autopilot implementation and sample are separate and
-Hosted-specific. `prompt m365 publish` is the supported Prompt publishing path.
+The stable Microsoft 365 publish request contract documents autopilot
+fields (`publishAsAutopilot`, `accessBoundaries`, `optionalPermissionScopes`),
+but the manager does not send them. The Hosted Autopilot implementation and
+sample are separate and Hosted-specific. `prompt m365 publish` is the
+supported Prompt publishing path.
 
 ### Agent 365 blueprint and identity inspection
 

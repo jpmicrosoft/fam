@@ -586,7 +586,13 @@ replacement for the Prompt/Hosted paths.
 The Agent 365 support table is broader than the currently published
 programmatic implementation guidance. This wrapper follows the concrete
 Hosted-agent how-to and pinned Hosted sample; the table is not treated as a
-stable Prompt Agent request contract.
+substitute for a Prompt Agent implementation decision.
+
+The stable Microsoft 365 publish request contract documents
+`publishAsAutopilot`, `accessBoundaries`, and `optionalPermissionScopes`
+fields for autopilot (digital worker) publishing. The manager does not send
+these fields for Prompt Agents: implementing Prompt Autopilot publishing is a
+separate, undelivered feature decision, not a missing stable contract.
 
 - AzureCloud only.
 - Preview and commit acceptance are both mandatory and separate.
