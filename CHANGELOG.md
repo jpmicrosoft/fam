@@ -40,6 +40,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   review's validation tree. CI now rejects test-created checkout artifacts,
   including ignored files, and exercises FAM's full pinned repository-validation
   path without model inference.
+- Preserved bounded native validation errors, including command output and
+  unexpected-file diagnostics, while keeping failed validation and publication
+  guards intact.
 
 ## [0.17.1] - 2026-09-09
 
