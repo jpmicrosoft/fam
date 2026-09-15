@@ -296,7 +296,10 @@ Compare current evidence with every baseline statement:
    migration guide says migration is portal-only.
 3. Agent Applications are legacy but still supported, with the unified Agent
    stable endpoint as the modern default.
-4. Prompt-agent Autopilot has no documented stable request contract.
+4. The shared stable `v1` Microsoft 365 publishing schema documents
+   `publishAsAutopilot`, `accessBoundaries`, and `optionalPermissionScopes`.
+   FAM explicitly sends `publishAsAutopilot: false` and omits the other two
+   fields; Prompt Autopilot publishing remains unsupported in FAM.
 5. Azure Government supports stable endpoints but not Hosted agents,
    Microsoft 365 or Teams publishing, or Agent 365 Autopilot.
 6. Endpoint configuration should use the stable v1 Agent model, staged

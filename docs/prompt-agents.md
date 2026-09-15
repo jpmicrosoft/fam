@@ -447,6 +447,13 @@ broader or older wording, the manager follows this dedicated REST contract
 rather than treating migration guidance that describes portal-only
 publication as the current automation boundary.
 
+The [shared stable `v1` publishing schema](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/2d5434a392f65d016fcfb2ed948634ad91612d3f/specification/ai-foundry/data-plane/Foundry/openapi3/v1/microsoft-foundry-openapi3.json)
+documents `publishAsAutopilot`, `accessBoundaries`, and
+`optionalPermissionScopes`. FAM explicitly sends `publishAsAutopilot: false`
+and omits the other two fields. These schema fields do not enable Prompt
+Autopilot publishing in FAM; implementing it requires separate access-boundary
+and permission-scope decisions and validation.
+
 ```powershell
 fam prompt promote -f agent.yaml --agent-version 7
 fam prompt m365 publish -f agent.yaml --publication examples\publication.example.yaml
@@ -472,8 +479,11 @@ CLI.
 
 Prompt Agents support Agent 365 registry synchronization after standard
 Microsoft 365 publication, but Prompt Autopilot publishing is not supported.
-The Hosted Autopilot implementation and sample are separate and
-Hosted-specific. `prompt m365 publish` is the supported Prompt publishing path.
+The shared stable publishing schema documents Autopilot fields, but FAM
+explicitly sends `publishAsAutopilot: false` and omits `accessBoundaries` and
+`optionalPermissionScopes`. The Hosted Autopilot implementation and sample
+are separate and Hosted-specific. `prompt m365 publish` is the supported
+Prompt publishing path.
 
 ### Agent 365 blueprint and identity inspection
 

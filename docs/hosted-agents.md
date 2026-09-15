@@ -586,7 +586,14 @@ replacement for the Prompt/Hosted paths.
 The Agent 365 support table is broader than the currently published
 programmatic implementation guidance. This wrapper follows the concrete
 Hosted-agent how-to and pinned Hosted sample; the table is not treated as a
-stable Prompt Agent request contract.
+substitute for a Prompt Agent implementation decision.
+
+The shared stable `v1` Microsoft 365 publish request schema documents
+`publishAsAutopilot`, `accessBoundaries`, and `optionalPermissionScopes`
+fields for autopilot (digital worker) publishing. For Prompt Agents, FAM
+explicitly sends `publishAsAutopilot: false` and omits the other two fields.
+The schema does not change FAM's supported features: Prompt Autopilot
+publishing remains unsupported.
 
 - AzureCloud only.
 - Preview and commit acceptance are both mandatory and separate.
