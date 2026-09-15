@@ -33,6 +33,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   publication limits preserved.
 - Included the shared branch-policy helper in the safe-outputs runtime bundle
   so the native reporting backend can start.
+- Selected a stateful-compatible, digest-pinned MCP gateway for the weekly
+  Foundry review to correct native SDK tool discovery. First-denial stopping,
+  budgets, and publication gates remain unchanged.
+- Isolated cancelled-operation test receipts so they do not dirty the weekly
+  review's validation tree. CI now rejects test-created checkout artifacts,
+  including ignored files, and exercises FAM's full pinned repository-validation
+  path without model inference.
+- Preserved bounded native validation errors, including command output and
+  unexpected-file diagnostics, while keeping failed validation and publication
+  guards intact.
+- Allowed raw GitHub specification downloads in the weekly review while retaining
+  Microsoft Learn access, approved-source guidance, and existing inference and
+  publication safeguards.
+- Updated the pinned CodeQL and Azure Login Actions while preserving workflow
+  permissions, OIDC authentication, and manual-only evaluator calibration.
 
 ## [0.17.1] - 2026-09-09
 

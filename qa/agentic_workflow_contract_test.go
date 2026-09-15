@@ -17,16 +17,17 @@ import (
 )
 
 type weeklyReviewStep struct {
-	Name            string            `yaml:"name"`
-	ID              string            `yaml:"id"`
-	Uses            string            `yaml:"uses"`
-	Run             string            `yaml:"run"`
-	If              string            `yaml:"if"`
-	Shell           string            `yaml:"shell"`
-	Env             map[string]string `yaml:"env"`
-	With            map[string]any    `yaml:"with"`
-	TimeoutMinutes  int               `yaml:"timeout-minutes"`
-	ContinueOnError bool              `yaml:"continue-on-error"`
+	Name             string            `yaml:"name"`
+	ID               string            `yaml:"id"`
+	Uses             string            `yaml:"uses"`
+	Run              string            `yaml:"run"`
+	If               string            `yaml:"if"`
+	Shell            string            `yaml:"shell"`
+	WorkingDirectory string            `yaml:"working-directory"`
+	Env              map[string]string `yaml:"env"`
+	With             map[string]any    `yaml:"with"`
+	TimeoutMinutes   int               `yaml:"timeout-minutes"`
+	ContinueOnError  bool              `yaml:"continue-on-error"`
 }
 
 type weeklyReviewDocument struct {
@@ -54,14 +55,19 @@ type weeklyReviewDocument struct {
 			ID     string   `yaml:"id"`
 			Mounts []string `yaml:"mounts"`
 		} `yaml:"agent"`
+		MCP struct {
+			Container string `yaml:"container"`
+			Version   string `yaml:"version"`
+		} `yaml:"mcp"`
 	} `yaml:"sandbox"`
 	SafeOutputs map[string]any     `yaml:"safe-outputs"`
 	Steps       []weeklyReviewStep `yaml:"steps"`
 	PostSteps   []weeklyReviewStep `yaml:"post-steps"`
 	Jobs        map[string]struct {
-		If          string             `yaml:"if"`
-		Permissions map[string]string  `yaml:"permissions"`
-		Steps       []weeklyReviewStep `yaml:"steps"`
+		If             string             `yaml:"if"`
+		TimeoutMinutes int                `yaml:"timeout-minutes"`
+		Permissions    map[string]string  `yaml:"permissions"`
+		Steps          []weeklyReviewStep `yaml:"steps"`
 	} `yaml:"jobs"`
 }
 
@@ -104,13 +110,17 @@ func TestWeeklyFoundryCompilerMatchesRuntime(t *testing.T) {
 	}
 	var metadata struct {
 		CompilerVersion string `json:"compiler_version"`
+		Strict          bool   `json:"strict"`
 	}
 	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
 		t.Fatalf("parse compiler metadata: %v", err)
 	}
-	const compilerRevision = "d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462"
+	const compilerRevision = "a5e64668dbc0a4ea93cc0733ee3adf3aec1ebe47"
 	if metadata.CompilerVersion != compilerRevision {
 		t.Fatalf("compiler revision = %q, want fixed fork revision %s", metadata.CompilerVersion, compilerRevision)
+	}
+	if !metadata.Strict {
+		t.Fatal("weekly review must retain strict compilation when selecting the fork gateway")
 	}
 
 	var lock struct {
@@ -188,6 +198,241 @@ func TestWeeklyFoundryRuntimeNotUpdatedIndependently(t *testing.T) {
 	}
 	if !foundActions {
 		t.Fatal("Dependabot must retain GitHub Actions updates for unrelated actions")
+	}
+}
+
+func TestWeeklyFoundryGatewayUsesScopedImmutableImage(t *testing.T) {
+	authoring, compiled := weeklyReviewDocuments(t)
+	const container = "ghcr.io/jpmicrosoft/gh-aw-mcpg"
+	const sourceImage = "ghcr.io/github/gh-aw-mcpg:v0.4.20"
+	if authoring.Sandbox.MCP.Container != "" || authoring.Sandbox.MCP.Version != "" {
+		t.Fatal("strict mode requires the repository image mapping, not sandbox.mcp runtime overrides")
+	}
+	var config struct {
+		ContainerPins map[string]struct {
+			Image  string `json:"image"`
+			Digest string `json:"digest"`
+		} `json:"container_pins"`
+	}
+	if err := json.Unmarshal([]byte(repositoryFile(t, ".github", "workflows", "aw.json")), &config); err != nil {
+		t.Fatalf("parse gateway pin configuration: %v", err)
+	}
+	pin, ok := config.ContainerPins[sourceImage]
+	if len(config.ContainerPins) != 1 || !ok {
+		t.Fatalf("container mapping must replace only the selected gateway %s, got %#v", sourceImage, config.ContainerPins)
+	}
+	if !regexp.MustCompile(`^` + regexp.QuoteMeta(container) + `:[0-9a-f]{40}$`).MatchString(pin.Image) {
+		t.Fatalf("weekly gateway must use the fork's full source-revision tag, got %q", pin.Image)
+	}
+	if !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(pin.Digest) {
+		t.Fatalf("weekly gateway requires an immutable SHA-256 digest, got %q", pin.Digest)
+	}
+	pinnedImage := pin.Image + "@" + pin.Digest
+
+	workflow := repositoryFile(t, ".github", "workflows", "weekly-foundry-capability-review.lock.yml")
+	_, manifestLine, ok := strings.Cut(workflow, "\n# gh-aw-manifest: ")
+	if !ok {
+		t.Fatal("compiled workflow is missing its container manifest")
+	}
+	manifestJSON, _, _ := strings.Cut(manifestLine, "\n")
+	var manifest struct {
+		Containers []struct {
+			Image string `json:"image"`
+		} `json:"containers"`
+	}
+	if err := json.Unmarshal([]byte(manifestJSON), &manifest); err != nil {
+		t.Fatalf("parse container manifest: %v", err)
+	}
+	locked := 0
+	for _, entry := range manifest.Containers {
+		// Explicit digest mappings are recorded as complete image literals.
+		if entry.Image == pinnedImage {
+			locked++
+		} else if strings.Contains(entry.Image, "/gh-aw-mcpg") {
+			t.Errorf("manifest contains an unexpected gateway image %q", entry.Image)
+		}
+	}
+	if locked != 1 {
+		t.Errorf("manifest must contain exactly one matching gateway pin, got %d", locked)
+	}
+	predownloads, launches := 0, 0
+	for _, step := range compiled.Jobs["agent"].Steps {
+		if strings.Contains(step.Run, "download_docker_images.sh") {
+			predownloads++
+			if !slices.Contains(strings.Fields(step.Run), pinnedImage) {
+				t.Errorf("gateway predownload must use %s", pinnedImage)
+			}
+		}
+		for _, line := range strings.Split(step.Run, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "export MCP_GATEWAY_DOCKER_COMMAND=") {
+				launches++
+				if !strings.HasSuffix(line, " "+pinnedImage+"'") {
+					t.Errorf("gateway launch must end with the same immutable image, got %s", line)
+				}
+			}
+		}
+	}
+	if predownloads != 1 || launches != 1 {
+		t.Errorf("expected one pinned predownload and launch, got %d and %d", predownloads, launches)
+	}
+	var workflows []string
+	for _, pattern := range []string{"*.yml", "*.yaml"} {
+		matches, err := filepath.Glob(filepath.Join("..", ".github", "workflows", pattern))
+		if err != nil {
+			t.Fatalf("list other workflows: %v", err)
+		}
+		workflows = append(workflows, matches...)
+	}
+	for _, filename := range workflows {
+		if filepath.Base(filename) == "weekly-foundry-capability-review.lock.yml" {
+			continue
+		}
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("read %s: %v", filename, err)
+		}
+		if strings.Contains(string(data), container) {
+			t.Errorf("fork gateway must remain scoped to the weekly review, not %s", filename)
+		}
+	}
+}
+
+func TestWeeklyFoundryOfflineValidationUsesCompiledRuntime(t *testing.T) {
+	var ci weeklyReviewDocument
+	if err := yaml.Unmarshal([]byte(repositoryFile(t, ".github", "workflows", "ci.yml")), &ci); err != nil {
+		t.Fatalf("parse CI workflow: %v", err)
+	}
+	coreSteps := ci.Jobs["ci"].Steps
+	guardIndex := weeklyReviewStepIndex(t, coreSteps, "Verify tests preserve the checkout")
+	if guardIndex <= weeklyReviewStepIndex(t, coreSteps, "Test with the race detector") ||
+		guardIndex >= weeklyReviewStepIndex(t, coreSteps, "Build") {
+		t.Fatal("checkout integrity must be checked after tests and before intentional build artifacts")
+	}
+	guard := coreSteps[guardIndex]
+	if guard.If != "${{ github.event_name != 'workflow_dispatch' }}" {
+		t.Error("historical release rebuilds must retain their original test behavior")
+	}
+	requireText(t, guard.Run, "git diff --exit-code HEAD --", "git ls-files --others", "exit 1")
+	if strings.Contains(guard.Run, "--exclude-standard") {
+		t.Error("checkout integrity must include ignored test artifacts")
+	}
+	job, ok := ci.Jobs["weekly-review-validation"]
+	if !ok {
+		t.Fatal("CI must retain full repository validation without inference")
+	}
+	if job.If != "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}" {
+		t.Errorf("offline validation must cover PR/main without changing historical release rebuilds: %s", job.If)
+	}
+	if job.TimeoutMinutes != 10 || !reflect.DeepEqual(job.Permissions, map[string]string{"contents": "read"}) {
+		t.Errorf("offline validation must remain bounded and read-only: %#v", job)
+	}
+	source := job.Steps[weeklyReviewStepIndex(t, job.Steps, "Checkout FAM candidate")]
+	if source.With["path"] != "fam" || source.With["persist-credentials"] != false {
+		t.Error("FAM source must have its own credential-free checkout")
+	}
+	pinIndex := weeklyReviewStepIndex(t, job.Steps, "runtime")
+	checkoutIndex := weeklyReviewStepIndex(t, job.Steps, "Checkout the pinned validation runtime")
+	validateIndex := weeklyReviewStepIndex(t, job.Steps, "Validate the full FAM publication tree without inference")
+	if pinIndex >= checkoutIndex || checkoutIndex >= validateIndex {
+		t.Fatal("resolve the compiler pin before checking out and executing the runtime")
+	}
+	requireText(t, job.Steps[pinIndex].Run,
+		"node scripts/Test-WeeklyReviewValidation.cjs pin",
+		"^[0-9a-f]{40}$",
+	)
+	checkout := job.Steps[checkoutIndex]
+	if checkout.With["repository"] != "jpmicrosoft/gh-aw" ||
+		checkout.With["ref"] != "${{ steps.runtime.outputs.sha }}" ||
+		checkout.With["path"] != "runtime" || checkout.With["persist-credentials"] != false {
+		t.Fatalf("offline validation must use the compiled fork revision outside FAM: %#v", checkout.With)
+	}
+	install := job.Steps[weeklyReviewStepIndex(t, job.Steps, "Install the pinned runtime dependencies outside FAM")]
+	if install.WorkingDirectory != "runtime/actions/setup/js" {
+		t.Error("SDK dependencies must not be installed into the FAM checkout")
+	}
+	validation := job.Steps[validateIndex]
+	if validation.WorkingDirectory != "fam" ||
+		validation.Run != `node scripts/Test-WeeklyReviewValidation.cjs validate "$GITHUB_WORKSPACE/runtime"` {
+		t.Fatalf("CI must exercise the full FAM publication-tree validator: %#v", validation)
+	}
+}
+
+func TestWeeklyFoundryOfflinePinRejectsIncoherentConfiguration(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatal("Node is required for the weekly validation CI contract")
+		}
+		t.Skip("Node is unavailable")
+	}
+	script := repositoryFile(t, "scripts", "Test-WeeklyReviewValidation.cjs")
+	revision := strings.Repeat("a", 40)
+	cases := []struct {
+		name     string
+		compiler string
+		runtime  string
+		strict   bool
+		wantPass bool
+	}{
+		{name: "coherent", compiler: revision, runtime: revision, strict: true, wantPass: true},
+		{name: "non-strict", compiler: revision, runtime: revision},
+		{name: "moving-ref", compiler: "main", runtime: "main", strict: true},
+		{name: "mismatched-runtime", compiler: revision, runtime: strings.Repeat("b", 40), strict: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			write := func(parts []string, data []byte) string {
+				t.Helper()
+				filename := filepath.Join(append([]string{root}, parts...)...)
+				if err := os.MkdirAll(filepath.Dir(filename), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filename, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				return filename
+			}
+			filename := write([]string{"scripts", "Test-WeeklyReviewValidation.cjs"}, []byte(script))
+			metadata, err := json.Marshal(map[string]any{"compiler_version": tc.compiler, "strict": tc.strict})
+			if err != nil {
+				t.Fatal(err)
+			}
+			write([]string{".github", "workflows", "weekly-foundry-capability-review.lock.yml"},
+				[]byte("# gh-aw-metadata: "+string(metadata)+"\n"))
+			const action = "jpmicrosoft/gh-aw/actions/setup"
+			lock, err := json.Marshal(map[string]any{"entries": map[string]any{
+				action + "@" + tc.compiler: map[string]string{"repo": action, "version": tc.compiler, "sha": tc.runtime},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			write([]string{".github", "aw", "actions-lock.json"}, lock)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			output, err := exec.CommandContext(ctx, node, filename, "pin").CombinedOutput()
+			if tc.wantPass {
+				if err != nil || strings.TrimSpace(string(output)) != revision {
+					t.Fatalf("coherent pin failed: %v\n%s", err, output)
+				}
+				return
+			}
+			exit, ok := err.(*exec.ExitError)
+			if !ok || exit.ExitCode() != 1 {
+				t.Fatalf("invalid pin did not fail explicitly: %v\n%s", err, output)
+			}
+			var failure struct {
+				Validation string   `json:"validation"`
+				Errors     []string `json:"errors"`
+			}
+			if err := json.Unmarshal(output, &failure); err != nil {
+				t.Fatalf("failure is not one valid JSON diagnostic: %v\n%s", err, output)
+			}
+			if failure.Validation != "failed" || len(failure.Errors) == 0 {
+				t.Fatalf("invalid pin produced no diagnostic: %s", output)
+			}
+		})
 	}
 }
 
@@ -312,6 +557,10 @@ func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 		t.Fatal("compiled inference must contain a literal firewall budget")
 	}
 	var firewall struct {
+		Network struct {
+			AllowDomains []string `json:"allowDomains"`
+			Isolation    bool     `json:"isolation"`
+		} `json:"network"`
 		APIProxy struct {
 			MaxAICredits int `json:"maxAiCredits"`
 		} `json:"apiProxy"`
@@ -327,8 +576,37 @@ func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 		!reflect.DeepEqual(agent.Permissions, wantPermissions) {
 		t.Fatal("agent repository permissions must remain read-only")
 	}
-	if !reflect.DeepEqual(source.Network.Allowed, []string{"defaults", "learn.microsoft.com"}) {
-		t.Fatal("review must not broaden the sandbox network allowlist")
+	if !reflect.DeepEqual(source.Network.Allowed, []string{"defaults", "learn.microsoft.com", "raw.githubusercontent.com"}) {
+		t.Fatal("review network must retain defaults, Microsoft Learn, and the approved raw GitHub host only")
+	}
+	if !firewall.Network.Isolation {
+		t.Fatal("review must retain firewall network isolation")
+	}
+	for _, domain := range []string{"learn.microsoft.com", "raw.githubusercontent.com"} {
+		if !slices.Contains(firewall.Network.AllowDomains, domain) {
+			t.Errorf("compiled firewall is missing approved research host %s", domain)
+		}
+	}
+	for _, domain := range firewall.Network.AllowDomains {
+		if strings.Contains(domain, "*") {
+			t.Errorf("compiled firewall must not grant wildcard host %s", domain)
+		}
+	}
+	for _, jobName := range []string{"agent", "safe_outputs"} {
+		foundDomains := false
+		for _, step := range compiled.Jobs[jobName].Steps {
+			domains, ok := step.Env["GH_AW_ALLOWED_DOMAINS"]
+			if !ok {
+				continue
+			}
+			foundDomains = true
+			if !slices.Equal(strings.Split(domains, ","), firewall.Network.AllowDomains) {
+				t.Errorf("%s domain reporting must match the actual firewall allowlist", jobName)
+			}
+		}
+		if !foundDomains {
+			t.Errorf("%s must retain its compiled domain reporting", jobName)
+		}
 	}
 	if source.Tools.Bash == nil || *source.Tools.Bash ||
 		source.Tools.CLIProxy == nil || *source.Tools.CLIProxy {
@@ -422,6 +700,11 @@ func TestWeeklyFoundryToolUseGuidance(t *testing.T) {
 		"native `grep` for content searches and `glob` for file discovery",
 		"no general shell, CLI proxy, or task/subagent tools",
 		"`go_repository` actions `status` and `diff`",
+		"native GitHub MCP tools for repository evidence",
+		"`web_fetch` for Microsoft Learn pages",
+		"Direct `raw.githubusercontent.com` downloads are permitted only for files from the approved Microsoft source repositories listed above",
+		"Prefer commit-pinned raw URLs when available",
+		"Do not use raw URLs for any other repository",
 		"Do not invoke Bash, PowerShell",
 		"Run `go_repository` operations sequentially",
 		`{"action":"readiness"}`,

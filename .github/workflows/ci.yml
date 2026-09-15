@@ -65,6 +65,21 @@ jobs:
       - name: Test with the race detector
         run: go test -count=1 -race ./...
 
+      - name: Verify tests preserve the checkout
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code HEAD --
+          untracked="$(git ls-files --others)"
+          if [ -n "$untracked" ]; then
+            echo "::error::Tests left untracked files in the checkout, including ignored files."
+            while IFS= read -r file; do
+              printf 'Test output: %s\n' "$file"
+            done <<< "$untracked"
+            exit 1
+          fi
+
       - name: Build
         run: go build -o fam ./cmd
 
@@ -76,6 +91,63 @@ jobs:
           -SkipRace
           -SkipCrossCompile
           -OutputDirectory "${{ runner.temp }}/release-qualification"
+
+  weekly-review-validation:
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout FAM candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: fam
+          persist-credentials: false
+
+      - name: Set up Node for the fixed validation runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Read the matching compiler and runtime pin
+        id: runtime
+        working-directory: fam
+        shell: bash
+        run: |
+          set -euo pipefail
+          pin="$(node scripts/Test-WeeklyReviewValidation.cjs pin)"
+          [[ "$pin" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$pin" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the pinned validation runtime
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jpmicrosoft/gh-aw
+          ref: ${{ steps.runtime.outputs.sha }}
+          path: runtime
+          persist-credentials: false
+
+      - name: Set up the candidate Go toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: fam/go.mod
+          cache-dependency-path: fam/go.sum
+
+      - name: Prepare offline repository validation
+        working-directory: fam
+        run: |
+          go mod download
+          go mod verify
+          GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off go test -run '^$' ./...
+
+      - name: Install the pinned runtime dependencies outside FAM
+        working-directory: runtime/actions/setup/js
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate the full FAM publication tree without inference
+        working-directory: fam
+        run: node scripts/Test-WeeklyReviewValidation.cjs validate "$GITHUB_WORKSPACE/runtime"
 
   update-native:
     runs-on: ${{ matrix.os }}

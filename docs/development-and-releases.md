@@ -95,6 +95,14 @@ open one draft pull request against `main`; it cannot merge or publish a
 release. Runs without a validated high-confidence change do not create an empty
 pull request.
 
+Web access allows Microsoft Learn and `raw.githubusercontent.com` alongside the
+standard network defaults. Raw GitHub downloads support direct inspection of
+generated API specifications and other approved Microsoft source files; prefer
+commit-pinned URLs when available. This is a hostname-wide firewall allowance,
+not repository-level filtering. The GitHub MCP repository allowlist does not
+apply to direct web requests, so the workflow's approved-source requirement
+still governs which raw URLs the agent should use.
+
 Before inference, trusted setup installs Go from `go.mod`, downloads and verifies
 the module dependencies, and compiles the packages and tests with downloads
 disabled. The sandbox inherits the selected toolchain and explicitly mounts
@@ -125,6 +133,26 @@ code that will not be committed. Formatting, fresh tests, vet, and build must
 succeed before a local commit; changing the files afterward requires validation
 again. Child processes have bounded execution/output; their environments omit
 SDK/provider credentials, and build output stays outside the worktree.
+
+Validation failures remain native SDK failures, with bounded, sanitized
+diagnostics rather than a generic tool error. Command failures retain labeled
+stdout and stderr; integrity failures identify relative paths that changed or
+appeared. The serialized SDK failure is limited to 8 KiB, and driver logs retain
+the useful sections. Failed validation cannot authorize a later commit without
+a fresh successful validation.
+
+Tests must also leave the checkout unchanged, including ignored operational
+files. Current-source CI checks this after the normal and race suites; historical
+release rebuilds retain their original test behavior. Tests invoking
+receipt-writing commands must pass a receipt path inside `t.TempDir()`, even
+when testing cancellation: cancelled operations still write audit receipts.
+
+A separate `weekly-review-validation` CI job also runs the fixed repository
+runtime against the full FAM candidate and its compiled publication policy.
+It reads the matching compiler/runtime pin, installs dependencies outside the
+FAM checkout, and executes tests, vet, build, and projected-tree checks without
+creating an inference session. This catches repository-specific validation
+failures before a paid review; it is not a live AI review or an AWF network test.
 
 The Copilot SDK driver aborts on the first permission denial, with inference
 retries disabled and the existing 1,000-AI-credit limit. The agent must not retry,
@@ -172,12 +200,30 @@ requests.
 ### Pinned gh-aw fork
 
 All gh-aw workflows currently use
-[`jpmicrosoft/gh-aw` at `d87e2de188`](https://github.com/jpmicrosoft/gh-aw/commit/d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462).
+[`jpmicrosoft/gh-aw` at `a5e64668db`](https://github.com/jpmicrosoft/gh-aw/commit/a5e64668dbc0a4ea93cc0733ee3adf3aec1ebe47).
 The fork retains the scoped Git permission and bounded SDK-shutdown fixes, plus
 `CHANGELOG.md` protection by basename so nested changelog edits still block
 publication. It also adds the opt-in native Go repository profile described
 above. The rollout removes the model-facing shell without broadening network
 access, raising budgets, or weakening publication/recovery policy.
+
+The weekly review is FAM's only MCP-enabled workflow. Its
+`jpmicrosoft/gh-aw-mcpg` gateway corrects native SDK protocol negotiation while
+retaining the authenticated, stateful MCP handshake. Strict mode rejects
+`sandbox.mcp.container` and `sandbox.mcp.version` overrides, so
+`.github/workflows/aw.json` maps the compiler's exact default gateway reference
+to the fork's full source-commit tag and published SHA-256 digest. Predownload
+and gateway startup therefore use the same immutable image without disabling
+strict compilation or changing the compiler's global defaults.
+
+This is repository-wide configuration. QA rejects the fork image in any other
+workflow; revisit the mapping before adding another MCP-enabled workflow.
+
+Before updating the gateway tag and digest, confirm anonymous registry access and
+the gateway fork's `native-image` publishing job. That job runs the pinned native
+SDK fixture against the published image with synthetic loopback backends and no
+model requests. A live weekly review is a separate operation that consumes
+inference credits.
 
 The compiler and setup runtime must come from the same commit. The fix is on
 the fork's `main`, but compilation pins the full commit SHA rather than a moving
@@ -191,7 +237,7 @@ setup. Build the compiler with its source revision recorded, then regenerate
 
 ```powershell
 $ghAwSource = '..\gh-aw'
-$forkCommit = 'd87e2de188c20d3e6f8b4a445a6d1dd3efdc7462'
+$forkCommit = 'a5e64668dbc0a4ea93cc0733ee3adf3aec1ebe47'
 if ((git -C $ghAwSource rev-parse HEAD) -ne $forkCommit) {
     throw "Check out gh-aw commit $forkCommit before compiling."
 }
@@ -208,7 +254,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Agentic workflow compilation failed.' }
 
 The `/actions` suffix is required by the source fork's directory layout. The
 generated setup references must resolve to
-`jpmicrosoft/gh-aw/actions/setup@d87e2de188c20d3e6f8b4a445a6d1dd3efdc7462`.
+`jpmicrosoft/gh-aw/actions/setup@a5e64668dbc0a4ea93cc0733ee3adf3aec1ebe47`.
 
 This compiler emits trailing spaces in its banner comments. Normalize only
 top-level comment whitespace and line endings after generation; do not edit
