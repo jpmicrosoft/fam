@@ -60,7 +60,7 @@ help supplies the exact flags and examples. Use the
 | [RBAC and Separation of Duties](rbac-and-separation-of-duties.md) | Assign least-privilege roles to separate authors, deployers, infrastructure administrators, publishers, consumers, Agent 365 governance, runtimes, and audit jobs |
 | [Prompt Agents](prompt-agents.md) | Deep dive: manifest schema, tools, deploy, promote, rollback, receipts, APIM, M365 |
 | [Hosted Agents](hosted-agents.md) | Deep dive: workspace, azd, sessions, files, logs, drafts, scaffold, Autopilot |
-| [Agent 365](agent365.md) | Blueprint, identity, principal, integration, observability, publication, and RBAC boundaries |
+| [Agent 365](agent365.md) | Read-only blueprint inspection and identity comparison; separate integration, observability, publication, and RBAC boundaries |
 | [Tools and Grounding](tools-and-grounding.md) | Add documents, Toolboxes, Skills, connectors, or Memory to any agent |
 | [Security and Operations](security-and-operations.md) | Trust approvals, cloud boundaries, destructive safeguards, troubleshooting |
 | [Log Analytics Receipts](log-analytics-receipts.md) | Publish redacted receipts through a DCR, configure the table schema, retry failures, and query audit records |

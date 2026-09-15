@@ -932,15 +932,16 @@ before promoting or routing traffic.
 No. A blueprint is an identity template, not agent source, instructions, model
 configuration, or a Hosted `azure.yaml` workspace. Deploy the agent through the
 normal `prompt` or `hosted` path. Use `agent365 blueprint` commands to inspect
-the existing identity template separately.
+the existing identity template separately. Inspection and identity comparison
+do not select that existing blueprint as the deployed agent's identity blueprint.
 
 ### Can the manager bind an existing Agent 365 ID or blueprint to an existing agent?
 
-Not through a documented API. No currently documented Foundry mutation binds
-an arbitrary existing blueprint or Agent ID to an existing Prompt Agent, Hosted
-Agent, immutable version, endpoint, Agent Application, or Autopilot. The
-manager omits binding create/delete commands and never reports success after
-writing only local metadata.
+No. The manager's `binding` commands only inspect and compare existing identity
+information. They do not attach an arbitrary existing blueprint or Agent ID to
+a Prompt Agent, Hosted Agent, immutable version, endpoint, Agent Application,
+or Autopilot. There is no binding create, delete, or apply command, and writing
+local metadata is not a successful binding.
 
 ### What can the Agent 365 commands do?
 
@@ -948,7 +949,8 @@ They can list, show, and validate Agent ID blueprints; show requested and
 inheritable permissions (with optional `--resolve-names`); show blueprint
 owners, sponsors, and identities; list and show Agent ID identities and
 blueprint principals; show Foundry identity fields; compare an existing
-blueprint with a Prompt or Hosted Agent; manage Foundry account integration
+blueprint with a deployed Prompt or Hosted Agent (read-only comparison, not
+binding); manage Foundry account integration
 logging; inspect observability readiness; and plan publication handoff:
 
 ```powershell
@@ -1008,15 +1010,21 @@ principals.
 
 You can deploy the Foundry agent first and later inspect any identity or
 blueprint information the service exposes. The manager cannot attach an
-arbitrary Agent 365 blueprint later until Microsoft documents a supported
-Foundry mutation for that operation.
+arbitrary existing Agent 365 blueprint during deployment or afterward.
+`binding status` and `binding plan` only inspect and compare identity information.
 
 ### Does `binding plan` make changes?
 
-No. It uses only read operations. `matched` means a Foundry blueprint client ID
-or blueprint reference equals the requested blueprint application/object ID.
-That is correlation evidence only. `not-matched` or `insufficient-data` returns
-a non-executable plan instead of guessing at an undocumented write.
+No. It is **identity comparison only**, not an executable binding or deployment
+plan. The command name is retained for compatibility; there is no apply step.
+`matched` means a Foundry blueprint client ID or blueprint reference equals the
+requested blueprint application/object ID. That is correlation evidence, not
+a binding created by the command. `not-matched` and `insufficient-data` also
+perform no writes.
+
+In JSON/YAML output, `executable` and `bindingMutationSupported` remain
+`false`. The compatibility field `changeRequired: true` means no match was
+confirmed, not that FAM can apply a change.
 
 ### Can the manager read `a365.generated.config.json`?
 

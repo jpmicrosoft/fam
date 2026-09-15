@@ -15,6 +15,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -50,6 +51,71 @@ func TestAgent365InfoStatesMutationBoundaryWithoutAuthentication(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(result.Limitations, "\n"), "No documented Foundry API") {
 		t.Fatalf("missing binding boundary: %+v", result.Limitations)
+	}
+	if !strings.Contains(strings.Join(result.Limitations, "\n"), "No binding operation is available.") {
+		t.Fatalf("missing comparison-only boundary: %+v", result.Limitations)
+	}
+
+	text := runCLI(t, "", "agent365", "info")
+	if text.code != 0 {
+		t.Fatalf("agent365 info text failed: %s", text.stderr)
+	}
+	for _, expected := range []string{
+		"Blueprint inspection and identity comparison are read-only.",
+		"cannot create Foundry agents, attach existing blueprints, or change agent identities",
+		"No binding operation is available.",
+		"separate confirmed mutation via agent365 integration set",
+	} {
+		if !strings.Contains(text.stdout, expected) {
+			t.Errorf("agent365 info text omitted %q:\n%s", expected, text.stdout)
+		}
+	}
+}
+
+func TestAgent365ComparisonHelpStatesReadOnlyBoundaryWithoutAuthentication(t *testing.T) {
+	originalCredential, originalHTTP := newCredentialFn, newHTTPClientFn
+	t.Cleanup(func() {
+		newCredentialFn, newHTTPClientFn = originalCredential, originalHTTP
+	})
+	newCredentialFn = func(_ *cobra.Command, _ azcloud.Profile) (azcore.TokenCredential, error) {
+		t.Fatal("comparison help must not acquire a credential")
+		return nil, nil
+	}
+	newHTTPClientFn = func(_ *cobra.Command) *httpx.RetryClient {
+		t.Fatal("comparison help must not create an HTTP client")
+		return nil
+	}
+
+	for _, tc := range []struct {
+		args     []string
+		expected []string
+	}{
+		{[]string{"agent365", "--help"}, []string{"Read-only; no binding operation is available."}},
+		{[]string{"agent365", "blueprint", "--help"}, []string{"Read-only; not a deployment source."}},
+		{[]string{"agent365", "binding", "--help"}, []string{"Read-only; no binding operation is available."}},
+		{[]string{"agent365", "binding", "status", "--help"}, []string{"Show Foundry identity information and optional blueprint correlation", "No binding operation is available."}},
+		{[]string{"agent365", "binding", "plan", "--help"}, []string{"Compare an existing blueprint with a deployed Prompt or Hosted Agent", "there is no apply step"}},
+		{[]string{"help", "agent365", "binding", "plan"}, []string{"No binding operation is available.", "there is no apply step"}},
+		{[]string{"agent365-binding-status", "--help"}, []string{"No binding operation is available."}},
+		{[]string{"agent365-binding-plan", "--help"}, []string{"No binding operation is available.", "there is no apply step"}},
+	} {
+		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
+			run := runCLI(t, "", tc.args...)
+			if run.code != 0 {
+				t.Fatalf("comparison help failed: %s", run.stderr)
+			}
+			if !strings.Contains(strings.ToLower(run.stdout), "read-only") {
+				t.Fatalf("comparison help omitted read-only boundary:\n%s", run.stdout)
+			}
+			for _, expected := range tc.expected {
+				if !strings.Contains(run.stdout, expected) {
+					t.Errorf("comparison help omitted %q:\n%s", expected, run.stdout)
+				}
+			}
+			if strings.Contains(run.stdout, "Plan correlation") {
+				t.Fatalf("comparison help still implies an executable binding plan:\n%s", run.stdout)
+			}
+		})
 	}
 }
 
@@ -179,61 +245,132 @@ func TestAgent365BindingStatusReportsPromptIdentityWithoutGraphLookup(t *testing
 		result.BlueprintReference == nil {
 		t.Fatalf("identity fields were not preserved: %+v", result)
 	}
+	for _, args := range [][]string{
+		{"agent365", "binding", "status", "-f", manifest},
+		{"agent365-binding-status", "-f", manifest},
+	} {
+		text := runCLI(t, "", args...)
+		if text.code != 0 {
+			t.Fatalf("identity status text failed: %s", text.stderr)
+		}
+		for _, expected := range []string{
+			"Agent 365 identity status (read-only):",
+			"correlation=not-requested mutation-supported=false",
+			"cannot create Foundry agents, attach existing blueprints, or change agent identities",
+			"No binding operation is available.",
+		} {
+			if !strings.Contains(text.stdout, expected) {
+				t.Errorf("identity status text omitted %q:\n%s", expected, text.stdout)
+			}
+		}
+	}
 	for _, request := range httpClient.requests {
 		if request.URL.Host == "graph.microsoft.com" {
 			t.Fatal("binding status without a blueprint selector must not call Microsoft Graph")
+		}
+		if request.Method != http.MethodGet {
+			t.Fatalf("identity status issued mutation %s %s", request.Method, request.URL)
 		}
 	}
 }
 
 func TestAgent365BindingPlanCorrelatesButDoesNotMutate(t *testing.T) {
-	httpClient := &scriptedHTTP{routes: map[string]scriptedRoute{
-		"/agents/base-agent": route(http.StatusOK, `{
-			"id":"agent-1",
-			"name":"base-agent",
-			"state":"active",
-			"blueprint":{"principal_id":"blueprint-principal","client_id":"`+commandBlueprintAppID+`","status":"ready"},
-			"versions":{"latest":{"version":"2","status":"ready"}}
-		}`),
-		"/v1.0/applications/microsoft.graph.agentIdentityBlueprint": route(
-			http.StatusOK,
-			`{"value":[{
-				"id":"`+commandBlueprintObjectID+`",
-				"appId":"`+commandBlueprintAppID+`",
-				"displayName":"Support Blueprint",
-				"managerApplications":[],
-				"requiredResourceAccess":[]
-			}]}`,
-		),
-	}}
-	stubCredentialAndHTTP(t, httpClient)
-	manifest := writeManifest(t, baseManifest)
+	for _, tc := range []struct {
+		correlation     string
+		blueprintFields string
+	}{
+		{"matched", `"blueprint":{"client_id":"` + commandBlueprintAppID + `"},`},
+		{"not-matched", `"blueprint":{"client_id":"99990000-aaaa-bbbb-cccc-ddddeeeeffff"},`},
+		{"insufficient-data", ""},
+	} {
+		t.Run(tc.correlation, func(t *testing.T) {
+			httpClient := &scriptedHTTP{routes: map[string]scriptedRoute{
+				"/agents/base-agent": route(http.StatusOK, `{
+					"id":"agent-1",
+					"name":"base-agent",
+					"state":"active",
+					`+tc.blueprintFields+`
+					"versions":{"latest":{"version":"2","status":"ready"}}
+				}`),
+				"/v1.0/applications/microsoft.graph.agentIdentityBlueprint": route(
+					http.StatusOK,
+					`{"value":[{
+						"id":"`+commandBlueprintObjectID+`",
+						"appId":"`+commandBlueprintAppID+`",
+						"displayName":"Support Blueprint",
+						"managerApplications":[],
+						"requiredResourceAccess":[]
+					}]}`,
+				),
+			}}
+			stubCredentialAndHTTP(t, httpClient)
+			manifest := writeManifest(t, baseManifest)
 
-	run := runCLI(
-		t,
-		"",
-		"agent365", "binding", "plan",
-		"--blueprint-id", commandBlueprintAppID,
-		"-f", manifest,
-		"--output", "json",
-	)
-	if run.code != 0 {
-		t.Fatalf("binding plan failed: %s", run.stderr)
-	}
-	var result agent365BindingPlanResult
-	if err := json.Unmarshal([]byte(run.stdout), &result); err != nil {
-		t.Fatal(err)
-	}
-	if result.Correlation != "matched" || result.ChangeRequired || result.Executable {
-		t.Fatalf("unexpected matched plan: %+v", result)
-	}
-	if result.BindingMutationSupported {
-		t.Fatal("binding plan must not claim a supported mutation")
-	}
-	for _, request := range httpClient.requests {
-		if request.Method != http.MethodGet {
-			t.Fatalf("binding planning issued mutation %s %s", request.Method, request.URL)
-		}
+			for _, format := range []string{"text", "json", "yaml"} {
+				t.Run(format, func(t *testing.T) {
+					flags := []string{"--blueprint-id", commandBlueprintAppID, "-f", manifest, "--output", format}
+					run := runCLI(t, "", append([]string{"agent365", "binding", "plan"}, flags...)...)
+					if run.code != 0 {
+						t.Fatalf("identity comparison failed: %s", run.stderr)
+					}
+					legacy := runCLI(t, "", append([]string{"agent365-binding-plan"}, flags...)...)
+					if legacy.code != run.code || legacy.stdout != run.stdout || legacy.stderr != run.stderr {
+						t.Fatalf("canonical and compatibility comparison differ:\ncanonical=%#v\nlegacy=%#v", run, legacy)
+					}
+					if format == "text" {
+						for _, expected := range []string{
+							"Agent 365 identity comparison (read-only):",
+							"correlation=" + tc.correlation + " executable=false",
+							"cannot create Foundry agents, attach existing blueprints, or change agent identities",
+							"No binding operation is available.",
+						} {
+							if !strings.Contains(run.stdout, expected) {
+								t.Errorf("comparison text omitted %q:\n%s", expected, run.stdout)
+							}
+						}
+						if strings.Contains(run.stdout, "change-required=") {
+							t.Fatalf("comparison text implies an actionable change:\n%s", run.stdout)
+						}
+						return
+					}
+
+					unmarshal := json.Unmarshal
+					if format == "yaml" {
+						unmarshal = yaml.Unmarshal
+					}
+					var result agent365BindingPlanResult
+					if err := unmarshal([]byte(run.stdout), &result); err != nil {
+						t.Fatal(err)
+					}
+					if !strings.Contains(strings.Join(result.Steps, "\n"), "No binding operation is available.") {
+						t.Fatalf("comparison guidance omitted the non-executable boundary: %+v", result.Steps)
+					}
+					if strings.Contains(strings.Join(result.Steps, "\n"), "when Microsoft exposes") {
+						t.Fatalf("comparison guidance implies a future binding capability: %+v", result.Steps)
+					}
+
+					var fields map[string]interface{}
+					if err := unmarshal([]byte(run.stdout), &fields); err != nil {
+						t.Fatal(err)
+					}
+					for name, expected := range map[string]interface{}{
+						"correlation":              tc.correlation,
+						"changeRequired":           tc.correlation != "matched",
+						"executable":               false,
+						"bindingMutationSupported": false,
+					} {
+						if value, exists := fields[name]; !exists || value != expected {
+							t.Errorf("comparison field %q = %#v, present=%t; want %#v", name, value, exists, expected)
+						}
+					}
+				})
+			}
+			for _, request := range httpClient.requests {
+				if request.Method != http.MethodGet {
+					t.Fatalf("identity comparison issued mutation %s %s", request.Method, request.URL)
+				}
+			}
+		})
 	}
 }
 

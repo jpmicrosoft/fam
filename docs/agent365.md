@@ -1,15 +1,20 @@
 # Agent 365 Blueprints, Identity, Integration, Observability, and Publication
 
-`fam agent365` is a separate, primarily **read-only and
-plan-only** command namespace. It inspects Microsoft Entra Agent ID blueprints, identities,
-and blueprint principals through documented Microsoft Graph v1.0 APIs,
-correlates their identifiers with the identity fields returned by Foundry
-Prompt or Hosted Agents, manages Foundry account integration logging, inspects
-observability readiness, and plans publication handoff.
+Within `fam agent365`, **blueprint inspection and identity comparison are
+read-only**. Inspect Microsoft Entra Agent ID blueprints, identities, and
+blueprint principals through documented Microsoft Graph v1.0 APIs, and compare
+their identifiers with the identity fields returned by existing Foundry Prompt
+or Hosted Agents.
 
-It does **not** deploy agent source from a blueprint. A blueprint is an identity
-template, not agent code, instructions, model configuration, or an
-`azure.yaml` workspace.
+These inspection and comparison operations cannot create Foundry agents,
+attach existing blueprints, or change agent identities. **No binding operation
+is available.** A blueprint is an identity and permissions template, not agent
+code, instructions, model configuration, or an `azure.yaml` workspace.
+
+Separate commands manage Foundry account integration logging, inspect
+observability readiness, and plan publication handoff. `integration set` is the
+namespace's explicitly confirmed, account-level logging mutation; the
+read-only comparison boundary does not describe that separate operation.
 
 ## Contents
 
@@ -22,7 +27,7 @@ template, not agent code, instructions, model configuration, or an
 - [Blueprint identities](#blueprint-identities)
 - [Identity commands](#identity-commands)
 - [Blueprint principal commands](#blueprint-principal-commands)
-- [Binding status and plan](#binding-status-and-plan)
+- [Identity comparison](#identity-comparison)
 - [Integration commands](#integration-commands)
 - [Observability commands](#observability-commands)
 - [Publication commands](#publication-commands)
@@ -46,22 +51,22 @@ template, not agent code, instructions, model configuration, or an
 | List and show Agent ID identities | Read-only |
 | List and show blueprint principals | Read-only |
 | Show Foundry runtime/blueprint identity fields | Read-only |
-| Compare an existing blueprint with a Prompt or Hosted Agent | Plan/read-only |
-| Resolve identity for binding (`--resolve-identity`) | Read-only |
+| Compare an existing blueprint with a deployed Prompt or Hosted Agent | Read-only; no binding operation |
+| Resolve identity for comparison (`--resolve-identity`) | Read-only |
 | Foundry account Agent 365 integration status | Read-only |
 | Foundry account Agent 365 integration plan | Plan/read-only |
 | Foundry account Agent 365 integration set | Mutating (ARM) |
 | Hosted workspace observability status | Read-only |
 | Hosted workspace observability plan | Plan/read-only |
 | Publication info, plan, status, and admin handoff | Plan/read-only |
+| Create a Foundry agent from an existing blueprint | Unsupported |
 | Bind, unbind, create, update, or delete a blueprint | Unsupported |
 | Generic registry mutation or arbitrary existing blueprint binding | Unsupported |
 
-No documented Foundry mutation API currently binds an arbitrary existing Agent
-365 blueprint or Agent ID to an existing Prompt Agent, Hosted Agent, immutable
-version, endpoint, Agent Application, or Autopilot. The manager therefore has no
-`agent365 binding create` or `delete` command and never treats a local metadata
-field as a successful binding.
+FAM does not support attaching an arbitrary existing Agent 365 blueprint or
+Agent ID to a Prompt Agent, Hosted Agent, immutable version, endpoint, Agent
+Application, or Autopilot. It has no `agent365 binding create`, `delete`, or
+`apply` command and never treats a local metadata field as a successful binding.
 
 ## Authentication and authorization
 
@@ -96,7 +101,7 @@ Agent 365 uses several independent authorization systems:
 - Azure management-plane read or write access for Foundry account integration
   status and `integration set`.
 - `Foundry User`, `Foundry Project Manager`, or `Foundry Owner` access for
-  Prompt or Hosted binding/publication evidence.
+  Prompt or Hosted identity-comparison/publication evidence.
 - The `Agent365.Observability.OtelWrite` application role on the deployed
   runtime identity.
 - Downstream Azure RBAC on the project, agent, or published identity that
@@ -208,9 +213,17 @@ fam agent365 blueprint principal show `
 Blueprint principal commands inspect the service principals associated with a
 blueprint. Requires `AgentIdentityBlueprintPrincipal.Read.All`.
 
-## Binding status and plan
+<a id="binding-status-and-plan"></a>
 
-Choose exactly one Foundry target:
+## Identity comparison
+
+The `binding status` and `binding plan` command names are retained for
+compatibility. Both inspect existing identities; **neither creates or attaches
+a blueprint, changes agent identities, or deploys an agent**. `binding plan` is
+a comparison report, not an executable binding or deployment plan. There is no
+apply step.
+
+Choose exactly one already-deployed Foundry target:
 
 ```powershell
 # Prompt Agent
@@ -239,15 +252,21 @@ fam agent365 binding status -f agent.yaml --resolve-identity
 
 Add a blueprint selector to `binding status` to compare those fields with a
 specific existing blueprint. Use `--resolve-identity` to look up the identity
-object associated with the binding through Graph.
+object returned by Foundry through Graph.
 
 `binding plan` requires a selector and reports
 `matched`, `not-matched`, or `insufficient-data`.
 
-A match is **correlation evidence only**. It does not prove that this CLI
-created a binding. A non-match produces a non-executable plan because there is
-no supported write operation. The command does not patch metadata, call an
-undocumented endpoint, or modify the agent.
+A match is **correlation evidence only**; this comparison did not create a
+binding. A non-match or insufficient data does not trigger a repair or
+authorize a write. The command does not patch metadata, call an undocumented
+endpoint, or modify the agent.
+
+JSON/YAML field names are also retained for compatibility. For `binding plan`,
+`executable` and `bindingMutationSupported` are always `false`.
+`changeRequired: true` means the comparison did not confirm a match
+(`not-matched` or `insufficient-data`), not that an executable change is
+available. `steps` contains explanatory guidance, not actions to apply.
 
 ## Integration commands
 

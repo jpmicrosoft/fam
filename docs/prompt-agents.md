@@ -487,8 +487,9 @@ Prompt publishing path.
 
 ### Agent 365 blueprint and identity inspection
 
-Agent 365 blueprint and identity inspection is separate from Prompt deployment
-and Microsoft 365 publishing:
+Agent 365 blueprint inspection and identity comparison are **read-only**,
+separate from Prompt deployment and Microsoft 365 publishing. They compare
+identity information for an already-deployed agent, not prepare a binding:
 
 ```powershell
 fam agent365 binding status -f agent.yaml
@@ -500,9 +501,10 @@ fam agent365 binding plan `
 
 These commands can correlate the Prompt Agent's `instance_identity`,
 `blueprint`, and `blueprint_reference` with an existing Agent ID blueprint.
-They do not attach the blueprint or change the agent. A blueprint is not a
-Prompt manifest, and no documented Foundry mutation currently binds an
-arbitrary existing blueprint to a Prompt Agent.
+They cannot create a Foundry agent from a blueprint, attach an existing
+blueprint, or change agent identities. A blueprint is not a Prompt manifest.
+The `binding` command names are retained for compatibility; `binding plan` is
+identity comparison only, with no binding operation or apply step.
 
 **Identity lifecycle note:** New-model Prompt Agents receive a unique
 `instance_identity` when created, and standard Microsoft 365 publication does

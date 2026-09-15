@@ -604,9 +604,11 @@ publishing remains unsupported.
 ## Agent 365 blueprint, identity, and observability inspection
 
 The general `agent365` namespace is separate from the pinned Autopilot sample.
-It can inspect an existing blueprint, identity, and principal; correlate them
-with a deployed Hosted Agent; check observability readiness; and plan
-publication without provisioning or modifying anything:
+Its blueprint inspection and identity comparison commands are **read-only**:
+they inspect existing blueprints and compare their identifiers with a deployed
+Hosted Agent. They cannot create a Foundry agent from a blueprint, attach an
+existing blueprint, or change agent identities. The commands below also check
+observability readiness without provisioning or modifying resources:
 
 ```powershell
 fam agent365 binding status `
@@ -625,8 +627,9 @@ fam agent365 observability status `
 
 Hosted target resolution still uses the pinned preview `azd` contract and
 therefore requires `--accept-preview`. The blueprint does not replace
-`azure.yaml` or application source, and the plan never binds an arbitrary
-existing Agent ID.
+`azure.yaml` or application source. The `binding` command names are retained for
+compatibility; `binding plan` is identity comparison only, with no binding
+operation or apply step.
 
 `observability plan` scans the workspace source for Microsoft OpenTelemetry
 Distro (preferred: `microsoft-opentelemetry`, `@microsoft/opentelemetry`,

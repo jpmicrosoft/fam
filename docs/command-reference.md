@@ -102,9 +102,15 @@ Shared reference: [update options](#update), [global options](#global-options),
 
 ### Agent 365
 
+**Blueprint inspection and identity comparison are read-only.** They cannot
+create Foundry agents, attach existing blueprints, or change agent identities.
+The `binding status` and `binding plan` names are retained for compatibility:
+there is no binding or apply operation. The separate `integration set` command
+does mutate account-level logging.
+
 | Command | Azure | Purpose |
 |---|---|---|
-| `agent365 info` | no | Explain the read-only Graph contract, identity layers, and unsupported arbitrary-blueprint binding boundary. |
+| `agent365 info` | no | Explain blueprint inspection, read-only identity comparison, identity layers, and the separate account-level logging mutation. Agent creation from a blueprint and arbitrary-blueprint binding are unsupported. |
 | `agent365 blueprint list` | read-only (AzureCloud only) | List up to 100 Microsoft Entra Agent ID blueprints through Microsoft Graph v1.0, including each friendly display name and application/object ID, and report whether the page is truncated. Use `--all` for bounded continuation up to 5,000 results. |
 | `agent365 blueprint show` | read-only (AzureCloud only) | Show selected non-secret blueprint metadata by application/client ID or directory object ID. |
 | `agent365 blueprint permissions` | read-only (AzureCloud only) | Show requested resource access and all documented inheritable-permission modes. Use `--resolve-names` to resolve permission GUIDs to friendly display names (requires `Application.Read.All`). |
@@ -116,8 +122,8 @@ Shared reference: [update options](#update), [global options](#global-options),
 | `agent365 identity show` | read-only (AzureCloud only) | Show one Agent ID identity by ID. Requires `AgentIdentity.Read.All`. |
 | `agent365 blueprint principal list` | read-only (AzureCloud only) | List tenant-local Agent ID blueprint principals. Requires `AgentIdentityBlueprintPrincipal.Read.All`. |
 | `agent365 blueprint principal show` | read-only (AzureCloud only) | Show one blueprint principal by ID. Requires `AgentIdentityBlueprintPrincipal.Read.All`. |
-| `agent365 binding status` | read-only (AzureCloud only) | Show Foundry runtime identity, blueprint identity, and blueprint reference for exactly one Prompt or Hosted target; an optional blueprint selector adds correlation. Use `--resolve-identity` to look up the associated identity object. |
-| `agent365 binding plan` | plan/read-only (AzureCloud only) | Compare an existing blueprint with one Prompt or Hosted Agent and emit a non-mutating plan. No arbitrary binding API is called or implied. |
+| `agent365 binding status` | read-only (AzureCloud only) | Show Foundry identity information and optional blueprint correlation for exactly one deployed Prompt or Hosted target. Use `--resolve-identity` to look up the associated identity object. No binding operation is available. |
+| `agent365 binding plan` | read-only (AzureCloud only) | Compare an existing blueprint with one deployed Prompt or Hosted Agent. Comparison only; no binding operation or apply step is available. |
 | `agent365 integration status` | read-only (AzureCloud only) | Show the Agent 365 logging flag and `a365Status` for a Foundry account. Requires `--account-id` (full Foundry account resource ID). |
 | `agent365 integration plan` | plan/read-only (AzureCloud only) | Plan a change to the Agent 365 logging flag. Requires `--enabled=true` or `--enabled=false`. |
 | `agent365 integration set` | mutating (AzureCloud only) | Set `properties.a365LoggingEnabled` on a Foundry account via ARM API `2026-03-15-preview` and verify with a read-back. Requires `--yes`; supports `--if-match` and `--receipt`. Does not modify `a365Status`. |

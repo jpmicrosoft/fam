@@ -13,6 +13,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const agent365IdentityComparisonBoundary = "Blueprint inspection and identity comparison are read-only. They cannot create Foundry agents, attach existing blueprints, or change agent identities. No binding operation is available."
+
 type agent365InfoResult struct {
 	Cloud                    string   `json:"cloud" yaml:"cloud"`
 	GraphEndpoint            string   `json:"graphEndpoint" yaml:"graphEndpoint"`
@@ -64,7 +66,7 @@ type agent365BindingPlanResult struct {
 func newAgent365Commands() []*cobra.Command {
 	info := &cobra.Command{
 		Use:          "agent365-info",
-		Short:        "Explain Agent 365 blueprint inspection and Foundry integration boundaries.",
+		Short:        "Explain Agent 365 blueprint inspection, identity comparison, and integration boundaries.",
 		GroupID:      "agent365",
 		Args:         noArgs,
 		RunE:         cmdAgent365Info,
@@ -130,8 +132,11 @@ func newAgent365Commands() []*cobra.Command {
 	)
 
 	plan := &cobra.Command{
-		Use:          "agent365-binding-plan",
-		Short:        "Plan correlation of a Foundry Agent with an existing Agent 365 blueprint.",
+		Use:   "agent365-binding-plan",
+		Short: "Compare an existing blueprint with a deployed Foundry agent. Read-only; no binding operation is available.",
+		Long: "Compare an existing blueprint with a deployed Prompt or Hosted Agent.\n\n" +
+			agent365IdentityComparisonBoundary +
+			"\n\nThe binding plan command name is retained for compatibility; there is no apply step.",
 		GroupID:      "agent365",
 		Args:         noArgs,
 		RunE:         cmdAgent365BindingPlan,
@@ -146,8 +151,10 @@ func newAgent365Commands() []*cobra.Command {
 	)
 
 	status := &cobra.Command{
-		Use:          "agent365-binding-status",
-		Short:        "Show Foundry-managed identity and blueprint correlation for an agent.",
+		Use:   "agent365-binding-status",
+		Short: "Show Foundry identity information and optional blueprint correlation. Read-only.",
+		Long: "Show Foundry identity information and optional blueprint correlation for a deployed Prompt or Hosted Agent.\n\n" +
+			agent365IdentityComparisonBoundary,
 		GroupID:      "agent365",
 		Args:         noArgs,
 		RunE:         cmdAgent365BindingStatus,
@@ -187,13 +194,14 @@ func cmdAgent365Info(cmd *cobra.Command, _ []string) error {
 			"List and inspect Agent ID blueprints, identities, and blueprint principals through Microsoft Graph v1.0.",
 			"Validate Microsoft disablement, manager applications, requested access, and all documented inheritance modes.",
 			"Inspect blueprint owners, sponsors, associated identities, and optional friendly permission names.",
-			"Correlate Foundry Agent identity fields with Microsoft Entra identities for Prompt and Hosted targets.",
+			"Inspect and compare existing Foundry Agent identity fields with Microsoft Entra identities for Prompt and Hosted targets (read-only).",
 			"Inspect and explicitly set Foundry account Agent 365 activity-data collection through the documented ARM preview property.",
 			"Validate Hosted Agent local observability integration and the required Agent365.Observability.OtelWrite app role.",
 			"Plan publication with modern identity retention or legacy identity migration guidance, registry verification, and administrator handoff without inventing unsupported mutations.",
 		},
 		Limitations: []string{
 			"A blueprint is an identity template, not deployable agent source or configuration.",
+			agent365IdentityComparisonBoundary,
 			"No documented Foundry API binds an arbitrary existing Agent 365 blueprint to an existing Prompt or Hosted Agent.",
 			"The manager never treats local metadata, generated Agent 365 configuration, or matching IDs alone as a successful binding.",
 			"Blueprint credentials are never requested, read, logged, or emitted.",
@@ -211,7 +219,8 @@ func cmdAgent365Info(cmd *cobra.Command, _ []string) error {
 	return printResult(
 		cmd,
 		result,
-		"Agent 365 support includes read-only inventory, planning, and one confirmed account-level logging mutation; Prompt standard publication is under prompt m365, while arbitrary existing-blueprint binding and generic registry mutation are not supported",
+		agent365IdentityComparisonBoundary+
+			"\nAccount-level logging has a separate confirmed mutation via agent365 integration set; Prompt standard publication is under prompt m365. Generic registry mutation is not supported.",
 	)
 }
 
@@ -377,10 +386,11 @@ func cmdAgent365BindingStatus(cmd *cobra.Command, _ []string) error {
 		result.Correlation = blueprintCorrelation(target.Agent, *blueprint)
 	}
 	return printResult(cmd, result, fmt.Sprintf(
-		"Agent 365 binding status: target=%s agent=%s correlation=%s mutation-supported=false",
+		"Agent 365 identity status (read-only): target=%s agent=%s correlation=%s mutation-supported=false\n%s",
 		result.TargetType,
 		result.AgentName,
 		result.Correlation,
+		agent365IdentityComparisonBoundary,
 	))
 }
 
@@ -423,24 +433,25 @@ func cmdAgent365BindingPlan(cmd *cobra.Command, _ []string) error {
 		ChangeRequired:              status.Correlation != "matched",
 		Executable:                  false,
 		Steps: []string{
+			agent365IdentityComparisonBoundary,
 			"Treat the Foundry identity response as correlation evidence only; it is not proof of an operator-created binding.",
 			"Do not write blueprint IDs into agent metadata or generated Agent 365 files and report that as a successful binding.",
-			"Use a documented Foundry publishing flow when Microsoft exposes one that creates or assigns the Agent 365 identity.",
+			"Agent creation requires a separate Prompt manifest or Hosted workspace; these comparison commands do not deploy an agent or assign its blueprint.",
 			"Continue to grant Azure RBAC separately to the runtime identity that actually accesses downstream resources.",
 		},
 	}
 	if status.Correlation == "matched" {
 		result.Steps = append([]string{
-			"The current Foundry blueprint client ID or blueprint reference matches the requested blueprint; no mutation is planned.",
+			"The current Foundry blueprint client ID or blueprint reference matches the requested blueprint; this comparison did not create a binding.",
 		}, result.Steps...)
 	}
 	return printResult(cmd, result, fmt.Sprintf(
-		"Agent 365 binding plan: target=%s agent=%s correlation=%s change-required=%t executable=%t",
+		"Agent 365 identity comparison (read-only): target=%s agent=%s correlation=%s executable=%t\n%s",
 		result.TargetType,
 		result.AgentName,
 		result.Correlation,
-		result.ChangeRequired,
 		result.Executable,
+		agent365IdentityComparisonBoundary,
 	))
 }
 

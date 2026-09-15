@@ -140,7 +140,7 @@ the [FAQ](docs/faq.md) for practical answers, and the
 - [Command organization](#command-organization)
 - [Quick start: Prompt agent](#quick-start-prompt-agent)
 - [Quick start: Hosted agent](#quick-start-hosted-agent)
-- [Agent 365 blueprint inspection](#agent-365-blueprint-inspection)
+- [Agent 365 blueprint inspection and identity comparison](#agent-365-blueprint-inspection-and-identity-comparison)
 - [Choose your deployment path](#choose-your-deployment-path)
 - [Doctor — environment readiness](#doctor--environment-readiness)
 - [VS Code integration](#vs-code-integration)
@@ -158,7 +158,7 @@ Answer one question: **Does your agent need custom application code?**
 |---|---|---|
 | **No** — my agent is instructions + a model + declarative tools | **[Prompt Agent](#quick-start-prompt-agent)** | A Foundry account, an existing or explicitly planned model deployment, and a supported Azure identity such as an applicable developer credential or managed identity |
 | **Yes** — I need Python, .NET, or a container runtime | **[Hosted Agent](#quick-start-hosted-agent)** | A Foundry account plus `azd` 1.32.0+ and the pinned Hosted extension; model infrastructure remains declared in `azure.yaml` |
-| **I already have an Agent 365 blueprint** | **[Inspect and correlate it](#agent-365-blueprint-inspection)** | Microsoft Graph `AgentIdentityBlueprint.Read.All`; this path does not deploy source or bind the blueprint |
+| **I already have an Agent 365 blueprint** | **[Inspect it and compare identities (read-only)](#agent-365-blueprint-inspection-and-identity-comparison)** | Microsoft Graph `AgentIdentityBlueprint.Read.All`; this path cannot create a Foundry agent from the blueprint or attach the blueprint |
 | **I'm not sure yet** | [Try FAM locally](#try-fam-locally) | The `fam` executable only; no Azure coordinates or login |
 
 The Azure prerequisites above apply to deployment, not to trying the CLI.
@@ -194,7 +194,7 @@ long-term support promise when an upstream service is still preview.
 | Foundry Toolboxes and connector automation | **Preview-supported** | AzureCloud |
 | Memory, Skills, managed OAuth2 connectors, legacy apps | **Preview-supported** | AzureCloud |
 | API Center discovery, Logic Apps registration planning | **Plan/read-only** | — |
-| Agent 365 blueprint, identity, principal inspection and correlation | **Plan/read-only** | AzureCloud |
+| Agent 365 blueprint, identity, principal inspection and identity comparison | **Plan/read-only** | AzureCloud |
 | Agent 365 integration logging | **Preview-supported** | AzureCloud |
 | Agent 365 observability readiness | **Plan/read-only** | AzureCloud |
 | Agent 365 publication planning and admin handoff | **Plan/read-only** | AzureCloud |
@@ -213,8 +213,9 @@ long-term support promise when an upstream service is still preview.
 - `agent365` can inspect an existing Agent ID blueprint, identity, and
   principal; compare it with Foundry identity fields; manage integration
   logging on a Foundry account; inspect observability readiness; and plan
-  publication. It cannot bind an arbitrary blueprint or Agent ID because no
-  documented Foundry mutation API exposes that operation.
+  publication. Blueprint inspection and identity comparison are read-only:
+  they cannot create Foundry agents, attach existing blueprints, or change
+  agent identities. No binding operation is available.
 - New-model agents have a unique identity at creation, and standard Microsoft
   365 publication does not replace it. Legacy agents can use the shared project
   identity; migrating a legacy agent or Agent Application to a new-model agent
@@ -744,14 +745,20 @@ Bare `fam help` shows the top-level namespaces and getting-started commands, whi
 show only that namespace or command's subcommands, usage, examples, flags, and
 related workflow.
 
-## Agent 365 blueprint inspection
+<a id="agent-365-blueprint-inspection"></a>
 
-Agent 365 blueprints are identity templates, not agent source. The manager can
-list, show, validate, and inspect blueprint permissions, owners, sponsors, and
-identities through Microsoft Graph; list and show Agent ID identities and
-blueprint principals; compare a blueprint with a deployed Prompt or Hosted
-Agent; manage Foundry account integration logging; inspect observability
-readiness; and plan publication handoff:
+## Agent 365 blueprint inspection and identity comparison
+
+Inspect Agent 365 identity blueprints and compare their identifiers with
+existing Foundry agents. **These inspection and comparison operations are
+read-only.** They cannot create a Foundry agent from a blueprint, attach an
+existing blueprint, or change agent identities. A blueprint is an identity and
+permissions template, not agent source, instructions, or model configuration.
+
+The manager can inspect blueprint permissions, owners, sponsors, and identities
+through Microsoft Graph, and compare a blueprint with a deployed Prompt or
+Hosted Agent. Separate commands manage Foundry account integration logging,
+inspect observability readiness, and plan publication handoff:
 
 ```powershell
 fam agent365 blueprint show `
@@ -774,8 +781,10 @@ fam agent365 observability plan `
   --workspace C:\src\hosted-agent
 ```
 
-The binding plan is intentionally non-executable. A matching ID is correlation
-evidence; a non-match is not repaired with metadata or an undocumented API.
+The `binding status` and `binding plan` command names are retained for
+compatibility. **`binding plan` is an identity comparison, not an executable
+binding or deployment plan; there is no apply step.** A matching ID is
+correlation evidence only. A non-match does not trigger a repair or binding.
 See [Agent 365 Blueprints, Identity, Integration, Observability, and Publication](docs/agent365.md).
 
 ## Choose your deployment path
