@@ -336,8 +336,11 @@ sample, which is not an arbitrary existing-agent publisher.
 
 Prompt Agents support Agent 365 registry synchronization after standard
 Microsoft 365 publication, but Prompt Autopilot publishing is unsupported.
-Use `fam prompt m365 publish` for the standard Prompt path. Registry status has
-no documented manager API and remains unverified.
+The shared stable `v1` publishing schema documents Autopilot fields. For Prompt
+Agents, FAM explicitly sends `publishAsAutopilot: false` and omits
+`accessBoundaries` and `optionalPermissionScopes`. Use `fam prompt m365 publish`
+for the standard Prompt path. Registry status has no documented manager API
+and remains unverified.
 
 ## Identity lifecycle
 
