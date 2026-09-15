@@ -588,11 +588,12 @@ programmatic implementation guidance. This wrapper follows the concrete
 Hosted-agent how-to and pinned Hosted sample; the table is not treated as a
 substitute for a Prompt Agent implementation decision.
 
-The stable Microsoft 365 publish request contract documents
+The shared stable `v1` Microsoft 365 publish request schema documents
 `publishAsAutopilot`, `accessBoundaries`, and `optionalPermissionScopes`
-fields for autopilot (digital worker) publishing. The manager does not send
-these fields for Prompt Agents: implementing Prompt Autopilot publishing is a
-separate, undelivered feature decision, not a missing stable contract.
+fields for autopilot (digital worker) publishing. For Prompt Agents, FAM
+explicitly sends `publishAsAutopilot: false` and omits the other two fields.
+The schema does not change FAM's supported features: Prompt Autopilot
+publishing remains unsupported.
 
 - AzureCloud only.
 - Preview and commit acceptance are both mandatory and separate.

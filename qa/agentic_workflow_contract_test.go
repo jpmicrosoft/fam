@@ -705,6 +705,9 @@ func TestWeeklyFoundryToolUseGuidance(t *testing.T) {
 		"Direct `raw.githubusercontent.com` downloads are permitted only for files from the approved Microsoft source repositories listed above",
 		"Prefer commit-pinned raw URLs when available",
 		"Do not use raw URLs for any other repository",
+		"The shared stable `v1` Microsoft 365 publishing schema documents",
+		"FAM explicitly sends `publishAsAutopilot: false` and omits the other two fields",
+		"Prompt Autopilot publishing remains unsupported in FAM",
 		"Do not invoke Bash, PowerShell",
 		"Run `go_repository` operations sequentially",
 		`{"action":"readiness"}`,
@@ -724,7 +727,10 @@ func TestWeeklyFoundryToolUseGuidance(t *testing.T) {
 		if !strings.Contains(guidance, required) {
 			t.Errorf("weekly review is missing required tool-use guidance %q", required)
 		}
-		for _, obsolete := range []string{"safeoutputs noop --message", "safeoutputs create_pull_request . <", "git grep -n", "gofmt -l .", "go build -o fam"} {
+		for _, obsolete := range []string{
+			"safeoutputs noop --message", "safeoutputs create_pull_request . <", "git grep -n", "gofmt -l .", "go build -o fam",
+			"Prompt-agent Autopilot has no documented stable request contract",
+		} {
 			if strings.Contains(guidance, obsolete) {
 				t.Errorf("weekly review still instructs the model to run obsolete shell command %q", obsolete)
 			}
