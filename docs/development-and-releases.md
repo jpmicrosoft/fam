@@ -95,6 +95,14 @@ open one draft pull request against `main`; it cannot merge or publish a
 release. Runs without a validated high-confidence change do not create an empty
 pull request.
 
+Web access allows Microsoft Learn and `raw.githubusercontent.com` alongside the
+standard network defaults. Raw GitHub downloads support direct inspection of
+generated API specifications and other approved Microsoft source files; prefer
+commit-pinned URLs when available. This is a hostname-wide firewall allowance,
+not repository-level filtering. The GitHub MCP repository allowlist does not
+apply to direct web requests, so the workflow's approved-source requirement
+still governs which raw URLs the agent should use.
+
 Before inference, trusted setup installs Go from `go.mod`, downloads and verifies
 the module dependencies, and compiles the packages and tests with downloads
 disabled. The sandbox inherits the selected toolchain and explicitly mounts
