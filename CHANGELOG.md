@@ -43,6 +43,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Preserved bounded native validation errors, including command output and
   unexpected-file diagnostics, while keeping failed validation and publication
   guards intact.
+- Allowed raw GitHub specification downloads in the weekly review while retaining
+  Microsoft Learn access, approved-source guidance, and existing inference and
+  publication safeguards.
 
 ## [0.17.1] - 2026-09-09
 
