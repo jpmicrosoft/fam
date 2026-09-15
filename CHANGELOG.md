@@ -49,6 +49,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Updated the pinned CodeQL and Azure Login Actions while preserving workflow
   permissions, OIDC authentication, and manual-only evaluator calibration.
 
+### Changed
+
+- Updated `golang.org/x/sys` to `v0.48.0` and raised the minimum source-build
+  toolchain to Go 1.26. Published FAM binaries still do not require Go installed.
+
 ## [0.17.1] - 2026-09-09
 
 ### Fixed

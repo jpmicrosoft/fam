@@ -241,7 +241,7 @@ deployment never creates a model implicitly.
 | Offline validation, planning, and scaffolding | The `fam` executable only |
 | Online Prompt, project, model, connection, or Agent 365 operations | `fam` plus an identity that `DefaultAzureCredential` can resolve. Azure CLI (`az`) is one optional developer credential source, not a universal requirement. |
 | Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.32.0 or later, and the `azure.ai.agents` azd extension at exactly `1.0.0-beta.13` |
-| Optional source build | Go 1.25 or later |
+| Optional source build | Go 1.26 or later |
 
 Install the pinned Hosted Agent extension explicitly:
 

@@ -92,7 +92,7 @@ The answer depends on the workflow:
 | Offline validation, planning, and scaffolding | The published `fam` executable only |
 | Online Prompt and other direct Foundry operations | `fam` plus a supported Azure identity. Azure CLI (`az`) is optional and can provide a local developer credential through `DefaultAzureCredential`. |
 | Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.32.0 or later, and the **`azure.ai.agents`** azd extension at exactly **`1.0.0-beta.13`** |
-| Building from source | Go 1.25 or later |
+| Building from source | Go 1.26 or later |
 
 The Hosted extension is named `azure.ai.agents`. Install the required version
 with:
@@ -115,7 +115,7 @@ azd auth login --tenant-id "<tenant-id>"
 
 ### Do users need Go installed?
 
-No. Published releases contain a standalone executable. Go 1.25 or later is
+No. Published releases contain a standalone executable. Go 1.26 or later is
 needed only to build or test the project from source.
 
 ### Does `go mod download` install Azure CLI or `azd`?

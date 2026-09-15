@@ -350,15 +350,25 @@ func TestSourceVersionIsSemVer(t *testing.T) {
 }
 
 func TestGoModDeclaresTheDocumentedToolchain(t *testing.T) {
+	const minimumGo = "1.26"
 	data, err := os.ReadFile(filepath.Join("..", "go.mod"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), "go 1.25") {
-		t.Fatalf("go.mod no longer declares the documented Go 1.25 toolchain:\n%s", data)
+	if !strings.Contains(string(data), "go "+minimumGo) {
+		t.Fatalf("go.mod no longer declares the documented Go %s toolchain:\n%s", minimumGo, data)
 	}
 	if !strings.Contains(string(data), "module foundry-agent-manager") {
 		t.Fatalf("unexpected module path:\n%s", data)
+	}
+	for _, name := range []string{"README.md", filepath.Join("docs", "faq.md")} {
+		document, err := os.ReadFile(filepath.Join("..", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(document), "Go "+minimumGo+" or later") {
+			t.Errorf("%s must document Go %s or later for source builds", name, minimumGo)
+		}
 	}
 }
 
