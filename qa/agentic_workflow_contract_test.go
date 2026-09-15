@@ -557,6 +557,10 @@ func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 		t.Fatal("compiled inference must contain a literal firewall budget")
 	}
 	var firewall struct {
+		Network struct {
+			AllowDomains []string `json:"allowDomains"`
+			Isolation    bool     `json:"isolation"`
+		} `json:"network"`
 		APIProxy struct {
 			MaxAICredits int `json:"maxAiCredits"`
 		} `json:"apiProxy"`
@@ -572,8 +576,37 @@ func TestWeeklyFoundryBoundedInferenceAndPolicy(t *testing.T) {
 		!reflect.DeepEqual(agent.Permissions, wantPermissions) {
 		t.Fatal("agent repository permissions must remain read-only")
 	}
-	if !reflect.DeepEqual(source.Network.Allowed, []string{"defaults", "learn.microsoft.com"}) {
-		t.Fatal("review must not broaden the sandbox network allowlist")
+	if !reflect.DeepEqual(source.Network.Allowed, []string{"defaults", "learn.microsoft.com", "raw.githubusercontent.com"}) {
+		t.Fatal("review network must retain defaults, Microsoft Learn, and the approved raw GitHub host only")
+	}
+	if !firewall.Network.Isolation {
+		t.Fatal("review must retain firewall network isolation")
+	}
+	for _, domain := range []string{"learn.microsoft.com", "raw.githubusercontent.com"} {
+		if !slices.Contains(firewall.Network.AllowDomains, domain) {
+			t.Errorf("compiled firewall is missing approved research host %s", domain)
+		}
+	}
+	for _, domain := range firewall.Network.AllowDomains {
+		if strings.Contains(domain, "*") {
+			t.Errorf("compiled firewall must not grant wildcard host %s", domain)
+		}
+	}
+	for _, jobName := range []string{"agent", "safe_outputs"} {
+		foundDomains := false
+		for _, step := range compiled.Jobs[jobName].Steps {
+			domains, ok := step.Env["GH_AW_ALLOWED_DOMAINS"]
+			if !ok {
+				continue
+			}
+			foundDomains = true
+			if !slices.Equal(strings.Split(domains, ","), firewall.Network.AllowDomains) {
+				t.Errorf("%s domain reporting must match the actual firewall allowlist", jobName)
+			}
+		}
+		if !foundDomains {
+			t.Errorf("%s must retain its compiled domain reporting", jobName)
+		}
 	}
 	if source.Tools.Bash == nil || *source.Tools.Bash ||
 		source.Tools.CLIProxy == nil || *source.Tools.CLIProxy {
@@ -667,6 +700,11 @@ func TestWeeklyFoundryToolUseGuidance(t *testing.T) {
 		"native `grep` for content searches and `glob` for file discovery",
 		"no general shell, CLI proxy, or task/subagent tools",
 		"`go_repository` actions `status` and `diff`",
+		"native GitHub MCP tools for repository evidence",
+		"`web_fetch` for Microsoft Learn pages",
+		"Direct `raw.githubusercontent.com` downloads are permitted only for files from the approved Microsoft source repositories listed above",
+		"Prefer commit-pinned raw URLs when available",
+		"Do not use raw URLs for any other repository",
 		"Do not invoke Bash, PowerShell",
 		"Run `go_repository` operations sequentially",
 		`{"action":"readiness"}`,

@@ -130,6 +130,7 @@ network:
   allowed:
     - defaults
     - learn.microsoft.com
+    - raw.githubusercontent.com
 safe-outputs:
   create-pull-request:
     target-repo: jpmicrosoft/fam
@@ -205,8 +206,13 @@ After passing the readiness check below:
 - Use native `grep` for content searches and `glob` for file discovery.
   These are SDK tools, not executables or shell pipelines.
 - Use `go_repository` actions `status` and `diff` to inspect local changes.
-- Use the provided native GitHub MCP tools and `web_fetch` for remote evidence,
-  and native editing tools for repository changes.
+- Use the provided native GitHub MCP tools for repository evidence and native
+  editing tools for repository changes.
+- Use `web_fetch` for Microsoft Learn pages. Direct `raw.githubusercontent.com`
+  downloads are permitted only for files from the approved Microsoft source
+  repositories listed above, such as generated API specifications. Prefer
+  commit-pinned raw URLs when available. Do not use raw URLs for any other
+  repository.
 - Run `go_repository` operations sequentially. Its fixed actions accept no
   command, executable, arguments, working directory, or environment overrides.
   Only `prepare_branch` accepts a `branch` name.
