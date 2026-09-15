@@ -46,6 +46,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Allowed raw GitHub specification downloads in the weekly review while retaining
   Microsoft Learn access, approved-source guidance, and existing inference and
   publication safeguards.
+- Updated the pinned CodeQL and Azure Login Actions while preserving workflow
+  permissions, OIDC authentication, and manual-only evaluator calibration.
 
 ## [0.17.1] - 2026-09-09
 
