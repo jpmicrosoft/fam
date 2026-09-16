@@ -137,11 +137,11 @@ construction, credential acquisition, or network access. There is no automatic
 fallback to AzureCloud.
 
 First-party service availability is not the same as manager qualification.
-Prompt agents and stable endpoints have Government service coverage, while
-Hosted agents, Microsoft 365/Teams publishing, MCP, and A2A do not have the
-same boundary. This mixed matrix is why the manager rejects Government
-entirely until the supported subset can be qualified end to end without
-accidentally enabling unsupported integrations.
+Prompt agents, stable endpoints, and MCP servers have Government service
+coverage, while Hosted agents, Microsoft 365/Teams publishing, A2A, and Agent
+365 Autopilot do not have the same boundary. This mixed matrix is why the
+manager rejects Government entirely until the supported subset can be
+qualified end to end without accidentally enabling unsupported integrations.
 
 | Setting | `AzureCloud` |
 |---|---|
