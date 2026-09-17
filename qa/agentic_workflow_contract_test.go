@@ -203,8 +203,10 @@ func TestWeeklyFoundryRuntimeNotUpdatedIndependently(t *testing.T) {
 
 func TestWeeklyFoundryGatewayUsesScopedImmutableImage(t *testing.T) {
 	authoring, compiled := weeklyReviewDocuments(t)
-	const container = "ghcr.io/jpmicrosoft/gh-aw-mcpg"
+	const container = "ghcr.io/github/gh-aw-mcpg"
 	const sourceImage = "ghcr.io/github/gh-aw-mcpg:v0.4.20"
+	const gatewayRevision = "b9c9d53ee33b317535ab934344aba3345ea5824c"
+	const gatewayDigest = "sha256:a128e8dac266ad7dde7433f6e408b57868bdb7876b829d3d836dc6697eb60e10"
 	if authoring.Sandbox.MCP.Container != "" || authoring.Sandbox.MCP.Version != "" {
 		t.Fatal("strict mode requires the repository image mapping, not sandbox.mcp runtime overrides")
 	}
@@ -221,11 +223,11 @@ func TestWeeklyFoundryGatewayUsesScopedImmutableImage(t *testing.T) {
 	if len(config.ContainerPins) != 1 || !ok {
 		t.Fatalf("container mapping must replace only the selected gateway %s, got %#v", sourceImage, config.ContainerPins)
 	}
-	if !regexp.MustCompile(`^` + regexp.QuoteMeta(container) + `:[0-9a-f]{40}$`).MatchString(pin.Image) {
-		t.Fatalf("weekly gateway must use the fork's full source-revision tag, got %q", pin.Image)
+	if pin.Image != container+":"+gatewayRevision {
+		t.Fatalf("weekly gateway must use the verified upstream source revision, got %q", pin.Image)
 	}
-	if !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(pin.Digest) {
-		t.Fatalf("weekly gateway requires an immutable SHA-256 digest, got %q", pin.Digest)
+	if pin.Digest != gatewayDigest {
+		t.Fatalf("weekly gateway must use the verified upstream image digest, got %q", pin.Digest)
 	}
 	pinnedImage := pin.Image + "@" + pin.Digest
 
@@ -293,7 +295,7 @@ func TestWeeklyFoundryGatewayUsesScopedImmutableImage(t *testing.T) {
 			t.Fatalf("read %s: %v", filename, err)
 		}
 		if strings.Contains(string(data), container) {
-			t.Errorf("fork gateway must remain scoped to the weekly review, not %s", filename)
+			t.Errorf("gateway override must remain scoped to the weekly review, not %s", filename)
 		}
 	}
 }

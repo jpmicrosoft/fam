@@ -207,23 +207,24 @@ publication. It also adds the opt-in native Go repository profile described
 above. The rollout removes the model-facing shell without broadening network
 access, raising budgets, or weakening publication/recovery policy.
 
-The weekly review is FAM's only MCP-enabled workflow. Its
-`jpmicrosoft/gh-aw-mcpg` gateway corrects native SDK protocol negotiation while
-retaining the authenticated, stateful MCP handshake. Strict mode rejects
+The weekly review is FAM's only MCP-enabled workflow. Upstream
+`github/gh-aw-mcpg` v0.4.24 includes the native SDK protocol-negotiation fix
+while retaining the authenticated, stateful MCP handshake. Strict mode rejects
 `sandbox.mcp.container` and `sandbox.mcp.version` overrides, so
 `.github/workflows/aw.json` maps the compiler's exact default gateway reference
-to the fork's full source-commit tag and published SHA-256 digest. Predownload
-and gateway startup therefore use the same immutable image without disabling
-strict compilation or changing the compiler's global defaults.
+to upstream source commit `b9c9d53ee33b317535ab934344aba3345ea5824c`
+and its published SHA-256 digest. Predownload and gateway startup therefore use
+the same immutable official image without disabling strict compilation or
+changing the compiler's global defaults.
 
-This is repository-wide configuration. QA rejects the fork image in any other
-workflow; revisit the mapping before adding another MCP-enabled workflow.
+This is repository-wide configuration. QA rejects the gateway override in any
+other workflow; revisit the mapping before adding another MCP-enabled workflow.
 
 Before updating the gateway tag and digest, confirm anonymous registry access and
-the gateway fork's `native-image` publishing job. That job runs the pinned native
-SDK fixture against the published image with synthetic loopback backends and no
-model requests. A live weekly review is a separate operation that consumes
-inference credits.
+an official release whose source contains the stateful negotiation fix. Confirm
+that the release builds the baked GitHub guard and multi-platform image, then
+retain the exact source revision and image digest in the contract test. A live
+weekly review is a separate operation that consumes inference credits.
 
 The compiler and setup runtime must come from the same commit. The fix is on
 the fork's `main`, but compilation pins the full commit SHA rather than a moving
