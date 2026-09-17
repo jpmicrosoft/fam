@@ -51,6 +51,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Changed
 
+- Returned the weekly review's MCP gateway to the official
+  `github/gh-aw-mcpg` v0.4.24 source and immutable image digest after the
+  stateful negotiation fix was accepted upstream. The separate pinned `gh-aw`
+  compiler/runtime fork remains unchanged.
 - Updated `golang.org/x/sys` to `v0.48.0` and raised the minimum source-build
   toolchain to Go 1.26. Published FAM binaries still do not require Go installed.
 
