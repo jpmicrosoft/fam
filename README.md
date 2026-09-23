@@ -525,6 +525,44 @@ new scripts and documentation should use the nested command paths.
 **Goal:** deploy an instructions-based agent to an existing Foundry project
 and inspect its first version. No custom application runtime is needed.
 
+### Guided Prompt setup with `fam quickstart`
+
+Have your existing model deployment name and Foundry project ARM resource ID
+ready (see [Azure inputs](#1-gather-the-azure-inputs)). Start in a directory
+where `azure-agent.yaml` does not already exist:
+
+```powershell
+fam quickstart --type prompt `
+  --destination azure-agent.yaml --name support-agent --no-tools
+```
+
+Enter the model deployment name and project resource ID when prompted.
+Quickstart creates the manifest and prints the validation, planning, preflight,
+deployment, and status commands for it; **it does not run those commands or
+create Azure resources**. `--no-tools` omits the default code interpreter tool
+for a minimal first deployment.
+
+<details>
+<summary>Supply all Prompt inputs without interactive prompts</summary>
+
+Use this instead of the guided command above, replacing the quoted placeholders:
+
+```powershell
+fam quickstart --type prompt `
+  --destination azure-agent.yaml --name support-agent --no-tools `
+  --model "<model-deployment-name>" `
+  --project-resource-id "<full-foundry-project-resource-id>" `
+  --non-interactive
+```
+
+</details>
+
+After quickstart, edit `agent.instructions` and run the validation/planning
+commands in [step 2](#2-create-and-review-the-manifest), **skipping `prompt init`**.
+Then continue with [preflight and deployment](#3-check-access-then-deploy).
+The numbered how-to below is also available as a manual alternative; do not
+run both scaffold commands against the same file.
+
 ### 1. Gather the Azure inputs
 
 | You need | What to use |
@@ -563,9 +601,6 @@ small; [add tools later](docs/tools-and-grounding.md). The default guardrail is
 inherited from the model deployment; a custom policy is
 [optional](docs/prompt-agents.md#manifest-reference).
 
-Prefer guided input? Run `fam quickstart --type prompt` **instead of**
-the init command, choose a new destination, and follow its printed next steps.
-
 ### 3. Check access, then deploy
 
 Run the read-only Azure check first:
@@ -598,6 +633,62 @@ do not assume it is version `1`.
 
 **Goal:** create a workspace for custom application code, then deploy it using
 the pinned Hosted Agent workflow. **Hosted Agents are preview features.**
+
+### Guided Hosted setup with `fam quickstart`
+
+Start in a directory where `hosted-demo` does not already exist. This example
+keeps setup files-only, so no Azure account or `azd` installation is needed:
+
+```powershell
+fam quickstart --type hosted `
+  --destination hosted-demo --name support-agent --environment dev `
+  --bootstrap-environment=false
+```
+
+At the existing-source prompt, leave the answer blank to generate starter code,
+or supply an existing Python source folder to adopt it into the new workspace.
+The source folder is left untouched. Add `--non-interactive` to generate starter
+code without prompts.
+
+**Expected result:** a workspace with `azure.yaml` and source, plus printed
+next commands. Quickstart does not execute the printed validation or deployment
+commands. The explicit `--bootstrap-environment=false` prevents local azd
+environment setup; without this flag, interactive Hosted quickstart asks about
+bootstrap and defaults to **yes**.
+
+<details>
+<summary>Create a new workspace and bootstrap its local azd environment together</summary>
+
+Once the [Hosted deployment prerequisites](#2-prepare-for-azure-deployment) are
+ready, use this **instead of** the files-only quickstart above. Replace the
+quoted placeholders and choose a destination that does not already exist:
+
+```powershell
+fam quickstart --type hosted `
+  --destination hosted-demo --name support-agent --environment dev `
+  --project-id "<full-foundry-project-resource-id>" `
+  --model "<model-deployment-name>" --location "<azure-location>" `
+  --bootstrap-environment --non-interactive
+```
+
+For quickstart, use `--model`, not the `--model-deployment` flag used by
+`hosted environment create`. Optional `--tenant-id "<tenant-id>"` records
+tenant context; it does not authenticate azd.
+
+Bootstrap creates or reuses and configures the workspace's local azd
+environment. It does **not** provision Azure resources, deploy the agent,
+authenticate azd, or grant RBAC. If bootstrap fails after the workspace is
+created, use the printed `fam hosted environment create` recovery command
+rather than rerunning quickstart into the same destination.
+
+</details>
+
+After quickstart, run the validation/planning commands in
+[step 1](#1-create-and-inspect-a-workspace-offline), **skipping `hosted init`**.
+Continue with [environment preparation](#2-prepare-for-azure-deployment)
+(skip environment creation if bootstrap succeeded), then
+[preflight and deployment](#3-preflight-deploy-and-inspect).
+The numbered how-to below remains the manual alternative.
 
 ### 1. Create and inspect a workspace offline
 
@@ -668,10 +759,6 @@ fam hosted environment create `
 derived endpoint settings. This does not create Azure resources, grant RBAC,
 or log in. Default-generated workspaces use `Microsoft.DefaultV2`; see
 [guardrail options](docs/hosted-agents.md#agent-guardrails) for deliberate changes.
-
-Prefer guided setup? Run `fam quickstart --type hosted` **instead of** manually
-creating a workspace and environment. It offers source adoption and asks
-before environment bootstrap. Answer **no** to bootstrap for files-only use.
 
 ### 3. Preflight, deploy, and inspect
 
