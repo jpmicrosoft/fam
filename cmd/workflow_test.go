@@ -406,9 +406,9 @@ func TestCodeQLWorkflowUsesSHAPinnedActions(t *testing.T) {
 	for _, want := range []string{
 		"actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
 		"actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
-		"github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd",
-		"github/codeql-action/autobuild@1c5b675653bb5c22dbe9b12b556ec555138e09fd",
-		"github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd",
+		"github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
+		"github/codeql-action/autobuild@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
+		"github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
 	} {
 		if !strings.Contains(raw, want) {
 			t.Fatalf("codeql.yml missing immutable SHA pin %q", want)
