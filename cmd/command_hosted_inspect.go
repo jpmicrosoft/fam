@@ -156,6 +156,9 @@ func cmdHostedDiff(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	defer cancel()
+	if _, err := validateHostedSkillArtifacts(runtime.Workspace, runtime.ProjectEndpoint); err != nil {
+		return err
+	}
 	snapshot, err := hosted.ComputeDeploymentSnapshot(runtime.Workspace, runtime.Environment)
 	if err != nil {
 		return err

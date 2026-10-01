@@ -34,6 +34,7 @@ var allCommands = []string{
 	"toolbox-delete-version",
 	"skill-create", "skill-list", "skill-show", "skill-version-list", "skill-version-show",
 	"skill-set-default", "skill-delete", "skill-version-delete", "skill-download",
+	"prompt-skill-attach", "prompt-skill-remove", "prompt-skill-list",
 	"grounding-validate", "grounding-plan",
 	"grounding-sync", "grounding-status", "grounding-delete-file",
 	"grounding-delete-store",

@@ -134,6 +134,9 @@ func applyOverrides(doc map[string]interface{}, cmd *cobra.Command) error {
 }
 
 func resolveManifest(cmd *cobra.Command) (*resolvedManifest, error) {
+	if err := validateNativePromptSkillsFlags(cmd); err != nil {
+		return nil, err
+	}
 	manifestPath := getFlag(cmd, "manifest")
 	doc, err := config.LoadManifest(manifestPath)
 	if err != nil {
@@ -273,6 +276,8 @@ func prepareAgent(cmd *cobra.Command) (*preparedAgent, error) {
 			StructuredInputs: cfg.Agent.StructuredInputs,
 			Metadata:         cfg.Agent.Metadata,
 			ManageMetadata:   cfg.Agent.MetadataConfigured,
+			Skills:           cfg.Agent.Skills,
+			ManageSkills:     cfg.Agent.SkillsConfigured,
 		},
 		APIMEnabled:    apimEnabled,
 		ConnectionName: connectionName,

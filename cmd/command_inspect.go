@@ -57,7 +57,7 @@ func cmdStatus(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	client := newFoundryClient(endpoint, cfg, credential, httpClient)
+	client := newPromptSkillsClient(cmd, endpoint, cfg, credential, httpClient)
 	agent, err := client.GetAgentContext(commandContext(cmd), cfg.Agent.Name)
 	if err != nil {
 		return err
@@ -147,7 +147,7 @@ func cmdShow(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	client := newFoundryClient(endpoint, cfg, credential, httpClient)
+	client := newPromptSkillsClient(cmd, endpoint, cfg, credential, httpClient)
 
 	var value interface{}
 	if version := getFlag(cmd, "agent-version"); version != "" {
@@ -195,7 +195,7 @@ func cmdVersions(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	client := newFoundryClient(endpoint, cfg, credential, httpClient)
+	client := newPromptSkillsClient(cmd, endpoint, cfg, credential, httpClient)
 	agent, err := client.GetAgentContext(commandContext(cmd), cfg.Agent.Name)
 	if err != nil {
 		return err
@@ -290,7 +290,7 @@ func cmdDiff(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	client := newFoundryClient(endpoint, cfg, credential, httpClient)
+	client := newPromptSkillsClient(cmd, endpoint, cfg, credential, httpClient)
 	if err := resolvePreparedManagedGrounding(
 		commandContext(cmd),
 		client,
@@ -300,6 +300,13 @@ func cmdDiff(cmd *cobra.Command, _ []string) error {
 	}
 	remote, err := client.GetAgentContext(commandContext(cmd), cfg.Agent.Name)
 	if err != nil {
+		return err
+	}
+	effective, err := promptSkillsDesired(cmd, remote, prepared.Desired)
+	if err != nil {
+		return err
+	}
+	if _, err := validatePromptSkillContent(commandContext(cmd), client, effective.Skills); err != nil {
 		return err
 	}
 	agentResult, err := agentdiff.Compare(remote, prepared.Desired)
@@ -403,6 +410,11 @@ func cmdSmoke(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	cfg := resolved.Config
+	if len(cfg.Agent.Skills) > 0 {
+		if err := requireNativePromptSkills(cmd); err != nil {
+			return err
+		}
+	}
 	credential, err := newCredential(cmd, cfg.Cloud)
 	if err != nil {
 		return err
@@ -412,9 +424,12 @@ func cmdSmoke(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	client := newFoundryClient(endpoint, cfg, credential, httpClient)
+	client := newPromptSkillsClient(cmd, endpoint, cfg, credential, httpClient)
 	structuredInputs, err := loadStructuredInputValues(cmd, cfg.Agent.StructuredInputs)
 	if err != nil {
+		return err
+	}
+	if err := validateSmokePromptSkills(cmd, client, cfg.Agent.Name); err != nil {
 		return err
 	}
 	invocation, err := client.InvokeEndpointWithOptionsContext(

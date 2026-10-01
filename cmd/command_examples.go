@@ -40,7 +40,15 @@ func formatCommandExamples(raw string) string {
 }
 
 var commandExamples = map[string]string{
-	"version": `fam version`,
+	"skill-validate":      `fam skill-validate --path .\skills\greeting`,
+	"prompt-skill-attach": `fam prompt-skill-attach -f agent.yaml --skill greeting --version 1`,
+	"prompt-skill-remove": `fam prompt-skill-remove -f agent.yaml --skill greeting`,
+	"prompt-skill-list":   `fam prompt-skill-list -f agent.yaml`,
+	"hosted-skill-attach": `fam hosted-skill-attach --workspace .\hosted-agent --skill greeting --version 1 --language python`,
+	"hosted-skill-remove": `fam hosted-skill-remove --workspace .\hosted-agent --skill greeting`,
+	"hosted-skill-list":   `fam hosted-skill-list --workspace .\hosted-agent`,
+	"hosted-skill-sync":   `fam hosted-skill-sync --workspace .\hosted-agent --accept-preview`,
+	"version":             `fam version`,
 	"update": `
 fam update --check
 fam update

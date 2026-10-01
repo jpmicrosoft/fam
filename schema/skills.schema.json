@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jpmicrosoft.github.io/fam/skills.schema.json",
+  "title": "Hosted instructions-only Skill declarations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "services"],
+  "properties": {
+    "apiVersion": { "const": "foundry-agent-manager/skills/v1" },
+    "services": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+      "additionalProperties": { "$ref": "#/$defs/config" }
+    }
+  },
+  "$defs": {
+    "version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "not": { "pattern": "^([Ll][Aa][Tt][Ee][Ss][Tt]|[Dd][Ee][Ff][Aa][Uu][Ll][Tt])$" }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 64, "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "version": { "$ref": "#/$defs/version" }
+      }
+    },
+    "source": {
+      "oneOf": [
+        { "$ref": "#/$defs/reference" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": { "path": { "type": "string", "minLength": 1 } }
+        }
+      ]
+    },
+    "toolbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$" },
+        "version": { "$ref": "#/$defs/version" }
+      }
+    },
+    "image": {
+      "description": "Operator integration evidence, not proof of runtime discovery/loading. Local artifacts are not injected into an image.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference", "integrationEvidence"],
+      "properties": {
+        "reference": { "type": "string", "pattern": "^[^\\s@]+@sha256:[a-f0-9]{64}$" },
+        "integrationEvidence": { "type": "string", "minLength": 1 }
+      }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "language", "skills"],
+      "properties": {
+        "mode": { "enum": ["bundle", "mcp"] },
+        "language": { "enum": ["python", "dotnet"] },
+        "skills": { "type": "array", "items": { "$ref": "#/$defs/source" } },
+        "toolbox": { "$ref": "#/$defs/toolbox" },
+        "image": { "$ref": "#/$defs/image" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "bundle" } } },
+          "then": { "not": { "required": ["toolbox"] } }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": { "const": "mcp" },
+              "skills": { "minItems": 1 }
+            }
+          },
+          "then": {
+            "required": ["toolbox"],
+            "properties": { "skills": { "items": { "$ref": "#/$defs/reference" } } }
+          }
+        }
+      ]
+    }
+  }
+}

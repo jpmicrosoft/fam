@@ -341,7 +341,9 @@ func TestCmdVersionsEmpty(t *testing.T) {
 func TestCmdSmokeHappyPath(t *testing.T) {
 	manifest := writeManifest(t, baseManifest)
 	http := &scriptedHTTP{routes: map[string]scriptedRoute{
-		"/responses": route(http.StatusOK, `{"id":"resp-1","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`),
+		"/agents/base-agent":            route(http.StatusOK, `{"name":"base-agent","versions":{"latest":{"version":"3"}}}`),
+		"/agents/base-agent/versions/3": route(http.StatusOK, `{"name":"base-agent","version":"3","definition":{"kind":"prompt","model":"base-model","instructions":"base instructions","tools":[{"type":"code_interpreter"}]}}`),
+		"/responses":                    route(http.StatusOK, `{"id":"resp-1","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`),
 	}}
 	stubCredentialAndHTTP(t, http)
 	run := runCLI(t, "", "smoke", "-f", manifest, "--output", "json")
@@ -354,6 +356,21 @@ func TestCmdSmokeHappyPath(t *testing.T) {
 	}
 	if result.ResponseID != "resp-1" || result.OutputText != "hello" {
 		t.Fatalf("unexpected smoke result: %#v", result)
+	}
+	expected := []struct{ method, path string }{
+		{"GET", "/agents/base-agent"},
+		{"GET", "/agents/base-agent/versions/3"},
+		{"POST", "/agents/base-agent/endpoint/protocols/openai/responses"},
+	}
+	if len(http.requests) != len(expected) {
+		t.Fatalf("expected agent/version reads before invocation, got %d requests", len(http.requests))
+	}
+	for i, want := range expected {
+		request := http.requests[i]
+		if request.Method != want.method || !strings.HasSuffix(request.URL.Path, want.path) ||
+			request.URL.Query().Get("api-version") != "v1" || request.Header.Get("Foundry-Features") != "" {
+			t.Fatalf("unexpected ordinary smoke request %d: %s %s %#v", i, request.Method, request.URL, request.Header)
+		}
 	}
 }
 
@@ -916,6 +933,8 @@ func TestCmdDeploySuccess(t *testing.T) {
 func TestCmdSmokeContinuesExplicitMCPApproval(t *testing.T) {
 	manifest := writeManifest(t, baseManifest)
 	http := &scriptedHTTP{routes: map[string]scriptedRoute{
+		"/agents/base-agent":            route(http.StatusOK, `{"name":"base-agent","versions":{"latest":{"version":"3"}}}`),
+		"/agents/base-agent/versions/3": route(http.StatusOK, `{"name":"base-agent","version":"3","definition":{"kind":"prompt"}}`),
 		"/responses": routeSequence(
 			route(http.StatusOK, `{
 				"id":"resp-1",
@@ -952,10 +971,10 @@ func TestCmdSmokeContinuesExplicitMCPApproval(t *testing.T) {
 	if result.ResponseID != "resp-2" || result.OutputText != "created" {
 		t.Fatalf("unexpected smoke result: %#v", result)
 	}
-	if len(http.requests) != 2 {
-		t.Fatalf("expected initial and continuation requests, got %d", len(http.requests))
+	if len(http.requests) != 4 {
+		t.Fatalf("expected routing/version inspection, initial and continuation requests, got %d", len(http.requests))
 	}
-	body, err := io.ReadAll(http.requests[1].Body)
+	body, err := io.ReadAll(http.requests[3].Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -968,6 +987,8 @@ func TestCmdSmokeContinuesExplicitMCPApproval(t *testing.T) {
 func TestCmdSmokeStopsForUnapprovedMCPRequest(t *testing.T) {
 	manifest := writeManifest(t, baseManifest)
 	http := &scriptedHTTP{routes: map[string]scriptedRoute{
+		"/agents/base-agent":            route(http.StatusOK, `{"name":"base-agent","versions":{"latest":{"version":"3"}}}`),
+		"/agents/base-agent/versions/3": route(http.StatusOK, `{"name":"base-agent","version":"3","definition":{"kind":"prompt"}}`),
 		"/responses": route(http.StatusOK, `{
 			"id":"resp-1",
 			"output":[{

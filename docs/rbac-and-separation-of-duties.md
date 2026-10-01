@@ -143,6 +143,25 @@ files-only `quickstart`, Prompt and Hosted validation/plan commands, `tool-catal
 compatibility checks, and local Toolboxes, grounding, Memory, and Agent 365
 observability plans.
 
+`skill validate`, `prompt skill attach/remove/list`, and
+`hosted skill attach/remove/list` are offline. Hosted bundle sync with only
+local sources also needs no Azure identity. Sync with remote Skills needs
+Skill-version metadata/download access, and MCP configuration verification
+also needs Toolbox-version read access. These paths never grant roles,
+publish Skills, change defaults, or deploy agents. The Hosted runtime's MCP
+identity and downstream tool permissions remain separate from the human
+identity performing sync. Bundle mode does not use Skill/MCP credentials at
+runtime.
+
+Hosted platform defaults cover model inference and session storage, not proof
+of successful Skill-resource access. In the disposable Skills qualification,
+MCP resource reads failed until the agent identity received project-scoped
+`Foundry User` access and the assignment propagated. That built-in role is
+mutation-capable: consider a custom read-only role for production rather than
+granting subscription-wide access. Verify discovery and loading as the actual
+runtime identity. See [Hosted agent permissions](https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/hosted-agent-permissions#agent-access-beyond-defaults)
+and the [live coverage boundary](../examples/hosted-skills/README.md#live-qualification-boundary).
+
 Interactive Hosted quickstart can create/configure the workspace-local azd
 environment. This remains a local mutation and requires no Azure RBAC role; it
 does not create or update Azure resources. `--tenant-id` records tenant context

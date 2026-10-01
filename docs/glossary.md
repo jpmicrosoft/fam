@@ -59,7 +59,10 @@ If you are new to Foundry or this CLI, read this page first.
 |---|---|
 | **Toolbox** | A reusable, versioned bundle of tools that multiple agents can share. Managed separately from agent deployment. |
 | **Grounding** | Connecting an agent to supported local documents through a vector store. The CLI hashes and synchronizes files; the Prompt Agent can then reference the store by logical name. |
-| **Skill** | Reusable instructions and files packaged with their own versioned lifecycle, independent of any single agent. Preview feature. |
+| **Skill** | Reusable instructions and files packaged with their own versioned lifecycle, independent of any single agent. The preview resource lifecycle is separate from agent integration, which currently accepts instructions-only packages. |
+| **Hosted Skill bundle** | An explicitly synchronized filesystem artifact loaded by a Python/.NET context provider without runtime MCP. Local sources need no upload; remote sources use immutable versions. |
+| **Hosted MCP Skills** | An explicitly registered provider that discovers and loads selected instructions through an immutable same-project Toolbox endpoint. An ordinary MCP tool attachment alone is not this integration. |
+| **Native Prompt Skills** | Pinned `agent.skills` declarations, separate from descriptive A2A agent-card skills. Experimental: creation/lifecycle passed, but native runtime consumption failed and remains unqualified. |
 | **Connector** | A managed OAuth2 integration with an external service (e.g., GitHub, Salesforce) discovered from the Foundry catalog. Preview feature. |
 | **Memory** | Preview persistence that lets an agent recall information across conversations. Billable and currently lacks VNet support. |
 

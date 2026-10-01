@@ -9,12 +9,12 @@ metadata, and evidence that the CLI behavior was qualified before publication.
 
 ## Testing
 
-The complete gate catches failures that a package-level unit test cannot:
+The Go/CLI release gate catches failures that a package-level unit test cannot:
 cross-platform compilation, the canonical `fam` executable output contract,
 shipped examples, completion generation, installer syntax, negative exit
 codes, and artifact checksums.
 
-Run the complete local release gate:
+Run the local Go/CLI release gate:
 
 ```powershell
 .\scripts\Test-Release.ps1
@@ -30,6 +30,58 @@ go test -count=1 ./...
 go vet ./...
 gofmt -l .                   # must print nothing
 ```
+
+### Hosted Skills runtime adapters
+
+The Go gate does not establish Python/.NET SDK compatibility or actual Skill
+loading. Changes to the embedded adapters or their dependency pins also require
+the real-package checks in the [Hosted Skills example](../examples/hosted-skills/README.md)
+and [.NET example](../examples/hosted-skills/dotnet/README.md), including .NET
+published-output execution. Use isolated dependency environments. These checks
+use fake models and MCP transports; live Foundry and built-container
+qualification remain separate.
+
+Package pins and repeatable PowerShell/POSIX commands are in the examples.
+The dedicated [Hosted Skills runtime CI gate](#hosted-skills-runtime-ci-gate)
+is separate from the Go gate and from live qualification. Rerun affected suites
+after every runtime, packaging, or dependency change, including review fixes;
+a successful run against earlier source does not qualify the final tree.
+Record the tested source revision, tool versions, image digests, results, and
+any skips in PR or release-qualification evidence rather than maintaining a
+fixed passing-test count in this guide.
+
+Before releasing Skills changes:
+
+1. Run the Go release gate and both real-package adapter suites against the
+   final source, including strict symlink coverage and .NET publish-output
+   execution. Retain their distinct evidence.
+2. Check the actual application's provider registration, unchanged unrelated
+   tool approvals, dependency pins, packaged artifacts, and image digest/build
+   evidence where applicable. Sync/deploy output is not a runtime test.
+3. Preserve the [live coverage boundary](../examples/hosted-skills/README.md#live-qualification-boundary):
+   Hosted bundle/MCP passed representative checks; native Prompt creation,
+   pins, and lifecycle passed but **runtime consumption failed**. Neither
+   tested native request format fixed it. The explicit Copilot harness route
+   required both preview features and was rejected as not enabled for the
+   test subscription. Do not remove either native opt-in gate or claim a
+   proven harness requirement, RBAC workaround, or implicit fallback.
+4. Complete the separate security review and release approvals. Keep secrets,
+   test resource/identity IDs, and local session paths out of public docs.
+   Delete disposable Azure resources and identities and verify cleanup; do not
+   rely on a previous qualification environment still existing.
+
+### Dependency and secret checks
+
+Audit the resolved Go dependencies with `govulncheck`, the installed Python
+dependency environment with `pip-audit`, and .NET's direct and transitive
+packages with NuGet auditing. For NuGet, explicitly enable `NuGetAudit=true`,
+`NuGetAuditMode=all`, and `NuGetAuditLevel=low`, treating warnings as errors.
+Record tool versions, audit scope, and full results in release evidence.
+
+Run secret scanning separately and triage every finding. Distinguish synthetic
+test fixtures from real credentials without changing tests merely to silence
+a scan or treating a triaged finding as a zero-finding result. Dependency and
+secret scanners do not replace review of application/runtime trust boundaries.
 
 ### Fuzzing
 
@@ -62,13 +114,116 @@ The `update-native` job also runs the self-updater tests on Windows and macOS,
 including replacement of a disposable running executable. Linux coverage is
 part of `ci`. These tests use local fixtures, not a real release installation.
 
+### Release source validation
+
+For a manual rebuild, source checkouts use the fully qualified
+`refs/tags/<tag>`, so a same-named branch cannot select the source. On manual
+rebuilds and release-tag pushes, `ci`, `update-native`,
+`hosted-skills-runtime`, and `release` share validation that:
+
+- Checks the configured `v`-prefixed semantic release-tag form.
+- Requires the exact `refs/tags/<tag>` to exist.
+- Requires the checked-out `HEAD` to equal that tag's peeled commit
+  (`refs/tags/<tag>^{commit}`), including annotated tags.
+
+Validation runs before each job's tests/builds. The release job separately
+checks that the source executable's version matches the tag before publication.
+All checkouts in this CI/publication workflow use
+`persist-credentials: false`, including the ancillary current-release-tooling
+checkout used for manual rebuilds.
+
+### Hosted Skills runtime CI gate
+
+The independent `hosted-skills-runtime` job in
+[`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on
+`ubuntu-latest` with a 15-minute timeout. It checks the selected source or,
+for a manual historical rebuild, the requested release tag:
+
+- Uses immutable commit pins for `actions/setup-python` **v7.0.0** and
+  `actions/setup-dotnet` **v6.0.0**, selecting Python **3.13** and .NET SDK
+  **10.0.401**.
+- Installs `internal/skillruntime/testdata/requirements.txt` and executes the
+  real-package Python suite directly:
+  `python -B internal/skillruntime/testdata/python_runtime_test.py -v`.
+  The script's entry point rejects zero executed tests and any skipped tests;
+  unittest discovery is not a substitute for this qualification command.
+- Performs a non-incremental .NET Release build in runner scratch space,
+  then publishes with `--no-restore`. It executes both the built and published
+  assemblies with **`--self-test-require-symlinks`**; a Windows-style privilege
+  skip is not accepted by this strict test mode.
+- Compares the relative-file inventories and exact SHA-256 digests of every
+  file under the built and published `fam_skills` directories. The inventory
+  must be nonempty, and the helper digest must also match
+  `internal/skillruntime/templates/FamSkillsRuntime.cs`.
+
+The checkout does not persist Git credentials, and the job has no Azure
+authentication step. Dependency setup downloads packages; the adapter tests
+use fake models/transports rather than live Azure or model calls. They do not
+qualify a deployed container or native Prompt consumption.
+
+The job checks required runtime sources, helpers, pinned requirements, the
+Python test script, and .NET project/MCP test inputs before toolchain setup.
+Missing or empty required inputs fail the job.
+
+The sole adapter-absence exception requires **both** a validated manual
+historical rebuild of a `v0.0.x` through `v0.17.x` tag and an entirely absent
+`internal/skillruntime` path. Only the adapter setup, tests, and byte comparisons
+are omitted; checkout, tag validation, and the input/eligibility check still
+run. An absent `runtime.go` alone, a partial or empty runtime directory, a
+current-source build, or a tag push does not qualify. This exception does not
+bypass the other release jobs. The static
+`TestHostedSkillsReleaseQualification` contract in
+[`../qa/release_contract_test.go`](../qa/release_contract_test.go) checks the
+job's pins, strict tests, hash comparison, and safeguards; it is not a
+substitute for executing the job.
+
+Require a successful run against the final candidate source. Local or earlier
+Linux results do not substitute for that run; after remediation, rerun the
+affected checks and retain the new evidence.
+
+### CodeQL analysis coverage
+
+The separate [`../.github/workflows/codeql.yml`](../.github/workflows/codeql.yml)
+workflow defines independent `go`, `python`, and `csharp` matrix analyses on
+Linux. It is triggered by main-branch pushes and pull requests, a weekly
+schedule, or manual dispatch:
+
+| Language | Build mode | Analysis input |
+|---|---|---|
+| Go | `autobuild` | The Go source, using the toolchain selected by `go.mod`. |
+| Python | `none` | Python source, including the embedded Skills runtime adapter; no application build step. |
+| C# | `manual` | A non-incremental Release build of `examples/hosted-skills/dotnet/HostedSkills.Example.csproj` with .NET SDK **10.0.401**, which compiles the linked embedded `FamSkillsRuntime.cs` adapter. Build output stays in runner scratch space. |
+
+CodeQL init/autobuild/analyze use the same immutable Action commit
+(`github/codeql-action` **v4.38.2**); checkout and setup Actions are also
+commit-pinned. Results use separate `/language:<language>` categories.
+The workflow retains its public-visibility check: analysis runs only for a
+public repository, while private repositories receive an explicit skip notice.
+Default workflow permissions are `actions: read` and `contents: read`; analysis
+jobs declare `contents: read` and `security-events: write`. Checkout does not
+persist Git credentials.
+
+Configuring this matrix is not evidence of a successful analysis run.
+Static analysis is separate from the real-SDK runtime gate, dependency audits,
+and human security review. It does not execute the Skills test suites or
+establish live runtime consumption. CodeQL is a separate workflow, not another
+entry in the release job's `needs` list below.
+
+### Release job
+
 The `release` job in
 [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs only after the
-same tagged source passes `ci` and `update-native`. Historical rebuilds from
-before the updater existed skip its native tests. It cross-compiles six CGO-free targets,
-packages only the `fam` executable,
+same tagged source passes **`ci`, `update-native`, and
+`hosted-skills-runtime`**. Historical rebuilds from before the updater existed
+skip its native tests; the separate adapter exception is described above.
+The release job cross-compiles six CGO-free targets,
+packages the `fam` executable with `LICENSE` and `THIRD_PARTY_NOTICES.txt`,
 generates `SHA256SUMS`, conditionally attests build provenance, and creates the
 GitHub release.
+
+The runtime-absence exception is limited to the validated manual historical
+rebuilds described above; deleting current qualification inputs cannot turn the
+required runtime gate into a successful skip.
 
 `fam update` consumes the same release archives and `SHA256SUMS` as the
 installers. Keep the root `fam`/`fam.exe` archive entry, platform asset naming,
@@ -76,8 +231,12 @@ and exact checksum filenames compatible with the updater. An archive hash is
 verified before extraction; provenance attestation verification is not part
 of the self-update command.
 
-The current application version is **0.17.1**
-([`../internal/config/config.go`](../internal/config/config.go)).
+The prepared release is **0.18.0, dated 2026-10-01 (UTC)**, and is **not yet
+tagged or published**. The existing `main` baseline is 0.17.1.
+[`../internal/config/config.go`](../internal/config/config.go) controls the
+compiled version and now declares **0.18.0**. Maintainers must still verify
+the final executable's `fam version` output and complete release qualification
+before tagging. Candidate documentation is not evidence that release assets exist.
 
 ## Weekly Foundry capability review
 
@@ -302,6 +461,7 @@ internal/foundry/               Foundry prompt-agent, Toolbox, Memory, and Skill
 internal/grounding/             Managed document validation, hashing, ownership metadata
 internal/hosted/                Hosted Agent azure.yaml validation, azd orchestration, scaffold
 internal/hostedautopilot/       Experimental Autopilot sample wrapper
+internal/hostedskills/          Hosted Skill declarations, synchronization, artifact/image provenance
 internal/httpx/                 Safe bounded retries and request diagnostics
 internal/legacyapp/             Legacy Agent Application ARM client
 internal/m365publish/           Microsoft 365 publish request client
@@ -312,10 +472,12 @@ internal/publication/           Microsoft 365 publication config schema and load
 internal/receipt/               Atomic, redacted deployment receipts (v1 and v2)
 internal/redact/                Central credential redaction
 internal/secret/                APIM secret source resolution
+internal/skillruntime/          Embedded Python/.NET Skills providers and real-package checks
+internal/skills/                Instructions-only Skill package/reference validation
 internal/tools/                 Direct-tool and Toolbox translation and destination extraction
 internal/trust/                 Operator destination approvals (exact, fail-closed)
-schema/                         Canonical embedded manifest and publication JSON Schemas
-examples/                       Standalone example manifests and referenced files
+schema/                         Canonical embedded manifest, publication, and Hosted Skills JSON Schemas
+examples/                       Example manifests, referenced files, and Hosted Skills integration guides
 qa/                             Live release qualification matrix templates
 scripts/                        Offline and live release qualification runners
 .github/workflows/              CI and release automation
@@ -356,8 +518,13 @@ scenario if release availability is part of your acceptance criteria.
 
 ## Release workflow
 
-1. Land changes on `main` with CI green.
-2. Update `Version` in `internal/config/config.go`.
-3. Move `CHANGELOG.md` `Unreleased` to the new version heading.
-4. Push tag `vX.Y.Z`. The workflow rejects mismatched tags.
-5. Workflow cross-compiles, checksums, and publishes a GitHub release.
+1. Prepare `Version` in `internal/config/config.go`, the dated changelog section,
+   and all version/status documentation together. Preserve existing changelog
+   history and move accumulated `Unreleased` entries into the candidate.
+2. Complete the release gate, feature-specific qualification, separate security
+   review, and release approvals against the final tree.
+3. Land the reviewed changes on `main` with CI green. Until publication, keep
+   the candidate's **not tagged/published** status explicit.
+4. Only after approval, push tag `vX.Y.Z`; the workflow rejects mismatched tags.
+5. The workflow cross-compiles, checksums, and publishes a GitHub release.
+   Update public release-status statements only after that outcome is confirmed.

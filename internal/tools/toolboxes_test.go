@@ -1,12 +1,48 @@
 package tools
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
 
 	errs "foundry-agent-manager/internal/errors"
 )
+
+func TestSkillsOnlyToolboxSerializesEmptyTools(t *testing.T) {
+	for _, explicitEmpty := range []bool{false, true} {
+		name := "omitted"
+		if explicitEmpty {
+			name = "explicit-empty"
+		}
+		t.Run(name, func(t *testing.T) {
+			document := map[string]interface{}{
+				"name": "skills-only",
+				"skills": []interface{}{
+					map[string]interface{}{"name": "greeting", "version": "1"},
+				},
+			}
+			if explicitEmpty {
+				document["tools"] = []interface{}{}
+			}
+			definitions, err := BuildToolboxes([]map[string]interface{}{document}, t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(definitions[0].Payload())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload map[string]json.RawMessage
+			if err := json.Unmarshal(encoded, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if string(payload["tools"]) != "[]" {
+				t.Fatalf("skills-only Toolbox must serialize tools as [], got %s", encoded)
+			}
+		})
+	}
+}
 
 func TestBuildToolboxesProducesImmutablePayload(t *testing.T) {
 	raw := []map[string]interface{}{{

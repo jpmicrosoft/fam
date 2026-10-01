@@ -41,6 +41,27 @@
           "type": "string",
           "description": "Optional human-readable agent description."
         },
+        "skills": {
+          "type": "array",
+          "description": "Native preview Prompt Skills, pinned to existing immutable versions in this project. Omit to preserve remote references; [] explicitly clears them. Publish local directories separately. Not related to endpoint.agent_card.skills.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "version"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
         "metadata": {
           "type": "object",
           "maxProperties": 16,

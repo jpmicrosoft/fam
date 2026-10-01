@@ -19,13 +19,18 @@ does and does not make, and how to operate and report issues against it.
 
 | Version | Status |
 |---|---|
-| `0.17.x` (current application version) | Supported. Fixes land here. |
+| `0.17.x` (latest published: `0.17.1`) | Supported published release line. |
+| `0.18.0` release candidate | Prepared for 2026-10-01 (UTC); not tagged or published. |
 | Current `main` | Supported. This is where fixes are developed. |
-| Anything older | Not supported. |
+| Earlier published release lines | Not supported. |
 
-`0.17.1` is the version compiled into the binary
-([`internal/config/config.go`](internal/config/config.go)). Release assets are
-created only after the matching `v0.17.1` tag is pushed.
+The candidate source in
+[`internal/config/config.go`](internal/config/config.go) declares `0.18.0`;
+the latest published release remains `0.17.1`. Candidate source and
+documentation do not establish that release assets exist or that qualification
+is complete. Assets are produced only after the matching tag passes the
+[release gates](docs/development-and-releases.md#release-job).
+Use `fam version` to identify the executable involved in a report.
 
 Always report against the current `main` if you can reproduce there.
 

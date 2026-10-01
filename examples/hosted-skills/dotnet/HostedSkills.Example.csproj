@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.AI" Version="1.23.0" />
+    <PackageReference Include="Microsoft.Agents.AI.Mcp" Version="1.23.0-alpha.260928.1" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <Compile Include="..\..\..\internal\skillruntime\templates\FamSkillsRuntime.cs"
+             Link="fam_skills\FamSkillsRuntime.cs" />
+    <Content Include="..\..\..\internal\skillruntime\templates\FamSkillsRuntime.cs"
+             Link="fam_skills\FamSkillsRuntime.cs"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="fam_skills\**\*" CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <!-- This example alone creates a lock for its synthetic fixture. Production copies the synchronized lock unchanged. -->
+  <Target Name="CreateExampleLock" BeforeTargets="PrepareForBuild">
+    <GetFileHash Files="$(MSBuildProjectDirectory)\fam_skills\greeting\SKILL.md" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_HashedExampleSkill" />
+    </GetFileHash>
+    <PropertyGroup>
+      <_ExampleHash>@(_HashedExampleSkill->'%(FileHash)')</_ExampleHash>
+      <_ExampleHash>$(_ExampleHash.ToLowerInvariant())</_ExampleHash>
+      <_ExampleManifest>$(IntermediateOutputPath)fam_skills\manifest.json</_ExampleManifest>
+    </PropertyGroup>
+    <MakeDir Directories="$(IntermediateOutputPath)fam_skills" />
+    <WriteLinesToFile File="$(_ExampleManifest)" Overwrite="true"
+                      Lines="{&quot;formatVersion&quot;:1,&quot;mode&quot;:&quot;bundle&quot;,&quot;language&quot;:&quot;dotnet&quot;,&quot;skills&quot;:[{&quot;name&quot;:&quot;greeting&quot;,&quot;sha256&quot;:&quot;$(_ExampleHash)&quot;,&quot;path&quot;:&quot;greeting/SKILL.md&quot;}]}" />
+    <ItemGroup>
+      <Content Include="$(_ExampleManifest)" Link="fam_skills\manifest.json"
+               CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+</Project>

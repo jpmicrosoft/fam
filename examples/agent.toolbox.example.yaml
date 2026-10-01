@@ -5,6 +5,14 @@
 #   fam toolbox validate -f examples/agent.toolbox.example.yaml
 #   fam toolbox plan -f examples/agent.toolbox.example.yaml
 #
+# Publish the Skill separately, then replace existing-skill-name and
+# "<skill-version>" below with its exact name and immutable version.
+# This file demonstrates Toolbox publication plus ordinary Prompt tool
+# attachment, not working native Prompt Skill consumption.
+#
+# Commands with backtick continuations are for PowerShell. In a POSIX shell,
+# put each command on one line or replace the backticks with backslashes.
+#
 # Create an immutable Toolbox version. Skills are a preview sub-contract, so
 # this example requires explicit preview acceptance:
 #   fam toolbox deploy -f examples/agent.toolbox.example.yaml `
@@ -14,11 +22,20 @@
 #   fam toolbox versions list -f examples/agent.toolbox.example.yaml `
 #     --toolbox shared-tools
 #   fam toolbox promote -f examples/agent.toolbox.example.yaml `
-#     --toolbox shared-tools --toolbox-version <version> --yes
+#     --toolbox shared-tools --toolbox-version "<version>" --yes
+# Status, version listing, promotion, and deletion do not accept --accept-preview.
+# Promoting a Toolbox default does not move explicitly pinned Hosted consumers.
 #
 # Deploying the prompt agent is a separate operation. The remote-tool project
 # connection below must already target this Toolbox's same-project MCP endpoint:
 #   fam prompt deploy -f examples/agent.toolbox.example.yaml --if-changed
+#
+# For Hosted Skills, separately use hosted skill attach --mode mcp with
+# --skill/--version and --toolbox/--toolbox-version, then hosted skill sync
+# --accept-preview. Register the Python/.NET provider in the existing app.
+# See docs/tools-and-grounding.md#publish-and-pin-a-hosted-mcp-skill.
+# Native Prompt agent.skills remains experimental and runtime-unqualified;
+# a Toolbox resource declaration or MCP tool attachment does not load it.
 
 apiVersion: foundry-agent-manager/v1
 
@@ -27,7 +44,7 @@ agent:
   model: <model-deployment-name>
   description: Prompt agent that consumes a reusable Foundry Toolbox.
   instructions: |
-    Use the shared Toolbox when its tools or skills are relevant.
+    Use the shared Toolbox when its tools are relevant.
     Ask before executing any invocation that requires approval.
 
 project:
@@ -74,6 +91,9 @@ toolboxes:
       - type: toolbox_search
         description: Discover the most relevant tool before loading it.
 
+    # These resources are advertised to explicit Hosted Skills providers.
+    # A Prompt Toolbox attachment alone does not load Skill instructions.
+    # Native Prompt references belong in agent.skills instead.
     skills:
       - name: existing-skill-name
-        version: <skill-version>
+        version: "<skill-version>"

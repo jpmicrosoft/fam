@@ -219,14 +219,154 @@ Skills package reusable instructions and supporting files independently from an
 agent version. Teams can version, review, download, and change the default Skill
 without duplicating that content across every agent manifest.
 
-Skills use `Foundry-Features: Skills=V1Preview`; every command requires
-`--accept-preview`.
+Online Skills lifecycle operations use
+`Foundry-Features: Skills=V1Preview` and require `--accept-preview`. Local
+validation and attachment editing do not contact Azure.
+
+| Desired outcome | Workflow | Boundary |
+|---|---|---|
+| Reuse instructions in Hosted Python/.NET without runtime MCP | Local or pinned-remote `bundle`, then explicit sync and application provider registration | Local-only bundles need no upload; remote bundles download during sync, not startup. |
+| Load instructions through Foundry MCP in Hosted Python/.NET | Publish Skill, create immutable Toolbox version, attach both pins in `mcp` mode, sync, register provider | Requires runtime project access; never follows a logical default. |
+| Manage a native Prompt declaration | Publish Skill, attach pinned `agent.skills`, preflight, experimental deploy | Creation/lifecycle passed, but native runtime consumption failed and remains unqualified. |
+| Change only shared Skill content/default | `skill create` / `skill version set-default` | Does not update a pinned consumer, deploy an agent, or change agent traffic. |
+
+The Hosted paths have representative live qualification with the pinned SDKs,
+not a guarantee for every application or packaging combination. See the
+[coverage record](../examples/hosted-skills/README.md#live-qualification-boundary).
+
+The following single-line commands use portable paths and work in PowerShell
+or a POSIX shell. Supply an existing `agent.yaml` for your project and a reviewed
+Skill directory beside it before publishing:
 
 ```powershell
-fam skill create -f agent.yaml --skill summarize --path .\skills\summarize --default --accept-preview
+fam skill create -f agent.yaml --skill summarize --path skills/summarize --default --accept-preview
 fam skill version list -f agent.yaml --skill summarize --accept-preview
 fam skill version set-default -f agent.yaml --skill summarize --version 2 --accept-preview
 ```
+
+Use a version actually returned by the service in place of `2`. `skill create`
+publishes an immutable version; it is not a local scaffold command. Its `--path`
+is relative to the manifest directory, while `skill validate --path` is relative
+to the current working directory. Existing lifecycle commands can upload fuller
+packages; the agent integrations below intentionally accept only instructions.
+
+### Skills integration policy
+
+The new agent integration accepts **instructions-only** packages: a directory
+named for its Skill containing only `SKILL.md`, or a downloaded ZIP containing
+one root `SKILL.md`. Supporting resources, scripts, unsafe archive entries,
+duplicate identities, malformed frontmatter, and an empty instruction body
+are errors, not silently skipped content. The existing general-purpose
+`skill create` upload contract remains independent and can upload fuller
+packages.
+
+For a minimal local package, create `skills/greeting/SKILL.md` in a text editor
+with the following UTF-8 contents and no other files in `skills/greeting`:
+
+```markdown
+---
+name: greeting
+description: Give a brief friendly greeting.
+---
+When asked for a greeting, greet the user briefly and offer help.
+```
+
+Then validate it from the directory containing `skills`:
+
+```powershell
+fam skill validate --path skills/greeting
+```
+
+The Foundry Skills documentation requires a name of at most 64 characters
+using lowercase letters, digits, and single hyphens, without leading/trailing
+hyphens; a description of at most 1,024 characters; unquoted name/description
+frontmatter; and a nonempty Markdown body. Skill metadata does not grant
+tools or authorize execution.
+
+No Skills-specific count, body-size, aggregate-content, or archive-size quota
+was established from the reviewed Azure documentation. FAM's existing bounded filesystem,
+archive, and download processing protects the manager; those guards are
+**not Azure quotas**. Agent Framework archive extraction defaults are
+SDK-specific behavior, not Foundry service limits.
+Accepted packages still require sufficient host memory and an appropriate
+concurrency policy; see [Host resources and memory](hosted-agents.md#host-resources-and-memory).
+
+[Prompt native attachments](prompt-agents.md#native-skills-preview) use
+`agent.skills`. [Hosted integration](hosted-agents.md#hosted-skills)
+uses an explicit filesystem bundle (no MCP at runtime) or an MCP Skills
+provider. A Toolbox Skill reference or an attached MCP tool alone does not
+prove that an agent discovers or loads Skill instructions.
+
+### Publish and pin a Hosted MCP Skill
+
+This is an alternative to the no-MCP [Hosted bundle workflow](hosted-agents.md#hosted-skills),
+not an automatic next step. Use a manifest and Hosted workspace targeting the
+**same project**. Replace quoted placeholders with returned immutable versions.
+
+1. Validate the directory, then publish it:
+
+   ```powershell
+   fam skill validate --path skills/greeting
+   fam skill create -f agent.yaml --skill greeting --path skills/greeting --accept-preview
+   ```
+
+2. Add `greeting` and the returned Skill version to the desired Toolbox's
+   `toolboxes[].skills` in `agent.yaml`, following the
+   [Toolbox example](../examples/agent.toolbox.example.yaml). Do not place this
+   reference in `agent.skills` for a Hosted consumer. Create the Toolbox version:
+
+   ```powershell
+   fam toolbox validate -f agent.yaml
+   fam toolbox plan -f agent.yaml
+   fam toolbox deploy -f agent.yaml --toolbox shared-tools --if-changed --accept-preview
+   fam toolbox versions list -f agent.yaml --toolbox shared-tools
+   ```
+
+3. Select both immutable pins for an existing Python workspace:
+
+   ```powershell
+   fam hosted skill attach --workspace hosted-agent --skill greeting --version "<skill-version>" --mode mcp --language python --toolbox shared-tools --toolbox-version "<toolbox-version>"
+   fam hosted skill sync --workspace hosted-agent --accept-preview
+   ```
+
+   Use `--language dotnet` for .NET. Sync verifies that the pinned Toolbox
+   contains the selected Skill version and validates the complete downloaded
+   package. It does not publish missing Skills or create a Toolbox.
+
+4. Register the [Python or .NET provider](../examples/hosted-skills/README.md)
+   in the existing application, then validate, preflight, and deploy using the
+   [Hosted workflow](hosted-agents.md#deployment-commands). Verify actual
+   instruction discovery/loading before deliberately promoting the agent version.
+
+Changing a Skill or Toolbox default does not move either pin. To update, publish
+new content, create a new Toolbox version, update the attachment pins, sync,
+and rebuild/redeploy the application. Promoting a Toolbox changes its default
+for default-following consumers; it is not required to consume an explicitly
+pinned version and does not promote agent traffic.
+
+### Remove, retain, and recover
+
+`prompt skill remove` and `hosted skill remove` edit local declarations only.
+Apply Prompt detachment through a separate experimental deployment. For Hosted
+detachment, sync the resulting `skills: []`, rebuild/redeploy, and separately
+promote as appropriate. Removing an attachment never deletes the original local
+directory, a shared Skill, or a Toolbox.
+
+Keep immutable Skill/Toolbox versions and built artifacts needed by retained
+agent versions; deleting a pinned dependency can break runtime loading or
+future synchronization. To preserve package bytes, download an exact version:
+
+```powershell
+fam skill download -f agent.yaml --skill greeting --version "<skill-version>" --destination "<backup.zip>" --accept-preview
+```
+
+Recreating a deleted resource is not a promise to recover its old version ID.
+Prefer rollback to a retained, qualified agent and its matching artifacts.
+
+Treat Skill instructions as reviewed content, not a security boundary. The
+instructions-only policy does not prevent instructions from influencing tools
+already available to the application. Keep normal tool approvals and runtime
+permissions in place.
 
 ## Foundry Toolbox lifecycle
 
@@ -240,12 +380,16 @@ fam toolbox plan -f agent.yaml
 fam toolbox deploy -f agent.yaml --toolbox shared-tools --if-changed
 fam toolbox status -f agent.yaml --toolbox shared-tools
 fam toolbox versions list -f agent.yaml --toolbox shared-tools
-fam toolbox promote -f agent.yaml --toolbox shared-tools --toolbox-version <version> --yes
-fam toolbox versions delete -f agent.yaml --toolbox shared-tools --toolbox-version <non-default-version> --yes
+fam toolbox promote -f agent.yaml --toolbox shared-tools --toolbox-version "<version>" --yes
+fam toolbox versions delete -f agent.yaml --toolbox shared-tools --toolbox-version "<non-default-version>" --yes
 ```
 
 The first created version becomes `default_version` automatically. Every later
 version remains staged until `toolbox promote`.
+
+The deployment example above is for a Toolbox without preview capabilities.
+If it contains Skills, add `--accept-preview` to **`toolbox deploy` only**;
+status, version listing, promotion, and deletion do not accept that flag.
 
 ## Tool catalog and compatibility
 

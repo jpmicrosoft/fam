@@ -18,7 +18,10 @@ import (
 	"time"
 )
 
-const maxCommandOutput = 1 << 20
+const (
+	maxCommandOutput = 1 << 20
+	commandWaitDelay = 2 * time.Second
+)
 
 var (
 	ErrHostedUnsupported = errors.New("Foundry Hosted Agents are unavailable in the selected Azure cloud")
@@ -196,6 +199,9 @@ func standardAZDCandidates(goos string, getenv func(string) string) []string {
 func (ExecRunner) Run(ctx context.Context, command Command) (Execution, error) {
 	started := time.Now()
 	process := exec.CommandContext(ctx, command.Executable, command.Args...)
+	// Bound pipe-draining when an azd descendant retains inherited handles.
+	// CommandContext still controls cancellation of the immediate process.
+	process.WaitDelay = commandWaitDelay
 	process.Dir = command.Directory
 	process.Env = commandEnvironment(os.Environ(), command.Environment, command.Executable)
 
@@ -222,6 +228,9 @@ func (ExecRunner) Run(ctx context.Context, command Command) (Execution, error) {
 		execution.ExitCode = process.ProcessState.ExitCode()
 	}
 	if stdout.truncated || stderr.truncated {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return execution, errors.Join(ErrOutputTooLarge, ctxErr)
+		}
 		return execution, ErrOutputTooLarge
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -853,7 +862,17 @@ func RunDoctor(
 	workspace Workspace,
 	environment string,
 	record Recorder,
-) (CommandRecord, error) {
+) (commandRecord CommandRecord, err error) {
+	if err := ctx.Err(); err != nil {
+		return CommandRecord{}, err
+	}
+	restore, err := MaterializeEntryPoint(workspace)
+	if err != nil {
+		return CommandRecord{}, err
+	}
+	defer func() {
+		err = errors.Join(err, restore())
+	}()
 	args := appendEnvironment(
 		[]string{"ai", "agent", "doctor", "--no-prompt"},
 		environment,
@@ -873,6 +892,14 @@ func RunDoctor(
 		}
 	}
 
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return commandRecord, errors.Join(ctxErr, err)
+	}
+	completedNonzero := completedDiagnosticExit(execution, err)
+	if err != nil && !completedNonzero {
+		return commandRecord, fmt.Errorf("%w during Hosted Agent diagnostics: %w", ErrCommandFailed, err)
+	}
+
 	// Classify output regardless of exit code to prevent fail-open when the
 	// extension returns exit 0 but skipped critical RBAC checks.
 	output := execution.Stdout + "\n" + execution.Stderr
@@ -890,9 +917,12 @@ func RunDoctor(
 		)
 	}
 
-	if err != nil {
-		if doctorReportsOnlyUndeployed(output) {
+	if err != nil || execution.ExitCode != 0 {
+		if completedNonzero && doctorReportsOnlyUndeployed(output) {
 			return commandRecord, nil
+		}
+		if err == nil {
+			err = fmt.Errorf("azd diagnostic exit code %d", execution.ExitCode)
 		}
 		return commandRecord, fmt.Errorf(
 			"%w during Hosted Agent diagnostics: %w",
@@ -901,6 +931,33 @@ func RunDoctor(
 		)
 	}
 	return commandRecord, nil
+}
+
+// Runner fakes may explicitly report a completed nonzero ExitCode with no
+// transport error. ExecRunner supplies *exec.ExitError. Arbitrary error text,
+// start failures, context/output failures and joined infrastructure errors do
+// not establish completion, even when accompanied by a positive ExitCode.
+func completedDiagnosticExit(execution Execution, err error) bool {
+	if execution.ExitCode <= 0 ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, ErrOutputTooLarge) ||
+		errors.Is(err, exec.ErrWaitDelay) {
+		return false
+	}
+	if err == nil {
+		return true
+	}
+	for {
+		if exit, ok := err.(*exec.ExitError); ok {
+			return exit.ProcessState != nil && exit.Exited() && exit.ExitCode() == execution.ExitCode
+		}
+		wrapped, ok := err.(interface{ Unwrap() error })
+		if !ok {
+			return false
+		}
+		err = wrapped.Unwrap()
+	}
 }
 
 // doctorConfirmsProjectRoleVerified returns true only when the doctor output

@@ -18,6 +18,7 @@ import (
 	"foundry-agent-manager/internal/httpx"
 	"foundry-agent-manager/internal/project"
 	"foundry-agent-manager/internal/receipt"
+	"foundry-agent-manager/internal/skills"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/spf13/cobra"
@@ -37,6 +38,7 @@ type deployResult struct {
 	APIMAction      string                    `json:"apimAction,omitempty" yaml:"apimAction,omitempty"`
 	Smoke           *foundry.InvocationResult `json:"smoke,omitempty" yaml:"smoke,omitempty"`
 	Receipt         string                    `json:"receipt" yaml:"receipt"`
+	Skills          *[]skills.Reference       `json:"skills,omitempty" yaml:"skills,omitempty"`
 }
 
 type deploymentTransaction struct {
@@ -87,7 +89,7 @@ func cmdDeploy(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	desiredComparison, err := agentdiff.Compare(nil, prepared.Desired)
+	desiredComparison, err := agentdiff.Compare(preflight.RemoteAgent, prepared.Desired)
 	if err != nil {
 		return err
 	}
@@ -125,6 +127,14 @@ func cmdDeploy(cmd *cobra.Command, _ []string) error {
 		len(preflight.ApprovedDestinations),
 	)); err != nil {
 		return err
+	}
+	for _, validation := range preflight.PromptSkills {
+		if err := store.AddStep("native-skill-content", "succeeded", fmt.Sprintf(
+			"%s@%s SKILL.md sha256=%s",
+			validation.Reference.Name, validation.Reference.Version, validation.SHA256,
+		)); err != nil {
+			return err
+		}
 	}
 
 	transaction := &deploymentTransaction{
@@ -296,7 +306,7 @@ func executeDeployment(
 		cfg.Project.Endpoint = endpoint
 	}
 
-	client := newFoundryClient(endpoint, cfg, transaction.credential, transaction.httpClient)
+	client := newPromptSkillsClient(cmd, endpoint, cfg, transaction.credential, transaction.httpClient)
 	transaction.client = client
 	if transaction.projectCreated {
 		verbosef(cmd, "waiting for project data-plane propagation")
@@ -326,7 +336,15 @@ func executeDeployment(
 		}
 	}
 
-	remote, err := client.GetAgentContext(commandContext(cmd), cfg.Agent.Name)
+	remote := preflight.RemoteAgent
+	if !preflight.AgentInspected {
+		var err error
+		remote, err = client.GetAgentContext(commandContext(cmd), cfg.Agent.Name)
+		if err != nil {
+			return nil, err
+		}
+	}
+	effective, err := promptSkillsDesired(cmd, remote, prepared.Desired)
 	if err != nil {
 		return nil, err
 	}
@@ -335,6 +353,21 @@ func executeDeployment(
 		return nil, err
 	}
 	willCreateVersion := !(getBoolFlag(cmd, "if-changed") && !comparison.Changed)
+	transaction.store.Receipt.DesiredHash = comparison.DesiredHash
+	if effective.ManageSkills {
+		if willCreateVersion || (getBoolFlag(cmd, "smoke-test") && len(effective.Skills) > 0) {
+			if err := requireNativePromptSkills(cmd); err != nil {
+				return nil, err
+			}
+		}
+		action := "configured"
+		if !prepared.Desired.ManageSkills {
+			action = "preserved"
+		}
+		if err := transaction.store.AddStep("native-skills", action, promptSkillsSummary(effective.Skills, true)); err != nil {
+			return nil, err
+		}
+	}
 	if err := transaction.prepareRoutingForStagedCreate(
 		commandContext(cmd),
 		remote,
@@ -473,6 +506,10 @@ func executeDeployment(
 		ActiveVersion:   transaction.activeVersionBefore,
 		LatestVersion:   transaction.latestVersionBefore,
 	}
+	if effective.ManageSkills {
+		references := append([]skills.Reference{}, effective.Skills...)
+		result.Skills = &references
+	}
 	if getBoolFlag(cmd, "if-changed") && !comparison.Changed {
 		result.Status = "unchanged"
 		result.Changed = false
@@ -493,7 +530,7 @@ func executeDeployment(
 			return nil, err
 		}
 		transaction.agentCreateAttempted = true
-		desiredPayload := agentdiff.DesiredValue(prepared.Desired)
+		desiredPayload := agentdiff.DesiredValue(effective)
 		definition, ok := desiredPayload["definition"].(map[string]interface{})
 		if !ok {
 			return nil, errs.Config("managed agent definition is invalid")
@@ -526,6 +563,14 @@ func executeDeployment(
 		result.CurrentVersion = deployed.Version
 		if err := transaction.store.AddStep("agent-version", "succeeded", "created version "+deployed.Version); err != nil {
 			return nil, err
+		}
+		if err := verifyPromptSkillsVersion(commandContext(cmd), client, cfg.Agent.Name, deployed.Version, effective); err != nil {
+			return nil, errors.Join(err, transaction.store.AddStep("native-skills-readback", "failed", err.Error()))
+		}
+		if effective.ManageSkills {
+			if err := transaction.store.AddStep("native-skills-readback", "succeeded", "exact created version "+deployed.Version+": "+promptSkillsSummary(effective.Skills, true)); err != nil {
+				return nil, err
+			}
 		}
 
 		active, latest, staged, err := transaction.finalizeStagedRouting(
@@ -588,6 +633,11 @@ func executeDeployment(
 	}
 
 	if getBoolFlag(cmd, "smoke-test") {
+		if effective.ManageSkills && len(effective.Skills) > 0 {
+			if err := requireNativePromptSkills(cmd); err != nil {
+				return nil, err
+			}
+		}
 		transaction.store.Receipt.Smoke.Attempted = true
 		structuredInputs, err := loadStructuredInputValues(cmd, cfg.Agent.StructuredInputs)
 		if err != nil {

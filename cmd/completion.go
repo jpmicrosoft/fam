@@ -70,6 +70,13 @@ func configureCommandCompletions(root *cobra.Command) {
 				cobra.CompletionWithDesc("false", "Disable the requested setting"),
 			))
 		}
+		if command.Flags().Lookup("mode") != nil &&
+			strings.HasPrefix(legacyCommandName(command), "hosted-skill-") {
+			mustRegisterFlagCompletion(command, "mode", fixedCompletions("bundle", "mcp"))
+		}
+		if command.Flags().Lookup("language") != nil {
+			mustRegisterFlagCompletion(command, "language", fixedCompletions("python", "dotnet"))
+		}
 
 		markCompletionPaths(command)
 		for _, child := range command.Commands() {

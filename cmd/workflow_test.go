@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -134,13 +135,208 @@ func workflowRunScripts(t *testing.T, document map[string]interface{}) []string 
 // classic GitHub Actions script-injection pattern.
 func TestWorkflowRunStepsDoNotInterpolateUntrustedEventData(t *testing.T) {
 	untrusted := regexp.MustCompile(`\$\{\{\s*(github\.event\.|github\.head_ref|inputs\.)`)
-	for _, name := range []string{"ci.yml"} {
+	for _, name := range []string{"ci.yml", "codeql.yml", "live-evaluator-calibration.yml"} {
 		document, _ := loadWorkflow(t, name)
 		for _, script := range workflowRunScripts(t, document) {
 			if match := untrusted.FindString(script); match != "" {
 				t.Fatalf("%s interpolates untrusted event data (%q) into a run script", name, match)
 			}
 		}
+	}
+}
+
+func TestPublicationCheckoutsDoNotPersistCredentials(t *testing.T) {
+	for _, name := range []string{"ci.yml", "codeql.yml", "live-evaluator-calibration.yml"} {
+		document, _ := loadWorkflow(t, name)
+		for jobName, rawJob := range document["jobs"].(map[string]interface{}) {
+			job := rawJob.(map[string]interface{})
+			for _, rawStep := range job["steps"].([]interface{}) {
+				step := rawStep.(map[string]interface{})
+				uses, _ := step["uses"].(string)
+				if !strings.HasPrefix(uses, "actions/checkout@") {
+					continue
+				}
+				settings, ok := step["with"].(map[string]interface{})
+				if !ok || settings["persist-credentials"] != false {
+					t.Errorf("%s/%s checkout %v persists credentials", name, jobName, step["name"])
+				}
+			}
+		}
+	}
+}
+
+func workflowStep(t *testing.T, document map[string]interface{}, jobName, id string) map[string]interface{} {
+	t.Helper()
+	job := document["jobs"].(map[string]interface{})[jobName].(map[string]interface{})
+	for _, raw := range job["steps"].([]interface{}) {
+		step := raw.(map[string]interface{})
+		if step["id"] == id {
+			return step
+		}
+	}
+	t.Fatalf("missing workflow step %s/%s", jobName, id)
+	return nil
+}
+
+func runWorkflowBash(t *testing.T, root, script string, environment ...string) (string, error) {
+	t.Helper()
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("Bash is required for workflow execution tests")
+	}
+	command := exec.Command(bash, "-c", script)
+	command.Dir = root
+	command.Env = append(os.Environ(), environment...)
+	output, err := command.CombinedOutput()
+	return string(output), err
+}
+
+func TestReleaseSourceRejectsBranchTagCollision(t *testing.T) {
+	document, _ := loadWorkflow(t, "ci.yml")
+	step := workflowStep(t, document, "ci", "release-source")
+	script := step["run"].(string)
+	for _, name := range []string{"update-native", "hosted-skills-runtime", "release"} {
+		if other := workflowStep(t, document, name, "release-source"); other["run"] != script {
+			t.Fatalf("%s must use the same release source validation", name)
+		}
+	}
+	for name, raw := range document["jobs"].(map[string]interface{}) {
+		job := raw.(map[string]interface{})
+		for _, rawStep := range job["steps"].([]interface{}) {
+			candidate := rawStep.(map[string]interface{})
+			settings, _ := candidate["with"].(map[string]interface{})
+			if candidate["name"] == "Checkout selected release tag" &&
+				settings["ref"] != "${{ format('refs/tags/{0}', inputs.tag) }}" {
+				t.Errorf("%s must select the fully qualified tag, not a same-named branch", name)
+			}
+		}
+	}
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("Git is required for release source tests")
+	}
+	root := t.TempDir()
+	runGit := func(args ...string) string {
+		t.Helper()
+		flags := []string{"-c", "user.name=FAM fixture", "-c", "user.email=fixture@example.invalid",
+			"-c", "commit.gpgsign=false", "-c", "tag.gpgSign=false",
+			"-c", "core.hooksPath=" + filepath.Join(root, "no-hooks")}
+		command := exec.Command(git, append(flags, args...)...)
+		command.Dir = root
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	runGit("init", "--quiet")
+	runGit("commit", "--quiet", "--allow-empty", "-m", "Tagged fixture")
+	tagCommit := runGit("rev-parse", "HEAD")
+	runGit("tag", "-a", "v0.17.1", "-m", "Annotated fixture")
+	for _, tag := range []string{"v0.18.0", "v1.0.0", "v0.117.0"} {
+		runGit("tag", tag)
+	}
+	runGit("commit", "--quiet", "--allow-empty", "-m", "Same-named branch fixture")
+	branchCommit := runGit("rev-parse", "HEAD")
+	runGit("branch", "v0.17.1")
+	for _, test := range []struct {
+		name, tag, event, commit string
+		historical, fail         bool
+	}{
+		{"historical annotated tag", "v0.17.1", "workflow_dispatch", tagCommit, true, false},
+		{"same-named branch", "v0.17.1", "workflow_dispatch", branchCommit, false, true},
+		{"current tag", "v0.18.0", "workflow_dispatch", tagCommit, false, false},
+		{"future major", "v1.0.0", "workflow_dispatch", tagCommit, false, false},
+		{"future minor", "v0.117.0", "workflow_dispatch", tagCommit, false, false},
+		{"pushed old tag", "v0.17.1", "push", tagCommit, false, false},
+		{"missing tag", "v0.16.0", "workflow_dispatch", tagCommit, false, true},
+		{"invalid input", "v0.17.1; exit 0", "workflow_dispatch", tagCommit, false, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runGit("checkout", "--quiet", "--detach", test.commit)
+			outputPath := filepath.Join(t.TempDir(), "outputs")
+			output, err := runWorkflowBash(t, root, script, "RELEASE_TAG="+test.tag,
+				"GITHUB_EVENT_NAME="+test.event, "GITHUB_OUTPUT="+outputPath)
+			if (err != nil) != test.fail {
+				t.Fatalf("failure=%v, want %v: %s", err, test.fail, output)
+			}
+			if !test.fail {
+				data, err := os.ReadFile(outputPath)
+				want := "historical=false"
+				if test.historical {
+					want = "historical=true"
+				}
+				if err != nil || strings.TrimSpace(string(data)) != want {
+					t.Fatalf("historical output=%q, error=%v, want %s", data, err, want)
+				}
+			}
+		})
+	}
+}
+
+func TestHostedSkillsQualificationInputsFailClosed(t *testing.T) {
+	document, _ := loadWorkflow(t, "ci.yml")
+	step := workflowStep(t, document, "hosted-skills-runtime", "runtime-inputs")
+	environment := step["env"].(map[string]interface{})
+	if environment["HISTORICAL_REBUILD"] != "${{ steps.release-source.outputs.historical }}" {
+		t.Fatal("historical exception must come from validated release source")
+	}
+	script := step["run"].(string)
+	inputs := []string{
+		"internal/skillruntime/runtime.go",
+		"internal/skillruntime/templates/fam_skills_runtime.py",
+		"internal/skillruntime/templates/FamSkillsRuntime.cs",
+		"internal/skillruntime/testdata/requirements.txt",
+		"internal/skillruntime/testdata/python_runtime_test.py",
+		"examples/hosted-skills/dotnet/HostedSkills.Example.csproj",
+		"examples/hosted-skills/dotnet/McpRuntimeTests.cs",
+	}
+	check := func(t *testing.T, root, historical string, fail, required bool) {
+		t.Helper()
+		outputPath := filepath.Join(t.TempDir(), "outputs")
+		output, err := runWorkflowBash(t, root, script,
+			"HISTORICAL_REBUILD="+historical, "GITHUB_OUTPUT="+outputPath)
+		if (err != nil) != fail {
+			t.Fatalf("failure=%v, want %v: %s", err, fail, output)
+		}
+		if !fail {
+			data, err := os.ReadFile(outputPath)
+			want := "required=false"
+			if required {
+				want = "required=true"
+			}
+			if err != nil || strings.TrimSpace(string(data)) != want {
+				t.Fatalf("required output=%q, error=%v, want %s", data, err, want)
+			}
+		}
+	}
+	t.Run("current source missing runtime", func(t *testing.T) {
+		check(t, t.TempDir(), "", true, false)
+	})
+	t.Run("current tag missing runtime", func(t *testing.T) {
+		check(t, t.TempDir(), "false", true, false)
+	})
+	t.Run("validated historical absence", func(t *testing.T) {
+		check(t, t.TempDir(), "true", false, false)
+	})
+	for _, missing := range append([]string{""}, inputs...) {
+		t.Run("missing="+missing, func(t *testing.T) {
+			root := t.TempDir()
+			for _, input := range inputs {
+				if input == missing {
+					continue
+				}
+				path := filepath.Join(root, filepath.FromSlash(input))
+				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte("fixture\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			check(t, root, "false", missing != "", true)
+			check(t, root, "true", missing != "", true)
+		})
 	}
 }
 
@@ -164,7 +360,7 @@ func TestReleaseJobRequiresCIGate(t *testing.T) {
 	document, raw := loadWorkflow(t, "ci.yml")
 	for _, want := range []string{
 		"release:",
-		"needs: [ci, update-native]",
+		"needs: [ci, update-native, hosted-skills-runtime]",
 		"startsWith(github.ref, 'refs/tags/v')",
 	} {
 		if !strings.Contains(raw, want) {
@@ -174,8 +370,8 @@ func TestReleaseJobRequiresCIGate(t *testing.T) {
 	jobs := document["jobs"].(map[string]interface{})
 	release := jobs["release"].(map[string]interface{})
 	needs, ok := release["needs"].([]interface{})
-	if !ok || len(needs) != 2 || needs[0] != "ci" || needs[1] != "update-native" {
-		t.Fatalf("release job needs = %#v, want ci and update-native", release["needs"])
+	if !ok || len(needs) != 3 || needs[0] != "ci" || needs[1] != "update-native" || needs[2] != "hosted-skills-runtime" {
+		t.Fatalf("release job needs = %#v, want ci, update-native and hosted-skills-runtime", release["needs"])
 	}
 
 	permissions, ok := release["permissions"].(map[string]interface{})
@@ -293,7 +489,7 @@ func TestReleaseWorkflowRecoversExistingTagsWithoutMovingThem(t *testing.T) {
 	for _, want := range []string{
 		"workflow_dispatch:",
 		"Existing release tag to rebuild without moving tag history",
-		"ref: ${{ env.RELEASE_TAG }}",
+		"ref: ${{ format('refs/tags/{0}', env.RELEASE_TAG) }}",
 		`git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"`,
 		"github.event.repository.visibility == 'public'",
 		"github.event.repository.visibility != 'public'",
@@ -361,7 +557,7 @@ func TestGoModDeclaresTheDocumentedToolchain(t *testing.T) {
 	if !strings.Contains(string(data), "module foundry-agent-manager") {
 		t.Fatalf("unexpected module path:\n%s", data)
 	}
-	for _, name := range []string{"README.md", filepath.Join("docs", "faq.md")} {
+	for _, name := range []string{"README.md", "CONTRIBUTING.md", filepath.Join("docs", "faq.md")} {
 		document, err := os.ReadFile(filepath.Join("..", name))
 		if err != nil {
 			t.Fatal(err)
@@ -412,6 +608,35 @@ func TestCodeQLWorkflowUsesSHAPinnedActions(t *testing.T) {
 	} {
 		if !strings.Contains(raw, want) {
 			t.Fatalf("codeql.yml missing immutable SHA pin %q", want)
+		}
+	}
+}
+
+func TestCodeQLCoversHostedSkillsLanguages(t *testing.T) {
+	document, raw := loadWorkflow(t, "codeql.yml")
+	jobs := document["jobs"].(map[string]interface{})
+	analyze := jobs["analyze"].(map[string]interface{})
+	strategy, ok := analyze["strategy"].(map[string]interface{})
+	if !ok {
+		t.Fatal("CodeQL must analyze each implementation language")
+	}
+	matrix, ok := strategy["matrix"].(map[string]interface{})
+	if !ok {
+		t.Fatal("CodeQL language matrix is missing")
+	}
+	languages, ok := matrix["language"].([]interface{})
+	if !ok || len(languages) != 3 || languages[0] != "go" || languages[1] != "python" || languages[2] != "csharp" {
+		t.Fatalf("CodeQL languages = %#v, want go, python and csharp", matrix["language"])
+	}
+	for _, want := range []string{
+		"languages: ${{ matrix.language }}",
+		"matrix.language == 'csharp'",
+		"examples/hosted-skills/dotnet/HostedSkills.Example.csproj",
+		"actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68",
+		"--no-incremental",
+	} {
+		if !strings.Contains(raw, want) {
+			t.Errorf("CodeQL runtime coverage missing %q", want)
 		}
 	}
 }

@@ -30,11 +30,42 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: ${{ inputs.tag }}
+          ref: ${{ format('refs/tags/{0}', inputs.tag) }}
+          persist-credentials: false
 
       - name: Checkout source
         if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - &validate-release-source
+        name: Validate checked-out release source
+        id: release-source
+        if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Release tag must be semantic versioning prefixed with v."
+            exit 1
+          fi
+          if ! git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            echo "::error::Requested release tag does not exist."
+            exit 1
+          fi
+          tag_commit="$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")"
+          if [ "$(git rev-parse HEAD)" != "$tag_commit" ]; then
+            echo "::error::Checked-out source is not the requested release tag commit."
+            exit 1
+          fi
+          historical=false
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$RELEASE_TAG" =~ ^v0\.([0-9]|1[0-7])\. ]]; then
+            historical=true
+          fi
+          echo "historical=$historical" >> "$GITHUB_OUTPUT"
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -161,11 +192,16 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ format('refs/tags/{0}', inputs.tag) }}
+          persist-credentials: false
 
       - name: Checkout source
         if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - *validate-release-source
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -177,9 +213,116 @@ jobs:
         if: ${{ hashFiles('internal/update/*.go') != '' }}
         run: go test -count=1 ./internal/update
 
+  hosted-skills-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout selected release tag
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ format('refs/tags/{0}', inputs.tag) }}
+          persist-credentials: false
+
+      - name: Checkout source
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - *validate-release-source
+
+      - name: Require runtime qualification inputs
+        id: runtime-inputs
+        shell: bash
+        env:
+          HISTORICAL_REBUILD: ${{ steps.release-source.outputs.historical }}
+        run: |
+          set -euo pipefail
+          if [ "$HISTORICAL_REBUILD" = true ] && [ ! -e internal/skillruntime ]; then
+            echo "::notice::Validated pre-0.18.0 historical release has no Skills runtime."
+            echo "required=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for path in \
+            internal/skillruntime/runtime.go \
+            internal/skillruntime/templates/fam_skills_runtime.py \
+            internal/skillruntime/templates/FamSkillsRuntime.cs \
+            internal/skillruntime/testdata/requirements.txt \
+            internal/skillruntime/testdata/python_runtime_test.py \
+            examples/hosted-skills/dotnet/HostedSkills.Example.csproj \
+            examples/hosted-skills/dotnet/McpRuntimeTests.cs; do
+            if [ ! -s "$path" ]; then
+              echo "::error::Required Skills qualification input is missing or empty: $path"
+              exit 1
+            fi
+          done
+          echo "required=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        if: ${{ steps.runtime-inputs.outputs.required == 'true' }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up .NET
+        if: ${{ steps.runtime-inputs.outputs.required == 'true' }}
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: "10.0.401"
+
+      - name: Test real Python Skills providers
+        if: ${{ steps.runtime-inputs.outputs.required == 'true' }}
+        run: |
+          python -m pip install --disable-pip-version-check -r internal/skillruntime/testdata/requirements.txt
+          python -B internal/skillruntime/testdata/python_runtime_test.py -v
+
+      - name: Test built and published .NET Skills providers
+        if: ${{ steps.runtime-inputs.outputs.required == 'true' }}
+        run: |
+          project="examples/hosted-skills/dotnet/HostedSkills.Example.csproj"
+          artifacts="$RUNNER_TEMP/skills-dotnet"
+          dotnet build "$project" -c Release --artifacts-path "$artifacts" --no-incremental
+          dotnet "$artifacts/bin/HostedSkills.Example/release/HostedSkills.Example.dll" --self-test-require-symlinks
+          dotnet publish "$project" -c Release --artifacts-path "$artifacts" --no-restore -o "$artifacts/published"
+          dotnet "$artifacts/published/HostedSkills.Example.dll" --self-test-require-symlinks
+
+      - name: Verify published Skill bytes
+        if: ${{ steps.runtime-inputs.outputs.required == 'true' }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+
+          artifacts = Path(os.environ["RUNNER_TEMP"]) / "skills-dotnet"
+          built = artifacts / "bin/HostedSkills.Example/release/fam_skills"
+          published = artifacts / "published/fam_skills"
+
+          def inventory(root):
+              if not root.is_dir():
+                  raise RuntimeError(f"Missing output Skill bundle: {root}")
+              return {
+                  path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                  for path in root.rglob("*") if path.is_file()
+              }
+
+          expected = inventory(built)
+          if not expected or expected != inventory(published):
+              raise RuntimeError("Published Skill bundle differs from build output")
+          helper = Path("internal/skillruntime/templates/FamSkillsRuntime.cs").read_bytes()
+          if expected.get("FamSkillsRuntime.cs") != hashlib.sha256(helper).hexdigest():
+              raise RuntimeError("Published Skills helper differs from the source template")
+          print(f"Verified {len(expected)} published Skill files")
+          PY
+
   release:
     if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
-    needs: [ci, update-native]
+    needs: [ci, update-native, hosted-skills-runtime]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -193,7 +336,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ format('refs/tags/{0}', env.RELEASE_TAG) }}
+          persist-credentials: false
+
+      - *validate-release-source
 
       - name: Checkout current release tooling
         if: ${{ github.event_name == 'workflow_dispatch' }}
@@ -203,24 +349,17 @@ jobs:
           path: .release-tooling
           sparse-checkout: scripts/Generate-ThirdPartyNotices.ps1
           sparse-checkout-cone-mode: false
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
-      - name: Validate release tag
+      - name: Validate release source version
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Release tag must be semantic versioning prefixed with v."
-            exit 1
-          fi
-          if ! git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
-            echo "::error::Release tag $RELEASE_TAG does not exist."
-            exit 1
-          fi
           TAG_VERSION="${RELEASE_TAG#v}"
           SOURCE_VERSION="$(go run ./cmd version --output json | awk -F'"' '/"version"/ { print $4; exit }')"
           if [ -z "$SOURCE_VERSION" ]; then

@@ -26,6 +26,9 @@ changes Azure state. Sending a test message is a separate, billable action.
 | I need custom code and want to start with a local workspace | [Hosted quickstart](../README.md#quick-start-hosted-agent) |
 | I already have Python source but no `azure.yaml` | [Adopt existing Python source](hosted-agents.md#adopt-existing-python-source) |
 | I already have an `azure.yaml` workspace | [Existing Hosted workspace](../README.md#existing-hosted-agent-workspace) |
+| I want reusable instructions without runtime MCP | [Hosted Skill bundles](hosted-agents.md#hosted-skills) |
+| I want Hosted Skills from immutable Foundry Toolbox MCP | [Publish and pin Skills](tools-and-grounding.md#publish-and-pin-a-hosted-mcp-skill) |
+| I am evaluating native Prompt Skills | [Experimental native declaration and runtime limitation](prompt-agents.md#native-skills-preview) |
 | I need a child project or model deployment first | [Create a child project](prompt-agents.md#project-create) / [Manage a model deployment](prompt-agents.md#model-deployment-lifecycle) |
 | I need to inspect Agent 365 identities, not deploy source | [Agent 365 guide](agent365.md) |
 
@@ -59,9 +62,10 @@ help supplies the exact flags and examples. Use the
 | [FAQ](faq.md) | Find practical answers and common failure remedies |
 | [RBAC and Separation of Duties](rbac-and-separation-of-duties.md) | Assign least-privilege roles to separate authors, deployers, infrastructure administrators, publishers, consumers, Agent 365 governance, runtimes, and audit jobs |
 | [Prompt Agents](prompt-agents.md) | Deep dive: manifest schema, tools, deploy, promote, rollback, receipts, APIM, M365 |
-| [Hosted Agents](hosted-agents.md) | Deep dive: workspace, azd, sessions, files, logs, drafts, scaffold, Autopilot |
+| [Hosted Agents](hosted-agents.md) | Deep dive: workspace, azd, sessions, files, logs, drafts, scaffold, Skills providers, Autopilot |
 | [Agent 365](agent365.md) | Read-only blueprint inspection and identity comparison; separate integration, observability, publication, and RBAC boundaries |
-| [Tools and Grounding](tools-and-grounding.md) | Add documents, Toolboxes, Skills, connectors, or Memory to any agent |
+| [Tools and Grounding](tools-and-grounding.md) | Choose supported document, Toolbox, Skill, connector, or Memory workflows and their runtime boundaries |
+| [Hosted Skills examples](../examples/hosted-skills/README.md) | Python/.NET provider integration, dependency pins, packaging, offline tests, and representative live qualification |
 | [Security and Operations](security-and-operations.md) | Trust approvals, cloud boundaries, destructive safeguards, troubleshooting |
 | [Log Analytics Receipts](log-analytics-receipts.md) | Publish redacted receipts through a DCR, configure the table schema, retry failures, and query audit records |
 | [CI Templates](ci-templates/) | GitHub Actions templates for team deployments |

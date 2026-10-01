@@ -3,7 +3,11 @@ package hosted
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -820,7 +824,7 @@ func TestRunDoctorUsesDeploymentIdentityAndClassifiesAccess(t *testing.T) {
 				Stdout: "FOUNDRY_PROJECT_ENDPOINT set\n" +
 					"Foundry returned HTTP 403 (wrong tenant or insufficient RBAC).\n" +
 					"AZURE_AI_PROJECT_ID is not set in the current azd environment.",
-			}, errors.New("exit status 1")
+			}, nil // A completed diagnostic exit, not an infrastructure error.
 		},
 	}
 	_, err := RunDoctor(
@@ -871,7 +875,7 @@ func TestRunDoctorAcceptsUndeployedOnlyBeforeFirstDeployment(t *testing.T) {
 							"Developer has required role on Foundry project\n" +
 							"1 of 1 agents have not been deployed:\n" +
 							test.summary,
-					}, errors.New("exit status 1")
+					}, nil
 				},
 			}
 			_, err := RunDoctor(
@@ -902,7 +906,7 @@ func TestRunDoctorRejectsSkippedProjectRoleCheck(t *testing.T) {
 					"(AZURE_AI_PROJECT_ID is not set in the current azd environment.)\n" +
 					"1 of 1 agents have not been deployed:\n" +
 					"9 passed, 1 failed, 3 skipped",
-			}, errors.New("exit status 1")
+			}, nil
 		},
 	}
 	_, err := RunDoctor(
@@ -976,7 +980,7 @@ func TestRunDoctorExitOneUndeployedWithAffirmativeRolePassAccepted(t *testing.T)
 					"Developer has required role on Foundry project\n" +
 					"1 of 1 agents have not been deployed:\n" +
 					"9 passed, 1 failed, 3 skipped",
-			}, errors.New("exit status 1")
+			}, nil
 		},
 	}
 	_, err := RunDoctor(
@@ -1011,6 +1015,75 @@ func TestRunDoctorExitZeroNoRoleEvidenceFailsClosed(t *testing.T) {
 	)
 	if !errors.Is(err, ErrProjectID) {
 		t.Fatalf("expected ErrProjectID when no role evidence in output, got %v", err)
+	}
+}
+
+func TestRunDoctorDoesNotAcceptPartialUndeployedOutputOnRunnerFailure(t *testing.T) {
+	for _, failure := range []error{
+		context.Canceled,
+		context.DeadlineExceeded,
+		ErrOutputTooLarge,
+		exec.ErrWaitDelay,
+		&exec.Error{Name: "azd", Err: exec.ErrNotFound},
+		&os.PathError{Op: "fork/exec", Path: "azd", Err: os.ErrPermission},
+		errors.New("infrastructure failure"),
+		errors.New("exit status 1"), // Error text alone is not completion evidence.
+	} {
+		for _, exitCode := range []int{-1, 0, 1} {
+			t.Run(fmt.Sprintf("%v/exit=%d", failure, exitCode), func(t *testing.T) {
+				runner := &fakeRunner{run: func(Command) (Execution, error) {
+					return Execution{ExitCode: exitCode, Stdout: undeployedDoctorOutput}, fmt.Errorf("wrapped: %w", failure)
+				}}
+				_, err := RunDoctor(context.Background(), runner, "azd", Workspace{Root: t.TempDir()}, "", nil)
+				if !errors.Is(err, failure) || !errors.Is(err, ErrCommandFailed) {
+					t.Fatalf("partial output masked runner failure: %v", err)
+				}
+			})
+		}
+	}
+}
+
+const undeployedDoctorOutput = "Foundry project endpoint reachable\n" +
+	"Developer has required role on Foundry project\n" +
+	"1 of 1 agents have not been deployed:\n9 passed, 1 failed, 3 skipped\n"
+
+func TestRunDoctorAcceptsGenuineCompletedDiagnosticExit(t *testing.T) {
+	// Exercise the existing Runner contract using a real helper-process exit.
+	execution, exitErr := (ExecRunner{}).Run(context.Background(), Command{
+		Executable: os.Args[0],
+		Args:       []string{"-test.run=^TestExecRunnerHelperProcess$"},
+		Environment: map[string]string{
+			"FOUNDRY_AGENT_MANAGER_RUNNER_HELPER": "doctor",
+		},
+		CaptureStdout: true,
+	})
+	var diagnosticExit *exec.ExitError
+	if !errors.As(exitErr, &diagnosticExit) || execution.ExitCode != 1 {
+		t.Fatalf("helper did not produce a completed diagnostic exit: %v", exitErr)
+	}
+	runner := &fakeRunner{run: func(Command) (Execution, error) {
+		return execution, fmt.Errorf("wrapped: %w", exitErr)
+	}}
+	if _, err := RunDoctor(context.Background(), runner, "azd", Workspace{}, "", nil); err != nil {
+		t.Fatalf("genuine diagnostic exit rejected: %v", err)
+	}
+	infrastructure := errors.New("pipe read failed")
+	runner.run = func(Command) (Execution, error) {
+		return execution, errors.Join(exitErr, infrastructure)
+	}
+	if _, err := RunDoctor(context.Background(), runner, "azd", Workspace{}, "", nil); !errors.Is(err, infrastructure) {
+		t.Fatalf("joined infrastructure error was ignored: %v", err)
+	}
+}
+
+func TestRunDoctorHonorsCanceledContextWithCompletedFakeOutput(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	runner := &fakeRunner{run: func(Command) (Execution, error) {
+		return Execution{ExitCode: 1, Stdout: undeployedDoctorOutput}, nil
+	}}
+	if _, err := RunDoctor(ctx, runner, "azd", Workspace{}, "", nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled context was accepted: %v", err)
 	}
 }
 
@@ -1119,10 +1192,110 @@ func TestExecRunnerHonorsContextDeadline(t *testing.T) {
 }
 
 func TestExecRunnerHelperProcess(t *testing.T) {
-	if os.Getenv("FOUNDRY_AGENT_MANAGER_RUNNER_HELPER") != "1" {
-		return
+	switch os.Getenv("FOUNDRY_AGENT_MANAGER_RUNNER_HELPER") {
+	case "1":
+		time.Sleep(time.Second)
+	case "doctor":
+		if _, err := fmt.Fprint(os.Stdout, undeployedDoctorOutput); err != nil {
+			t.Fatal(err)
+		}
+		os.Exit(1)
+	case "pipe-parent":
+		child := exec.Command(os.Args[0], "-test.run=^TestExecRunnerHelperProcess$")
+		child.Env = mergeEnvironment(os.Environ(), map[string]string{
+			"FOUNDRY_AGENT_MANAGER_RUNNER_HELPER": "pipe-child",
+		})
+		child.Stdout, child.Stderr = os.Stdout, os.Stderr
+		if err := child.Start(); err != nil {
+			t.Fatal(err)
+		}
+		if err := child.Wait(); err != nil {
+			t.Fatal(err)
+		}
+	case "pipe-child":
+		connection, err := net.Dial("tcp", os.Getenv("FAM_PIPE_HELPER_ADDRESS"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := connection.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if _, err := connection.Write([]byte{1}); err != nil {
+			t.Fatal(err)
+		}
+		// The controller closes the connection after ExecRunner has returned.
+		var signal [1]byte
+		if _, err := connection.Read(signal[:]); !errors.Is(err, io.EOF) {
+			t.Fatalf("expected controller connection to close: %v", err)
+		}
 	}
-	time.Sleep(time.Second)
+}
+
+func TestExecRunnerCancellationBoundsInheritedPipes(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := listener.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	if err := listener.(*net.TCPListener).SetDeadline(time.Now().Add(15 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		_, err := (ExecRunner{}).Run(ctx, Command{
+			Executable: os.Args[0],
+			Args:       []string{"-test.run=^TestExecRunnerHelperProcess$"},
+			Environment: map[string]string{
+				"FOUNDRY_AGENT_MANAGER_RUNNER_HELPER": "pipe-parent",
+				"FAM_PIPE_HELPER_ADDRESS":             listener.Addr().String(),
+			},
+			CaptureStdout: true,
+			CaptureStderr: true,
+		})
+		result <- err
+	}()
+	connection, err := listener.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := connection.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			t.Error(err)
+		}
+	}()
+	if err := connection.SetReadDeadline(time.Now().Add(15 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	var ready [1]byte
+	if _, err := connection.Read(ready[:]); err != nil {
+		t.Fatal(err)
+	}
+	cancel() // The descendant is now known to hold both inherited pipes.
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected cancellation, got %v", err)
+		}
+	case <-time.After(commandWaitDelay + 5*time.Second):
+		// Closing the control connection releases only our helper descendant.
+		if err := connection.Close(); err != nil {
+			t.Error(err)
+		}
+		select {
+		case <-result:
+		case <-time.After(5 * time.Second):
+			t.Error("runner did not return after releasing helper pipes")
+		}
+		t.Fatal("ExecRunner waited for inherited pipes after cancellation")
+	}
 }
 
 func TestMergeEnvironmentUsesPlatformKeySemantics(t *testing.T) {
