@@ -115,9 +115,8 @@ auditable deployment evidence.
 - **AzureCloud only.** Azure Government is rejected before credential
   acquisition or network access until dedicated qualification is complete.
 
-> **Release status.** These docs prepare **0.18.0 for 2026-10-01 (UTC)**;
-> the release is **not yet tagged or published**. The existing `main` baseline
-> is 0.17.1; candidate source now declares 0.18.0. Use `fam version` to identify
+> **Release status.** [**0.18.0**](https://github.com/jpmicrosoft/fam/releases/tag/v0.18.0)
+> was published on **2026-10-01 (UTC)**. Use `fam version` to identify
 > your executable. Hosted Agents require `--accept-preview`. Native Prompt
 > Skills remain experimental and runtime-unqualified. See
 > [Support status](#support-status-and-release-boundaries).

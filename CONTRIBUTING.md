@@ -315,9 +315,10 @@ the maintainer does.
    conditionally attests build provenance for public repositories, and creates
    the GitHub release.
 
-The prepared **0.18.0 candidate for 2026-10-01 (UTC)** is **not yet tagged or
-published**; the latest published release is **0.17.1**. Source version changes
-and candidate documentation do not authorize or establish publication. See
+The **0.18.0** release was published on **2026-10-01 (UTC)** and is available
+from the [release page](https://github.com/jpmicrosoft/fam/releases/tag/v0.18.0).
+Source version changes and candidate documentation alone do not authorize or
+establish publication. See
 [release status and gates](docs/development-and-releases.md#release-job).
 
 Before the first public launch or a capability-expanding release, copy

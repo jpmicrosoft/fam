@@ -5,21 +5,9 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Version status.** `0.18.0` is the prepared release candidate for
-> **2026-10-01 (UTC)**, not a published or tagged release. The existing `main`
-> baseline is `0.17.1`; the candidate's
-> [`internal/config/config.go`](internal/config/config.go) now declares
-> `0.18.0`. Before tagging, maintainers must verify the final executable's
-> `fam version` output and complete release qualification. Archives and a
-> GitHub Release are produced by
-> [`.github/workflows/ci.yml`](.github/workflows/ci.yml) only after the matching
-> tag passes its release gates.
-
 ## [Unreleased]
 
 ## [0.18.0] - 2026-10-01
-
-**Release candidate — not yet tagged or published.**
 
 ### Added
 
