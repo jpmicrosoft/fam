@@ -1,9 +1,8 @@
 # Command Reference
 
 Command-family catalog, shared options, exit codes, and output contracts for
-the **0.18.0 release candidate (2026-10-01 UTC)**. It is not yet tagged or
-published; the existing `main` baseline is 0.17.1. Check `fam version` before
-using candidate-only commands.
+**FAM 0.18.0**, released **2026-10-01 (UTC)**. Check `fam version` before
+using commands added in this release.
 
 **Starting out?** Use the [documentation hub](README.md) and
 [local walkthrough](../README.md#try-fam-locally). This page is for

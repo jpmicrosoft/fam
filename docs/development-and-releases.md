@@ -231,12 +231,14 @@ and exact checksum filenames compatible with the updater. An archive hash is
 verified before extraction; provenance attestation verification is not part
 of the self-update command.
 
-The prepared release is **0.18.0, dated 2026-10-01 (UTC)**, and is **not yet
-tagged or published**. The existing `main` baseline is 0.17.1.
+The **0.18.0** release was published on **2026-10-01 (UTC)**. Its archives,
+checksums, and dependency notices are available on the
+[release page](https://github.com/jpmicrosoft/fam/releases/tag/v0.18.0).
 [`../internal/config/config.go`](../internal/config/config.go) controls the
-compiled version and now declares **0.18.0**. Maintainers must still verify
-the final executable's `fam version` output and complete release qualification
-before tagging. Candidate documentation is not evidence that release assets exist.
+compiled version and declares **0.18.0**. For each subsequent release,
+maintainers must verify the final executable's `fam version` output and complete
+release qualification before tagging. Candidate documentation alone is not
+evidence that release assets exist.
 
 ## Weekly Foundry capability review
 

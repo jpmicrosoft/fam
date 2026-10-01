@@ -19,16 +19,16 @@ does and does not make, and how to operate and report issues against it.
 
 | Version | Status |
 |---|---|
-| `0.17.x` (latest published: `0.17.1`) | Supported published release line. |
-| `0.18.0` release candidate | Prepared for 2026-10-01 (UTC); not tagged or published. |
+| `0.18.x` (latest published: `0.18.0`) | Supported published release line. |
 | Current `main` | Supported. This is where fixes are developed. |
 | Earlier published release lines | Not supported. |
 
-The candidate source in
+The source in
 [`internal/config/config.go`](internal/config/config.go) declares `0.18.0`;
-the latest published release remains `0.17.1`. Candidate source and
-documentation do not establish that release assets exist or that qualification
-is complete. Assets are produced only after the matching tag passes the
+the published assets are available on the
+[0.18.0 release page](https://github.com/jpmicrosoft/fam/releases/tag/v0.18.0).
+Source version changes alone do not establish publication or qualification.
+Assets are produced only after the matching tag passes the
 [release gates](docs/development-and-releases.md#release-job).
 Use `fam version` to identify the executable involved in a report.
 
