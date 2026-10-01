@@ -13,6 +13,7 @@ import (
 	errs "foundry-agent-manager/internal/errors"
 	"foundry-agent-manager/internal/foundryid"
 	"foundry-agent-manager/internal/netcheck"
+	"foundry-agent-manager/internal/skills"
 	manifestschema "foundry-agent-manager/schema"
 )
 
@@ -22,7 +23,7 @@ const (
 )
 
 var (
-	Version     = "0.17.1"
+	Version     = "0.18.0"
 	BuildCommit = ""
 	BuildDate   = ""
 )
@@ -37,6 +38,8 @@ type AgentSpec struct {
 	StructuredInputs   map[string]interface{}
 	Metadata           map[string]string
 	MetadataConfigured bool
+	Skills             []skills.Reference
+	SkillsConfigured   bool
 }
 
 // AgentCardSkillSpec describes one consumer-facing capability advertised by
@@ -485,6 +488,9 @@ func ValidateResolvedConfig(cfg *ResolvedConfig) error {
 	if err := custommetadata.Validate(cfg.Agent.Metadata); err != nil {
 		return err
 	}
+	if err := validatePromptSkills(cfg.Agent.Skills); err != nil {
+		return err
+	}
 	for i, tool := range cfg.Tools {
 		toolType := getStr(tool, "type")
 		if reason := cfg.Cloud.UnsupportedTools[toolType]; reason != "" {
@@ -715,6 +721,10 @@ func ResolveConfigWithCloud(doc map[string]interface{}, profile azcloud.Profile)
 			metadata = map[string]string{}
 		}
 	}
+	skillReferences, skillsConfigured, err := resolvePromptSkills(agentDoc)
+	if err != nil {
+		return nil, err
+	}
 	agent := AgentSpec{
 		Name:               getStr(agentDoc, "name"),
 		Instructions:       getStr(agentDoc, "instructions"),
@@ -724,6 +734,8 @@ func ResolveConfigWithCloud(doc map[string]interface{}, profile azcloud.Profile)
 		StructuredInputs:   getMap(agentDoc, "structured_inputs"),
 		Metadata:           metadata,
 		MetadataConfigured: metadataConfigured,
+		Skills:             skillReferences,
+		SkillsConfigured:   skillsConfigured,
 	}
 
 	endpoint := EndpointSpec{}

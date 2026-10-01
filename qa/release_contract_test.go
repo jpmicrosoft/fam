@@ -274,7 +274,7 @@ func TestCIAndReleaseInvokeExecutableQualification(t *testing.T) {
 		"-SkipCoreChecks",
 		"-SkipRace",
 		"-SkipCrossCompile",
-		"needs: [ci, update-native]",
+		"needs: [ci, update-native, hosted-skills-runtime]",
 		"cp scripts/install.sh dist/install.sh",
 		"cp scripts/install.ps1 dist/install.ps1",
 		`bin="fam"`,
@@ -303,6 +303,46 @@ func TestCIAndReleaseInvokeExecutableQualification(t *testing.T) {
 		if strings.Contains(ci, forbidden) || strings.Contains(repositoryFile(t, "scripts", "Test-Release.ps1"), forbidden) {
 			t.Errorf("release tooling still contains retired executable/alias logic %q", forbidden)
 		}
+	}
+}
+
+func TestHostedSkillsReleaseQualification(t *testing.T) {
+	ci := repositoryFile(t, ".github", "workflows", "ci.yml")
+	start := strings.Index(ci, "\n  hosted-skills-runtime:")
+	end := strings.Index(ci, "\n  release:")
+	if start < 0 || end < start {
+		t.Fatal("missing independent Hosted Skills runtime gate")
+	}
+	gate := ci[start:end]
+	requireText(t, gate,
+		"runs-on: ubuntu-latest",
+		"timeout-minutes: 15",
+		"persist-credentials: false",
+		"Require runtime qualification inputs",
+		"steps.release-source.outputs.historical",
+		"steps.runtime-inputs.outputs.required == 'true'",
+		`python-version: "3.13"`,
+		`dotnet-version: "10.0.401"`,
+		"internal/skillruntime/testdata/requirements.txt",
+		"python -B internal/skillruntime/testdata/python_runtime_test.py -v",
+		`"$artifacts/bin/HostedSkills.Example/release/HostedSkills.Example.dll" --self-test-require-symlinks`,
+		`"$artifacts/published/HostedSkills.Example.dll" --self-test-require-symlinks`,
+		"--no-incremental",
+		"--no-restore",
+		"expected != inventory(published)",
+		`expected.get("FamSkillsRuntime.cs")`,
+	)
+	for _, action := range []string{"actions/setup-python", "actions/setup-dotnet"} {
+		if !regexp.MustCompile(regexp.QuoteMeta(action) + `@[0-9a-f]{40}\b`).MatchString(gate) {
+			t.Errorf("%s must be pinned to an immutable commit", action)
+		}
+	}
+	for _, forbidden := range []string{"continue-on-error", "--self-test\n", "contents: write", "id-token: write", "hashFiles(", "unittest discover"} {
+		if strings.Contains(gate, forbidden) {
+			t.Errorf("runtime gate must not contain %q", forbidden)
+		}
+		pythonTests := repositoryFile(t, "internal", "skillruntime", "testdata", "python_runtime_test.py")
+		requireText(t, pythonTests, "not program.result.testsRun or program.result.skipped", "program.result.wasSuccessful()")
 	}
 }
 

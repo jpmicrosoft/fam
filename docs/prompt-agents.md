@@ -11,6 +11,7 @@ Return here when you need a specific configuration or lifecycle operation.
 ## Contents
 
 - [Manifest fields and examples](#manifest-reference)
+- [Native Skills: experimental, runtime-unqualified](#native-skills-preview)
 - [Create a manifest](#prompt-init)
 - [Create a child project](#project-create) / [Manage model deployments](#model-deployment-lifecycle)
 - [Permissions](#rbac-and-separation-of-duties) / [Read-only preflight](#preflight)
@@ -54,7 +55,10 @@ model quota, cost, and RBAC remain operator decisions.
 - Standalone `prompt preflight --ensure-project` remains read-only but needs
   account/model read access when the child project does not exist.
 - Endpoint-only callers should use `Foundry Agent Consumer` at project or agent
-  scope instead of a developer role.
+  scope instead of a developer role. FAM's `prompt smoke` additionally reads
+  the logical agent and its endpoint-selected immutable versions before
+  invoking; it needs the corresponding read access, not just endpoint
+  invocation permission. See [Smoke tests](#smoke-tests).
 - Child-project and model-deployment administration are separate
   management-plane duties.
 - `prompt m365 publish` requires `Foundry User` on the project plus `Azure Bot
@@ -107,7 +111,7 @@ Tools are optional. Add them after the basic agent works using
 |---|---|---|
 | `apiVersion` | yes | Must be exactly `foundry-agent-manager/v1`. |
 | `cloud` | no | `AzureCloud` (default and only supported value). |
-| `agent` | yes | `name`, `model`, `instructions`; optional `description`, `metadata`, `rai_policy_id`, and `structured_inputs`. |
+| `agent` | yes | `name`, `model`, `instructions`; optional `description`, `metadata`, `rai_policy_id`, `structured_inputs`, and pinned native `skills`. |
 | `project` | no* | Coordinates for the Foundry project. *Required in practice for any online command. |
 | `model_deployment` | no | Exact model/SKU/capacity desired state for explicit [model deployment commands](#model-deployment-lifecycle); never created implicitly by `prompt deploy`. |
 | `endpoint` | no | Desired stable-endpoint protocols, authorization schemes, and agent card. Never controls version routing. |
@@ -122,6 +126,159 @@ exists on the same Foundry account as the project. It is referenced, never
 created. `prompt preflight` verifies the policy through ARM before deployment.
 When this field is omitted, the Prompt Agent inherits the model deployment's
 guardrail.
+
+### Native Skills (preview)
+
+**Experimental integration; native runtime consumption is unqualified.**
+Live creation and lifecycle checks passed, but neither tested request format
+produced working instruction consumption. The gated workflow below is for
+explicit experimentation, not production enablement. Hosted bundle/MCP
+qualification does not qualify native Prompt Skills.
+
+Native Skill declarations are separate from Toolbox tools and from the
+descriptive A2A `endpoint.agent_card.skills` field:
+
+```yaml
+agent:
+  name: support-agent
+  model: <model-deployment-name>
+  instructions: Help the user with the available capabilities.
+  skills:
+    - name: greeting
+      version: "1"
+```
+
+Every managed reference requires an explicit immutable version. Omitting
+`agent.skills` leaves the field unmanaged and preserves existing remote native
+references when other fields change. `skills: []` declares removal of all native
+attachments in the next deployed version; editing the local file does not
+detach a running agent or delete shared Skill resources.
+
+```powershell
+fam skill validate --path skills/greeting
+fam skill create -f agent.yaml --skill greeting --path skills/greeting --accept-preview
+# Use the immutable version returned by create, not a moving default.
+fam prompt skill attach -f agent.yaml --skill greeting --version "<skill-version>"
+fam prompt skill list -f agent.yaml
+fam prompt plan -f agent.yaml
+fam prompt preflight -f agent.yaml --accept-preview
+```
+
+These single-line commands also work in POSIX shells. The example assumes the
+current directory contains `agent.yaml` and `skills/greeting/SKILL.md`;
+`skill create --path` is manifest-relative. Replace the quoted version
+placeholder. Do not add preview flags to local attach/remove/list.
+
+Attach, remove, and list are offline local configuration operations. They
+preserve unrelated manifest fields and comments, never publish content, and
+never modify a deployed agent. Publishing, deployment, and promotion remain
+separate operations. Preflight reads the pinned versions and checks their
+instructions-only packages; it does not create missing Skills.
+
+Local native Skill listing and editing require explicit, unanchored manifest
+root and `agent` mappings and, when present, an explicit `agent.skills`
+sequence. YAML merges, aliases, or anchors at these edit boundaries or anywhere
+in the Skills subtree are rejected rather than silently expanded. Expand those
+declarations and replace aliases referencing the edited nodes before retrying.
+Unrelated nested YAML, including safe aliases, anchors, and merges outside
+these boundaries, is preserved; this is not a blanket ban on YAML reuse.
+
+The published Microsoft JavaScript SDK `@azure/ai-projects@2.7.1` serializes
+native `definition.skills` on API `v1`; its agent request builder adds no
+default Skills preview header. However, a live native-agent version creation
+on 2026-10-01 (UTC) was rejected with HTTP 403 `preview_feature_required`,
+explicitly requiring `Foundry-Features: Skills=V1Preview`. FAM therefore adds
+this required feature for opted-in native agent operations, including
+preservation, explicit clearing, exact-version readback, and invocation,
+while retaining other applicable preview features. Skill-resource reads and
+downloads keep their existing Skills preview header; ordinary no-Skills
+version creation is unchanged.
+
+FAM follows the SDK payload shape without inventing a harness requirement or
+changing the agent's runtime. The consolidated REST reference still omits this
+newer field. Live qualification on 2026-10-01 (UTC), using `gpt-5-mini` in
+`eastus2`, confirmed native creation, exact immutable reference readback,
+explicit detachment, promotion, and rollback. However, both the stable endpoint
+and exact-version Responses API returned that the agent could not access the
+Skill; neither returned the verification marker present only in its instructions.
+Both requests carried the required Skills header. A project-scoped runtime
+`Foundry User` grant did not resolve this result. Native runtime consumption
+therefore remains **unqualified for the tested configuration**; accepted
+references alone must not be advertised as working Skill execution.
+
+A follow-up investigation on the same UTC date reproduced the failure in a
+fresh project and isolated two further contracts:
+
+- Adding `type: "skill_reference"` as emitted by Microsoft's azd extension
+  did not fix consumption. The service returned the same canonical
+  `name`/`version` reference for both request forms, and both invocations
+  returned the fixture's `SKILL_UNAVAILABLE` response.
+- Microsoft's [azd harness example](https://github.com/Azure/azure-dev/blob/170ebb858071da353cc9bf8657a377bff268ba36/cli/azd/extensions/azure.ai.agents/README.md#github-copilot-harness-built-in-tools)
+  combines native Skills with the documented
+  [`github_copilot_preview` harness](https://learn.microsoft.com/javascript/api/@azure/ai-projects/githubcopilotharness?view=azure-node-latest).
+  The service explicitly required a second preview feature,
+  `GitHubCopilot=V1Preview`. After supplying it alongside `Skills=V1Preview`,
+  creation was rejected with HTTP 403: the prompt agent's
+  `github_copilot_preview` harness was **not enabled for the test subscription**.
+  No corresponding Copilot/harness/Skills entry appeared in that subscription's
+  `Microsoft.CognitiveServices` feature registration listing.
+
+This establishes a subscription-level access blocker for the documented harness
+route, not proof that every native Skills configuration requires that harness.
+The no-harness consumption failure remains unresolved. Confirm preview
+eligibility and runtime prerequisites with Microsoft before retrying that
+route; do not guess feature-registration names or treat RBAC grants as preview
+enablement. FAM does not automatically select this harness, grant its built-in
+tools, or substitute a Hosted/MCP implementation. A future harness integration
+must explicitly compose its required preview header and validate actual Skill
+consumption in an enabled subscription.
+
+Native version mutations and invocation therefore require **both**
+`--experimental-native-skills` and `--accept-preview`. This is an experimental
+opt-in, not a promise of service availability:
+
+```powershell
+fam prompt deploy -f agent.yaml --accept-preview --experimental-native-skills
+```
+
+Invocation is separate and billable, and retains both gates:
+
+```powershell
+fam prompt smoke -f agent.yaml --accept-preview --experimental-native-skills --prompt "Use the greeting Skill."
+```
+
+Standalone `prompt smoke` inspects the actual immutable versions selected by
+the deployed endpoint, not merely the local `agent.skills` declaration. If any
+selected version contains native Skills, **both gates are required**, including
+when the local field is omitted or is `skills: []`. The command requires read
+access to the logical agent and each selected immutable version and stops if
+it cannot inspect them; it does not assume an unreadable version has no Skills.
+These checks do not establish native runtime consumption.
+
+This is an experiment, not an expected passing native-consumption test. To
+remove the local declaration:
+
+```powershell
+fam prompt skill remove -f agent.yaml --skill greeting
+```
+
+Review the resulting list, then separately deploy with both gates.
+Removing the last reference writes `skills: []`; deleting the
+field instead would leave remote references unmanaged and preserved.
+Deployment stages later agent versions; promotion/rollback remain separate
+routing operations and do not republish Skills. After deploying the cleared
+version, deliberately route traffic to it to detach Skills from live endpoint
+invocations; the local empty list alone does not change traffic or smoke gates.
+
+FAM reads back the created immutable version and rejects missing or rewritten
+native references instead of reporting a successful attachment. A declaration,
+successful read-only check, or exact reference readback still does **not**
+prove runtime consumption. No Skill text is concatenated into the base prompt
+and no MCP fallback is substituted.
+
+See [Skills integration policy](tools-and-grounding.md#skills-integration-policy)
+for package requirements and the distinction between Azure limits and FAM
+safety safeguards.
 
 `agent.metadata` is an optional map of custom non-secret strings:
 
@@ -592,3 +749,11 @@ fam prompt smoke -f agent.yaml --prompt "Reply with READY."
 ```
 
 A smoke test sends one **billable** request through the Foundry Responses API.
+Standalone `prompt smoke` first reads the logical agent and the exact immutable
+versions selected for endpoint traffic. The caller needs that read access as
+well as invocation permission; missing or uninspectable selected definitions
+stop the command before inference. If any selected version has native Skills,
+add **both** `--accept-preview` and `--experimental-native-skills`, even if the
+local manifest omits `agent.skills` or declares `skills: []`. Local edits do not
+alter deployed versions or endpoint routing. See the
+[native Skills qualification boundary](#native-skills-preview) before opting in.

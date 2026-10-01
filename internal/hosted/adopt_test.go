@@ -43,6 +43,7 @@ func TestAdoptPythonSourceCopiesExistingAgent(t *testing.T) {
 	if result.Root != destination || result.InPlace || !result.HostingDetected {
 		t.Fatalf("unexpected adoption result: %#v", result)
 	}
+	assertAZDEntryPointFile(t, destination, "existing-agent", "main.py")
 	if result.EntryPoint != "main.py" ||
 		len(result.DependencyFiles) != 1 ||
 		result.DependencyFiles[0] != "requirements.txt" {
@@ -65,7 +66,9 @@ func TestAdoptPythonSourceCopiesExistingAgent(t *testing.T) {
 	}
 	if workspace.Selected.Source != "src/existing-agent" ||
 		workspace.Selected.Code == nil ||
-		workspace.Selected.Code.EntryPoint[0] != "main.py" {
+		len(workspace.Selected.Code.EntryPoint) != 2 ||
+		workspace.Selected.Code.EntryPoint[0] != "python" ||
+		workspace.Selected.Code.EntryPoint[1] != "main.py" {
 		t.Fatalf("unexpected adopted workspace: %#v", workspace.Selected)
 	}
 	if _, err := os.Stat(filepath.Join(source, ".agentignore")); !os.IsNotExist(err) {
@@ -96,6 +99,7 @@ func TestAdoptPythonSourceSupportsInPlace(t *testing.T) {
 	if !result.InPlace || result.CopiedFiles != 0 || result.EntryPoint != "app.py" {
 		t.Fatalf("unexpected in-place result: %#v", result)
 	}
+	assertAZDEntryPointFile(t, source, "existing-agent", "app.py")
 	workspace, err := LoadWorkspace(source, "existing-agent")
 	if err != nil {
 		t.Fatal(err)
@@ -103,6 +107,9 @@ func TestAdoptPythonSourceSupportsInPlace(t *testing.T) {
 	if workspace.Selected.Source != "." ||
 		workspace.Selected.Code == nil ||
 		workspace.Selected.Code.Runtime != "python_3_14" ||
+		len(workspace.Selected.Code.EntryPoint) != 2 ||
+		workspace.Selected.Code.EntryPoint[0] != "python" ||
+		workspace.Selected.Code.EntryPoint[1] != "app.py" ||
 		workspace.Selected.Code.DependencyResolution != "bundled" {
 		t.Fatalf("unexpected in-place workspace: %#v", workspace.Selected)
 	}

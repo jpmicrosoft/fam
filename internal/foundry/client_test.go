@@ -127,6 +127,33 @@ func TestUpsert_SendsCorrectRequest(t *testing.T) {
 	}
 }
 
+func TestNativePromptSkillsTransportGateDoesNotMutate(t *testing.T) {
+	for _, preview := range []bool{false, true} {
+		for _, references := range []interface{}{
+			[]interface{}{},
+			[]interface{}{map[string]interface{}{"name": "greeting", "version": "1"}},
+		} {
+			mock := &mockHTTP{}
+			client := NewClient("https://acct.services.ai.azure.com/api/projects/p", &mockCred{}, mock, preview)
+			_, err := client.UpsertDefinitionContext(context.Background(), "agent", "", map[string]interface{}{
+				"kind": "prompt", "model": "model", "instructions": "help", "skills": references,
+			})
+			if err == nil || !errs.IsKind(err, "config") || errs.IsAmbiguousMutation(err) {
+				t.Fatalf("native contract gate must fail before mutation, got %v", err)
+			}
+			if preview && !strings.Contains(err.Error(), "transport is gated") {
+				t.Fatalf("preview acceptance must not bypass the contract gate: %v", err)
+			}
+			if !preview && !strings.Contains(err.Error(), "--accept-preview") {
+				t.Fatalf("missing preview acceptance was not reported: %v", err)
+			}
+			if len(mock.requests) != 0 {
+				t.Fatalf("gated transport issued requests: %#v", mock.requests)
+			}
+		}
+	}
+}
+
 func TestUpsertDefinitionAndInvocationPreserveStructuredInputs(t *testing.T) {
 	mock := &mockHTTP{responses: []*http.Response{
 		jsonResp(200, map[string]interface{}{"id": "agent-1", "name": "agent", "version": 1}),

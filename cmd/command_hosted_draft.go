@@ -44,9 +44,21 @@ func cmdHostedDraftDeploy(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	if _, err := validateHostedSkillArtifacts(runtime.Workspace, runtime.ProjectEndpoint); err != nil {
+		return err
+	}
 	store, err := newHostedOperationStore(cmd, runtime, "hosted-draft-deploy", snapshot.Hash)
 	if err != nil {
 		return err
+	}
+	if runtime.Workspace.Selected.Skills != nil {
+		if err := store.AddResource(receipt.ResourceChange{
+			Kind: "hosted-skills-runtime", Name: runtime.Workspace.Selected.ServiceName,
+			Action: "declare", Status: "artifact-verified-runtime-unverified",
+			Reconciliation: "Provider registration and runtime discovery/loading remain application responsibilities; draft deployment does not invoke the agent.",
+		}); err != nil {
+			return err
+		}
 	}
 	recorder := func(command hosted.CommandRecord) error {
 		store.Receipt.Commands = append(store.Receipt.Commands, receipt.CommandRecord{

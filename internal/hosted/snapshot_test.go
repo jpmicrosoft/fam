@@ -2,10 +2,13 @@ package hosted
 
 import (
 	"archive/zip"
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBuildCodeArchiveIsDeterministicAndHonorsAgentIgnore(t *testing.T) {
@@ -196,10 +199,49 @@ func TestScaffoldCreatesValidatedWorkspace(t *testing.T) {
 	if workspace.Selected.Metadata["owner"] != "platform" {
 		t.Fatalf("generated workspace omitted metadata: %#v", workspace.Selected.Metadata)
 	}
+	assertAZDEntryPointFile(t, result.Root, "support-agent", "main.py")
 	for _, relative := range result.Files {
 		if _, err := os.Stat(filepath.Join(result.Root, filepath.FromSlash(relative))); err != nil {
 			t.Fatalf("missing generated file %s: %v", relative, err)
 		}
+	}
+}
+
+func TestScaffoldPythonSkillsLifecycle(t *testing.T) {
+	python, err := exec.LookPath("python")
+	if err != nil {
+		python, err = exec.LookPath("python3")
+	}
+	if err != nil {
+		t.Skip("Python is required to execute generated scaffold lifecycle tests")
+	}
+	harness, err := filepath.Abs(filepath.Join("..", "skillruntime", "testdata", "scaffold_lifecycle.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, protocol := range []string{"responses", "invocations"} {
+		t.Run(protocol, func(t *testing.T) {
+			root := t.TempDir()
+			mainPath := filepath.Join(root, "main.py")
+			tools := protocol == "responses"
+			source := scaffoldPython(protocol, tools, tools, tools)
+			if err := os.WriteFile(mainPath, []byte(source), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			toolMode := "no-tools"
+			if tools {
+				toolMode = "tools"
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			command := exec.CommandContext(ctx, python, "-I", harness, mainPath, toolMode)
+			command.Dir = root
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("generated Python lifecycle tests failed: %v\n%s", err, output)
+			}
+			t.Logf("generated Python lifecycle tests:\n%s", output)
+		})
 	}
 }
 
@@ -241,7 +283,10 @@ func TestScaffoldWiresHostedBingGrounding(t *testing.T) {
 			"connection_id=connection.id",
 		},
 		filepath.Join(source, "requirements.txt"): {
-			"agent-framework-foundry==1.10.4\n",
+			"agent-framework-core==1.19.0\n",
+			"agent-framework-foundry==1.13.1\n",
+			"agent-framework-foundry-hosting==1.0.0b260918\n",
+			"mcp==1.30.0\n",
 			"aiohttp\n",
 			"azure-ai-projects\n",
 		},
@@ -257,8 +302,15 @@ func TestScaffoldWiresHostedBingGrounding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		content := strings.ReplaceAll(string(data), "\r\n", "\n")
 		for _, text := range expected {
-			if !strings.Contains(string(data), text) {
+			if filepath.Base(path) == "requirements.txt" {
+				if !strings.Contains("\n"+content, "\n"+text) {
+					t.Fatalf("%s does not contain exact dependency line %q; raw bytes: %q", path, text, data)
+				}
+				continue
+			}
+			if !strings.Contains(content, text) {
 				t.Fatalf("%s does not contain %q:\n%s", path, text, data)
 			}
 		}

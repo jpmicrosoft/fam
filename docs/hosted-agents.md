@@ -22,11 +22,12 @@ tooling, or lifecycle contract.
 - [Sessions and files](#sessions-and-files) / [Logs](#hosted-agent-logs)
 - [Invoke an agent](#smoke-tests) / [Promotion and rollback](#promotion-rollback-and-destructive-safeguards)
 - [Draft deployments](#draft-deployment) / [Change detection](#change-detection---if-changed)
+- [Skills: bundles and immutable Toolbox MCP](#hosted-skills)
 - [Experimental Autopilot](#experimental-hosted-agent-autopilot) / [Agent 365](#agent-365-blueprint-identity-and-observability-inspection)
 
 ## Tooling prerequisites
 
-Online Hosted Agent operations require all of the following:
+Online Hosted Agent lifecycle and deployment operations require all of the following:
 
 - The `fam` executable
 - Azure Developer CLI (`azd`) 1.32.0 or later
@@ -46,6 +47,12 @@ validates the individual component and exact version. The
 Azure CLI (`az`) is not a replacement for `azd`. It is optional unless it is
 the selected developer credential source for FAM or is needed for a separate
 administrative procedure.
+
+Remote `hosted skill sync` is different: it uses FAM's Foundry credential for
+read-only Skill/Toolbox access. A workspace with an explicit project endpoint
+does not need azd for sync; otherwise FAM looks up the endpoint in the selected
+local azd environment. Local-only bundle sync and empty-inventory sync need
+neither Azure credentials nor azd.
 
 ## Why use the Hosted Agent path
 
@@ -199,7 +206,9 @@ fam hosted adopt --source C:\src\existing-python-agent `
 Adoption:
 
 - Auto-detects `main.py`, `app.py`, `agent.py`, or one unambiguous top-level
-  Python file. Use `--entry-point` to override.
+  Python file. Use `--entry-point` to override the filename; generated
+  `azure.yaml` uses the pinned azd extension's scalar `entryPoint: <filename>`.
+  The extension adds the runtime executable when building the REST request.
 - Requires `requirements.txt`, `pyproject.toml`, or `setup.py`.
 - Supports `python_3_13` and `python_3_14`, with `remote_build` or `bundled`
   dependency resolution.
@@ -298,6 +307,132 @@ sources into the draft version.
 Never store secrets in metadata: it can be visible in Foundry, local receipts,
 and Log Analytics.
 
+### Code entry points
+
+The pinned `azure.ai.agents` `1.0.0-beta.13` extension expects a **scalar
+filename** in `azure.yaml`: `entryPoint: main.py` for Python or
+`entryPoint: MyAgent.dll` for .NET. It supplies the runtime executable itself.
+This differs from the REST `code_configuration.entry_point` array:
+`["python", "main.py"]` or `["dotnet", "MyAgent.dll"]`. A filename-only REST
+value such as `["main.py"]` can create an active version that fails session
+startup with `main.py: command not found`; active provisioning is not runtime
+readiness.
+
+FAM normalizes filenames to command arrays internally for validation and REST
+serialization. It also accepts explicit command arrays, but the pinned azd
+path can represent only the default runtime executable plus one filename.
+Normal deployment and azd diagnostics reject additional arguments or alternate
+executables rather than silently discarding them. Use a contained launcher or
+a container for those commands. FAM never splits scalar shell commands, guesses
+unrelated executables, or permits inline Python code and module launchers.
+Paths must be source-relative and use portable `/` separators.
+
+Python scripts and bundled .NET assemblies must exist as regular contained
+files and must not be excluded from deployment. For .NET `remote_build`, upload
+source with a root `.csproj`; the entry point still names the assembly produced
+by server-side publish, so that DLL need not exist locally. FAM checks source
+packaging, not whether custom MSBuild configuration produces the named assembly.
+For `bundled`, use the Linux publish output as the service source directory.
+
+Before azd diagnostics and deployment, FAM temporarily projects compatible
+commands to the scalar filename contract. Normal restoration preserves the
+original `azure.yaml` bytes, but conflicts or interruptions can require manual
+reconciliation; see [azd projection and recovery](#azd-projection-and-recovery).
+Deployment also resolves the RAI policy. The direct REST draft payload retains
+the validated command array. Generated and adopted workspaces use scalar
+filenames so they also work with the pinned extension when azd is invoked
+directly. Current general Azure documentation may show newer declaration forms;
+it does not override this version-pinned extension contract.
+
+### azd projection and recovery
+
+Temporary projection is **recoverable-conflict mitigation**, not atomic
+compare-and-swap against uncoordinated editors. Use an isolated workspace and
+stop other writers, packagers, and azd operations before running it. The
+per-workspace lease rejects overlapping or stale operations; it does not
+automatically take over a stale lease.
+
+FAM moves the live file into a new owned recovery slot, then hard-links a fully
+prepared replacement only into an absent `azure.yaml` path. It does not rename
+a replacement over an existing `azure.yaml`. Exact-byte checks use rooted
+regular-file opens, verify the opened file's identity, and read at most the
+expected size plus one byte to detect growth or content changes. These checks
+do not lock out editors or make the whole operation atomic. Referenced YAML
+inputs are revalidated, not locked against other writers.
+
+`hosted preflight` is read-only with respect to Azure. Its azd diagnostics can
+still project local files and leave recovery material; read-only does not mean
+the workspace and its parent need no write access.
+
+Projection requires a writable workspace parent and same-filesystem hard-link
+support. A hard-link probe runs in the owned recovery directory **before
+configuration copies or displacement**. Probe failure leaves source
+configuration untouched, although recovery directories may have been created.
+Passing this probe does not guarantee that every later cross-directory operation
+will succeed. `azure.yaml` can be briefly absent during replacement; other
+processes must not rely on uninterrupted access to it. Do not assume every
+network, synchronized, or Windows filesystem supports the required operations.
+This design does not establish universal Windows or power-loss durability
+guarantees.
+
+Recovery lives in the sibling **`<workspace>.fam-azd-projection`** directory,
+outside the workspace deployment context even when the service source is `.`:
+
+| Relative path in the recovery directory | Purpose |
+|---|---|
+| `.gitignore` | FAM-owned ignore marker and rule; must retain the exact expected bytes. |
+| `active/` | Empty lease directory; successful restoration removes it automatically. |
+| `operation-*/original.yaml` | Exact validated original configuration snapshot. |
+| `operation-*/projected.yaml` | Exact prepared azd configuration snapshot. |
+| `operation-*/materialize/` and `operation-*/restore/` | Per-phase `displaced.yaml` and `replacement.yaml`, when that phase reached their creation. |
+
+Operation directories intentionally remain after success to retain files that
+could receive late writes through existing open handles. Some retained files
+are hard links to live or displaced files: **do not edit recovery files in
+place**. External mutation of this FAM-owned directory is unsupported.
+
+If an operation reports recovery is required:
+
+1. Stop FAM/azd operations and other writers, including editors with open file
+   handles. Confirm the old operation no longer owns the workspace.
+2. Inspect `azure.yaml` if present, both snapshots, and every available
+   per-phase file. Reconcile intended edits manually; do not assume the
+   original snapshot contains the newest user changes.
+3. Restore the intended workspace configuration without discarding unreviewed
+   content. Resolve the local and remote outcomes described below before
+   retrying.
+4. Only after reconciliation and confirmation that no operation is active,
+   remove the empty `active/` lease directory if it remains. Old owned operation
+   directories can be removed manually once no open handles can write to them
+   and their retained content is no longer needed.
+
+There is no automatic stale-lease takeover or automatic recovery overwrite.
+Use the same review-before-cleanup policy for retained successful operations.
+
+**Never commit or publish recovery files.** They preserve configuration bytes
+and may contain sensitive data; they are not redacted receipts. Keep them out
+of deployment contexts, release archives, and shared build artifacts. Before
+retaining configuration, FAM creates or verifies the recovery directory's
+`.gitignore` with these exact contents:
+
+```gitignore
+# FAM-owned azd projection recovery; do not edit.
+*
+```
+
+A conflicting or unowned ignore file is rejected, not overwritten. This guard
+excludes recovery files from ordinary Git additions, including in an enclosing
+repository. It does **not** protect already-tracked files, `git add --force`,
+manual archives, or non-Git uploads. A parent-directory archive can still
+include the sibling recovery directory. Review staged files and package
+contents; an ignore rule is not a confidentiality boundary.
+
+Cancellation or a deadline bounds **FAM's wait**, not necessarily the lifetime
+of azd descendants or Azure operations already submitted. After cancellation,
+inspect local processes, retained recovery material, deployment receipts, and
+remote state. Reconcile those outcomes before retrying; neither a timeout nor
+local file restoration proves the Azure operation was canceled or rolled back.
+
 ## Deployment commands
 
 Start with local inspection, then configure an environment and run read-only
@@ -322,7 +457,7 @@ fam hosted environment create `
   --model-deployment support-model --location eastus2
 ```
 
-**Read-only preflight:** verifies tooling, credentials, project binding, and
+**Azure-read-only preflight:** verifies tooling, credentials, project binding, and
 policy access. For an intentionally policy-less workspace, add `--no-guardrail`.
 
 ```powershell
@@ -354,8 +489,8 @@ fam hosted deploy --workspace C:\src\hosted-agent `
 `--provision` is off by default and is the only path that runs `azd provision`.
 Provisioning is a trust decision, not just a convenience switch.
 
-`hosted preflight` is read-only and therefore never creates an `azd`
-environment. If the selected name does not exist, create it once with:
+`hosted preflight` does not create an `azd` environment. If the selected name
+does not exist, create it once with:
 
 ```powershell
 fam hosted environment create `
@@ -572,6 +707,249 @@ Generated files: `azure.yaml`, `src/<name>/main.py`,
 
 The manager does not create the Bing resource, connection, or Toolbox in this
 offline command. Provisioning is a separate `hosted deploy --provision` step.
+
+## Hosted Skills
+
+Declare Skills in workspace-root `fam.skills.yaml`, keyed by the selected
+`azure.yaml` service. Skills are not azd service fields. The canonical sidecar
+schema is [`../schema/skills.schema.json`](../schema/skills.schema.json).
+For example, a service named `agent` can combine local and pinned remote
+content in a bundle:
+
+```yaml
+apiVersion: foundry-agent-manager/skills/v1
+services:
+  agent:
+    mode: bundle
+    language: python
+    skills:
+      - path: skills/greeting
+      - name: published-policy
+        version: "1"
+```
+
+`bundle` is the **no-MCP runtime path**. Local directories need no upload;
+remote sources are downloaded by an explicit sync using immutable versions.
+`mcp` instead requires a pinned same-project `toolbox: {name, version}` and
+an explicit list of pinned remote Skills. Local content must first be
+published and placed in an immutable Toolbox version. Neither mode resolves
+moving defaults or publishes missing resources during deployment.
+
+| Sidecar field | Required / default | Meaning |
+|---|---|---|
+| `apiVersion` | Required | Exactly `foundry-agent-manager/skills/v1`. |
+| `services.<service>` | Selected service must match `azure.yaml` | No declaration means unmanaged, not detached. |
+| `mode` | Required in YAML | `bundle` or `mcp`; attach defaults a new declaration to `bundle`. |
+| `language` | Required in YAML | `python` or `dotnet`; attach infers it only for code services. |
+| `skills` | Required | Complete ordered selection; `[]` explicitly detaches. |
+| `skills[].path` | Bundle only | Portable workspace-relative directory; exclusive of `name`/`version`. |
+| `skills[].name` / `version` | Remote sources | Both required, with an immutable version, not `latest` or `default`. |
+| `toolbox.name` / `version` | Required for nonempty MCP | Explicit same-project immutable Toolbox pin; optional for empty MCP and forbidden in bundle mode. |
+| `image.reference` / `integrationEvidence` | Prebuilt image | Exact deployed digest and workspace-relative build record; see below. |
+
+Unknown fields and duplicate declarations are rejected. Sidecar paths use `/`
+even on Windows; no Skill-specific environment variable selects a delivery mode
+or replaces these pins.
+
+#### Local bundle: no Skill publication or runtime MCP
+
+Start with an existing workspace and
+[`skills/greeting/SKILL.md`](tools-and-grounding.md#skills-integration-policy)
+under its workspace root. These single-line commands work in PowerShell and
+POSIX shells:
+
+```powershell
+fam hosted skill attach --workspace hosted-agent --path skills/greeting --mode bundle --language python
+fam hosted skill list --workspace hosted-agent
+fam hosted skill sync --workspace hosted-agent
+fam hosted validate --workspace hosted-agent
+fam hosted plan --workspace hosted-agent --environment dev
+```
+
+Use `--language dotnet` for .NET. For a remote bundle, attach with
+`--skill greeting --version "<skill-version>"` instead of `--path`; sync then
+requires `--accept-preview`. To choose MCP, follow the separate
+[publish-and-pin workflow](tools-and-grounding.md#publish-and-pin-a-hosted-mcp-skill).
+Neither attach nor remove accepts `--accept-preview`; only remote sync needs it.
+
+Attach/remove edit local declarations only. Sync writes an ownership-checked
+`fam_skills` directory under the selected service source, including the
+manifest, provenance, and selected bundle files. Re-run sync after changing
+declarations or local content. Deployment refuses stale artifacts; sync refuses
+damaged or user-modified managed output rather than overwriting it.
+
+Detachment is a separate local operation, followed by explicit synchronization:
+
+```powershell
+fam hosted skill remove --workspace hosted-agent --path skills/greeting
+fam hosted skill sync --workspace hosted-agent
+```
+
+Use `--skill greeting` to remove a remote reference. Removing the last entry
+leaves `skills: []`; empty inventories synchronize without Azure access in
+either mode. Rebuild/redeploy and deliberately promote to apply this change to
+running agents. Source directories and shared Azure Skills are never deleted.
+Prebuilt images also require the digest/evidence update described below.
+
+Existing Python and .NET applications must register a compatible provider;
+sync does not rewrite their entry points or dependency manifests. See the
+[runtime examples and qualification status](../examples/hosted-skills/README.md).
+FAM-generated Python scaffolds include a provider lifecycle hook. Unsupported
+or unverified provider combinations fail explicitly rather than yielding an
+empty provider and reporting success.
+
+#### Packaging and immutable-image provenance
+
+| Deployment mode | Required application/build work |
+|---|---|
+| Code | Include the provider and locked files in the source archive; .NET must also copy the artifact into publish output. |
+| Container | Include the artifact in the actual Docker context and built image; `.dockerignore` and `.agentignore` are separate checks. |
+| Prebuilt image | Rebuild with the bundle/provider, use an immutable image digest, and record explicit integration evidence. Local files are not injected into an opaque image. |
+
+For image mode, add `image.reference` matching the selected immutable
+`azure.yaml` image and `image.integrationEvidence` pointing to a nonempty,
+workspace-relative build record:
+
+```yaml
+image:
+  reference: <registry>/<repository>@sha256:<64-lowercase-hex-digest>
+  integrationEvidence: build/skills-image-evidence.json
+```
+
+This is a schematic fragment under the selected service, not a complete
+sidecar. FAM hashes the evidence and binds the synchronized inventory/helpers
+to that image reference. It does not verify an arbitrary build record's claims,
+inspect a remote image's filesystem, or treat the record as proof of execution.
+Changes to helpers or runtime configuration for the same immutable image are
+rejected in either delivery mode, including removal of the last Skill. Rebuild
+the image and update its digest and evidence explicitly. An empty inventory
+retains image binding and reports operator evidence, not verified runtime
+detachment.
+
+Use a two-stage workflow: synchronize and build the integrated application,
+verify its embedded artifact bytes, push it, then record the resulting digest
+and build evidence in the deployment declaration and synchronize that record.
+Perform the pre-build sync in a source/code or container workspace before
+switching the deployment declaration to the resulting prebuilt image; image
+mode cannot synchronize against a missing or placeholder digest/evidence record.
+The post-build image binding is local deployment provenance, not something to
+rebuild into the already identified image. Include the pre-build manifest and
+actual embedded file hashes in the evidence; the local image-bound manifest
+can differ in provenance fields without changing the image's runtime inventory.
+FAM still does not independently verify these operator-supplied claims.
+
+With the pinned azd extension, prebuilt services require
+`docker.imagePassthrough: true` to avoid pulling, rebuilding, or republishing
+the remote image. In the qualified ACR setup, Foundry resolved the project's
+managed-identity `ContainerRegistry` connection automatically. Setting the
+generic `registryConnectionId` to that connection was rejected by the service
+as `not_a_registry_connection`; do not assume external-registry connection
+examples apply unchanged to this ACR path.
+
+For an integrated Python service with a source-root `main.py`, a Dockerfile
+can copy the synchronized source without a startup download:
+
+```dockerfile
+FROM python:3.13-slim
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1
+COPY requirements.txt ./
+RUN python -m pip install --no-cache-dir -r requirements.txt
+COPY . .
+RUN chmod -R a+rX /app
+USER 10001:10001
+CMD ["python", "main.py"]
+```
+
+Keep `.env`, credentials, caches, and development output out of the context,
+but do not exclude `fam_skills` or its hidden ownership file. Pin production
+base images to reviewed digests. This example assumes the application's
+existing host already listens on the port/protocol declared by `azure.yaml`.
+FAM's conservative static packaging checks currently reject negated ignore
+rules. Use supported exclusions or a contained context staged with only the
+required files; do not expose credentials merely to satisfy an ignore check.
+
+For .NET, add the content-copy rule from the
+[.NET example](../examples/hosted-skills/dotnet/README.md), publish in a build
+stage, and copy the **publish output**, not just the source bundle. This
+schematic Dockerfile assumes `HostedAgent.csproj` produces `HostedAgent.dll`;
+adapt both names to the existing application:
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY . .
+RUN dotnet publish HostedAgent.csproj -c Release -o /out && chmod -R a+rX /out
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /out .
+USER $APP_UID
+ENTRYPOINT ["dotnet", "HostedAgent.dll"]
+```
+
+Verify the built image includes the exact selected `SKILL.md` and manifest
+bytes and that the provider is registered. These build patterns are not
+runtime qualification and do not authorize an image push or Azure invocation.
+
+Snapshot and archive checks establish **artifact verification**, not runtime
+verification. Deployment does not invoke the agent or prove custom code
+registered its provider. Verify both discovery and `load_skill` behavior using
+an authorized nonproduction invocation before treating an integration as
+qualified. Ordinary Toolbox tool approval policies remain independent; never
+enable blanket tool autoapproval just to load Skill instructions.
+
+#### Host resources and memory
+
+Instructions-only does not mean cost-free or that every accepted inventory fits
+every host. Validation, decoded MCP responses, archive processing, SDK content
+snapshots, and concurrent invocations can all contribute to peak memory use.
+Memory use scales with the selected instruction bytes and can include multiple
+representations of the same content. Individual I/O safety bounds are not an
+aggregate process-memory budget or a constant-memory guarantee. See the
+[Python transport bounds](../examples/hosted-skills/README.md#sdk-contract)
+and [.NET startup/lifetime contract](../examples/hosted-skills/dotnet/README.md#integrate-an-existing-application)
+for the adapter-specific deadlines and checks.
+
+Measure startup/readiness and instruction loading with the actual inventory,
+runtime, packaging mode, and expected concurrency. Size the service's
+`container.resources` within the supported Hosted ranges, leaving headroom for
+the rest of the application. Control application concurrency and review content
+size according to your operating policy; monitor memory pressure and resource
+failures rather than assuming a successful small fixture predicts production
+capacity.
+
+FAM's filesystem, archive, and transport bounds are defensive implementation
+limits, **not Azure Skill quotas**. The reviewed Azure documentation establishes
+no Skills-specific count, instruction-body, or aggregate-content quota.
+Do not turn test fixture sizes or SDK defaults into new product caps, and do not
+disable integrity checks to accommodate a host that needs different sizing.
+
+#### Troubleshooting and compatibility
+
+- **Unowned/damaged `fam_skills`:** preserve the directory for inspection and
+  restore a known-good owned artifact or move the conflicting output aside
+  before explicit sync. Do not edit ownership records or digests to hide drift,
+  and do not delete original Skill sources.
+- **Missing/excluded artifact:** check both `.agentignore` and `.dockerignore`,
+  including `.ownership.json`; .NET must copy the entire artifact to publish
+  output. Deploy the verified output, not an unrelated source directory.
+- **Runtime MCP authorization failure:** successful operator sync does not
+  prove the application's runtime identity can read the same project. Review
+  that identity's actual permissions; see the
+  [qualified access boundary](../examples/hosted-skills/README.md#live-qualification-boundary).
+  This Hosted permission check is not a workaround for native Prompt failures.
+- **No instructions loaded:** verify provider registration in the real
+  application, its lifetime, and the exact deployed package. Active provisioning
+  or `runtimeVerified: false` artifact output is not evidence of consumption.
+
+Existing no-Skills workspaces need no sidecar or provider migration. Existing
+applications do not receive dependency changes automatically; merge the
+[Python pins](../examples/hosted-skills/README.md#sdk-contract) or
+[.NET pins](../examples/hosted-skills/dotnet/README.md#dependencies-and-commands)
+deliberately. SDK upgrades, helper changes, line-ending changes, and delivery-mode
+changes require renewed artifact/runtime checks; never regenerate production
+digests during build or startup. Code, container, and prebuilt-image checks are
+representative qualification, not an exhaustive platform matrix.
 
 ## Experimental Hosted-agent Autopilot
 

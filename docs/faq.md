@@ -91,7 +91,8 @@ The answer depends on the workflow:
 |---|---|
 | Offline validation, planning, and scaffolding | The published `fam` executable only |
 | Online Prompt and other direct Foundry operations | `fam` plus a supported Azure identity. Azure CLI (`az`) is optional and can provide a local developer credential through `DefaultAzureCredential`. |
-| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.32.0 or later, and the **`azure.ai.agents`** azd extension at exactly **`1.0.0-beta.13`** |
+| Online Hosted Agent lifecycle and deployment | `fam`, Azure Developer CLI (`azd`) 1.32.0 or later, and the **`azure.ai.agents`** azd extension at exactly **`1.0.0-beta.13`** |
+| Hosted Skill sync | Local-only bundles need only `fam`; remote reads need a Foundry identity and the workspace project endpoint (or local azd state to resolve it). |
 | Building from source | Go 1.26 or later |
 
 The Hosted extension is named `azure.ai.agents`. Install the required version
@@ -1093,6 +1094,46 @@ deployment and promotion are separate from Prompt Agent deployment.
 
 No. Manage Toolboxes under the `toolbox` namespace, then attach the existing
 Toolbox from the Prompt manifest.
+
+### Do Skills require MCP?
+
+No. Hosted Python/.NET can use a filesystem **bundle** of local or immutable
+remote Skill content. Local-only bundles require no Skill upload; remote
+bundles download during explicit sync, not at runtime. **MCP** is a separate,
+explicit mode using pinned versions of a same-project Toolbox and selected
+Skills. Existing applications must register the corresponding provider.
+See [Hosted Skills](hosted-agents.md#hosted-skills).
+
+### Does attaching or removing a Skill change a deployed agent?
+
+No. `prompt skill attach/remove` and `hosted skill attach/remove` edit local
+configuration. Hosted sync writes verified local artifacts and can read remote
+versions, but never publishes or deploys. Publication, application integration,
+rebuilding, deployment, and promotion remain separate. Removing an attachment
+does not delete shared Azure Skills or local source directories.
+
+### Is native Prompt Skill consumption supported?
+
+It remains **experimental and runtime-unqualified**. Live creation, pinned
+reference readback, and lifecycle checks passed, but both tested native request
+formats failed to consume instructions. The explicitly tested Copilot harness
+route required `GitHubCopilot=V1Preview` alongside `Skills=V1Preview` and was
+rejected with HTTP 403 as not enabled for the test subscription. That is not
+proof that all native Skills require the harness, and no RBAC workaround or
+implicit Hosted/MCP fallback is established.
+
+Native version mutations and invocation require both
+`--experimental-native-skills` and `--accept-preview`. See the
+[native qualification boundary](prompt-agents.md#native-skills-preview).
+
+### Will changing a Skill default update my pinned agent?
+
+No. Publish the new Skill version, update the explicit reference, and deploy a
+new agent version. Hosted MCP additionally needs a new Toolbox version with
+the selected Skill pin, an updated declaration, sync, and rebuild/deploy.
+For a prebuilt image, update the immutable digest and integration evidence;
+local configuration cannot inject files into an existing image. Keep old
+dependencies for rollback to retained agent versions.
 
 ### How are local documents added to File Search?
 

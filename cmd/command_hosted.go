@@ -15,6 +15,7 @@ import (
 	"foundry-agent-manager/internal/foundry"
 	"foundry-agent-manager/internal/foundryid"
 	"foundry-agent-manager/internal/hosted"
+	"foundry-agent-manager/internal/hostedskills"
 	projectapi "foundry-agent-manager/internal/project"
 	"foundry-agent-manager/internal/receipt"
 
@@ -108,6 +109,7 @@ type hostedPreflightResult struct {
 	Environment string                 `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Workspace   hosted.Workspace       `json:"workspace" yaml:"workspace"`
 	Tooling     hosted.PreflightResult `json:"tooling" yaml:"tooling"`
+	Skills      *hostedskills.Artifact `json:"skills,omitempty" yaml:"skills,omitempty"`
 }
 
 type hostedEnvironmentCreateResult struct {
@@ -270,6 +272,16 @@ func cmdHostedPlan(cmd *cobra.Command, _ []string) error {
 			"Toolbox authentication uses the Hosted Agent identity with scope https://ai.azure.com/.default; downstream RBAC and audience configuration remain operator responsibilities",
 		)
 	}
+	if workspace.Selected.Skills != nil {
+		actions = append(actions,
+			"verify the explicitly synchronized Skill artifacts and selected source packaging",
+			"require application registration of the Skills provider; runtime verification is a separate authorized invocation",
+		)
+		warnings = append(warnings,
+			"Skill declarations, synchronized artifacts, and runtime discovery/loading are separate readiness states",
+			"existing applications and prebuilt images must integrate the provider; deployment never injects or rewrites application code",
+		)
+	}
 	if workspace.Selected.BingGrounding != nil {
 		actions = append(
 			actions,
@@ -324,6 +336,11 @@ func cmdHostedPreflight(cmd *cobra.Command, _ []string) error {
 	}
 	if getBoolFlag(cmd, "preview-provision") && !getBoolFlag(cmd, "provision") {
 		return errs.Config("--preview-provision requires --provision")
+	}
+	if workspace.Selected.Skills != nil {
+		if _, err := hosted.ComputeDeploymentSnapshot(workspace, getFlag(cmd, "environment")); err != nil {
+			return err
+		}
 	}
 	ctx, cancel, err := hostedExecutionContext(cmd)
 	if err != nil {
@@ -389,6 +406,10 @@ func cmdHostedPreflight(cmd *cobra.Command, _ []string) error {
 	); err != nil {
 		return err
 	}
+	skillArtifacts, err := validateHostedSkillArtifacts(workspace, projectEndpoint)
+	if err != nil {
+		return err
+	}
 	if !getBoolFlag(cmd, "provision") {
 		doctorRecord, doctorErr := hosted.RunDoctor(
 			ctx,
@@ -409,6 +430,7 @@ func cmdHostedPreflight(cmd *cobra.Command, _ []string) error {
 		Environment: getFlag(cmd, "environment"),
 		Workspace:   workspace,
 		Tooling:     tooling,
+		Skills:      skillArtifacts,
 	}
 	return printResult(cmd, result, fmt.Sprintf(
 		"Hosted Agent preflight passed: service=%s azd=%s extension=%s",
@@ -820,6 +842,15 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 	}
+	if workspace.Selected.Skills != nil {
+		if err := store.AddResource(receipt.ResourceChange{
+			Kind: "hosted-skills-runtime", Name: workspace.Selected.ServiceName,
+			Action: "declare", Status: "artifact-verified-runtime-unverified",
+			Reconciliation: "Register the synchronized provider in application code and verify discovery/load behavior separately; deployment does not invoke the agent.",
+		}); err != nil {
+			return err
+		}
+	}
 	recorder := func(command hosted.CommandRecord) error {
 		store.Receipt.Commands = append(store.Receipt.Commands, receipt.CommandRecord{
 			Phase:      command.Phase,
@@ -877,6 +908,10 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 		classified := hostedCommandError(err)
 		_ = store.Complete("failed", classified)
 		return releaseFailure(store.Path, classified)
+	}
+	if _, err := validateHostedSkillArtifacts(workspace, projectEndpoint); err != nil {
+		_ = store.Complete("failed", err)
+		return releaseFailure(store.Path, err)
 	}
 	resolvedRAIPolicyID, err := validateHostedRAIPolicy(
 		ctx,
@@ -1156,7 +1191,7 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 	); err != nil {
 		return err
 	}
-	restoreRAIPolicy, err := hosted.MaterializeRAIPolicy(workspace, resolvedRAIPolicyID)
+	restoreConfiguration, err := hosted.MaterializeDeployment(workspace, resolvedRAIPolicyID)
 	if err != nil {
 		_ = store.Complete("failed", err)
 		return releaseFailure(store.Path, err)
@@ -1169,7 +1204,7 @@ func cmdHostedDeploy(cmd *cobra.Command, _ []string) error {
 		getFlag(cmd, "environment"),
 		recorder,
 	)
-	if restoreErr := restoreRAIPolicy(); restoreErr != nil {
+	if restoreErr := restoreConfiguration(); restoreErr != nil {
 		var classified error = errs.Config("%v", restoreErr)
 		if deployErr != nil {
 			classified = errors.Join(hostedCommandError(deployErr), classified)

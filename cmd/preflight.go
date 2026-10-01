@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"foundry-agent-manager/internal/agentdiff"
 	"foundry-agent-manager/internal/compatibility"
 	"foundry-agent-manager/internal/config"
 	"foundry-agent-manager/internal/connection"
@@ -43,6 +44,9 @@ type preflightState struct {
 	Connection           connection.State
 	Secret               secret.Value
 	Endpoint             string
+	PromptSkills         []promptSkillValidation
+	RemoteAgent          *foundry.Agent
+	AgentInspected       bool
 }
 
 func runPreflight(cmd *cobra.Command, prepared *preparedAgent, credential azcore.TokenCredential, httpClient foundry.HTTPClient) (*preflightState, error) {
@@ -55,6 +59,9 @@ func runPreflight(cmd *cobra.Command, prepared *preparedAgent, credential azcore
 		},
 	}
 	previewTools := tools.PreviewToolTypes(cfg.Tools)
+	if cfg.Agent.SkillsConfigured && !getBoolFlag(cmd, "accept-preview") {
+		return state, errs.Config("native Prompt Skills attachment or removal requires --accept-preview")
+	}
 	if len(previewTools) > 0 && !getBoolFlag(cmd, "accept-preview") {
 		return state, errs.Config(
 			"preview prompt-agent tools require explicit acceptance; pass --accept-preview after reviewing: %s",
@@ -130,6 +137,9 @@ func runPreflight(cmd *cobra.Command, prepared *preparedAgent, credential azcore
 		}
 		state.Project = projectState
 		if !projectState.Exists {
+			if len(prepared.Desired.Skills) > 0 {
+				return state, errs.Config("native Prompt Skills require an existing project; create the project and publish Skills separately before attaching pinned references")
+			}
 			if !ensureProject {
 				return state, errs.NotFound(
 					"Foundry project %q does not exist; pass --ensure-project to create it",
@@ -194,7 +204,7 @@ func runPreflight(cmd *cobra.Command, prepared *preparedAgent, credential azcore
 
 	managedGroundingNames := tools.ManagedVectorStoreNames(prepared.WireTools)
 	if state.Project.Exists || !hasProjectCoordinates(cfg.Project) {
-		client := newFoundryClient(state.Endpoint, cfg, credential, httpClient)
+		client := newPromptSkillsClient(cmd, state.Endpoint, cfg, credential, httpClient)
 		if err := client.ProbeContext(commandContext(cmd)); err != nil {
 			return state, err
 		}
@@ -219,7 +229,44 @@ func runPreflight(cmd *cobra.Command, prepared *preparedAgent, credential azcore
 		if len(managedGroundingNames) > 0 {
 			add("grounding", "passed", "managed vector-store references are synchronized and resolved")
 		}
+		remote, err := client.GetAgentContext(commandContext(cmd), cfg.Agent.Name)
+		if err != nil {
+			return state, err
+		}
+		state.RemoteAgent = remote
+		state.AgentInspected = true
+		effective, err := promptSkillsDesired(cmd, remote, prepared.Desired)
+		if err != nil {
+			return state, err
+		}
+		if effective.ManageSkills {
+			state.PromptSkills, err = validatePromptSkillContent(commandContext(cmd), client, effective.Skills)
+			if err != nil {
+				return state, err
+			}
+			add("native-skills-content", "passed", promptSkillsSummary(effective.Skills, true)+"; immutable instructions-only content validated")
+			comparison, err := agentdiff.Compare(remote, prepared.Desired)
+			if err != nil {
+				return state, err
+			}
+			if !getBoolFlag(cmd, "if-changed") || comparison.Changed ||
+				(getBoolFlag(cmd, "smoke-test") && len(effective.Skills) > 0) {
+				if err := requireNativePromptSkills(cmd); err != nil {
+					state.Result.Ready = false
+					return state, err
+				}
+				add("native-skills-transport", "warning", "experimental SDK v1 transport enabled; service acceptance and runtime consumption require deployment readback and live qualification")
+			} else {
+				add("native-skills-transport", "skipped", "managed fields are unchanged; no native Skills version creation requested")
+			}
+		}
 	} else {
+		if prepared.Desired.ManageSkills {
+			if err := requireNativePromptSkills(cmd); err != nil {
+				state.Result.Ready = false
+				return state, err
+			}
+		}
 		if len(managedGroundingNames) > 0 {
 			return state, errs.Config(
 				"managed grounding requires an existing project; create the project, run fam grounding sync, then deploy the agent",

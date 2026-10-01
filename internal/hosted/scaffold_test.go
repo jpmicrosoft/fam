@@ -50,6 +50,9 @@ func TestRenderHostedAzureYAMLGuardrails(t *testing.T) {
 			if test.wantAbsent != "" && strings.Contains(rendered, test.wantAbsent) {
 				t.Fatalf("rendered azure.yaml unexpectedly contains %q:\n%s", test.wantAbsent, rendered)
 			}
+			if !strings.Contains(rendered, `entryPoint: "main.py"`) {
+				t.Fatalf("rendered azure.yaml omitted the Python launch command:\n%s", rendered)
+			}
 		})
 	}
 }

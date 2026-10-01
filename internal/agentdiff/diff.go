@@ -11,6 +11,7 @@ import (
 	"sort"
 
 	"foundry-agent-manager/internal/foundry"
+	"foundry-agent-manager/internal/skills"
 )
 
 // Desired is the exact agent definition managed by Foundry Agent Manager.
@@ -23,6 +24,9 @@ type Desired struct {
 	StructuredInputs map[string]interface{}
 	Metadata         map[string]string
 	ManageMetadata   bool
+	Skills           []skills.Reference
+	ManageSkills     bool
+	Harness          map[string]interface{}
 }
 
 // Difference describes one changed managed field.
@@ -44,6 +48,10 @@ type Result struct {
 
 // Compare compares a desired definition with the latest remote agent version.
 func Compare(agent *foundry.Agent, desired Desired) (Result, error) {
+	desired, err := PreserveSkills(agent, desired)
+	if err != nil {
+		return Result{}, err
+	}
 	desiredValue := desiredManagedValue(desired)
 	desiredHash, err := hashValue(desiredValue)
 	if err != nil {
@@ -60,7 +68,7 @@ func Compare(agent *foundry.Agent, desired Desired) (Result, error) {
 	}
 
 	result.CurrentVersion = agent.Versions.Latest.Version
-	currentValue := remoteManagedValue(agent.Versions.Latest, desired.ManageMetadata)
+	currentValue := remoteManagedValue(agent.Versions.Latest, desired.ManageMetadata, desired.ManageSkills, desired.Harness != nil)
 	result.CurrentHash, err = hashValue(currentValue)
 	if err != nil {
 		return Result{}, err
@@ -90,6 +98,16 @@ func desiredManagedValue(desired Desired) map[string]interface{} {
 	if len(desired.StructuredInputs) > 0 {
 		definition["structured_inputs"] = normalize(desired.StructuredInputs)
 	}
+	if desired.ManageSkills {
+		references := desired.Skills
+		if references == nil {
+			references = []skills.Reference{}
+		}
+		definition["skills"] = normalize(references)
+	}
+	if desired.Harness != nil {
+		definition["harness"] = normalize(desired.Harness)
+	}
 	result := map[string]interface{}{
 		"description": desired.Description,
 		"definition":  definition,
@@ -104,7 +122,7 @@ func desiredManagedValue(desired Desired) map[string]interface{} {
 	return result
 }
 
-func remoteManagedValue(version foundry.AgentVersion, manageMetadata bool) map[string]interface{} {
+func remoteManagedValue(version foundry.AgentVersion, manageMetadata, manageSkills, preserveHarness bool) map[string]interface{} {
 	definition := map[string]interface{}{}
 	for _, key := range []string{"kind", "model", "instructions", "tools", "rai_config", "structured_inputs"} {
 		if value, ok := version.Definition[key]; ok {
@@ -115,6 +133,16 @@ func remoteManagedValue(version foundry.AgentVersion, manageMetadata bool) map[s
 			}
 			definition[key] = normalize(value)
 		}
+	}
+	if manageSkills {
+		value, present := version.Definition["skills"]
+		if !present {
+			value = []skills.Reference{}
+		}
+		definition["skills"] = normalize(value)
+	}
+	if preserveHarness {
+		definition["harness"] = normalize(version.Definition["harness"])
 	}
 	result := map[string]interface{}{
 		"description": version.Description,

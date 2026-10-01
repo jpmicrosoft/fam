@@ -880,7 +880,7 @@ func (f *hostedCommandFakeRunner) Run(
 			return hosted.Execution{
 				ExitCode: 1,
 				Stdout:   "Foundry returned HTTP 403 (wrong tenant or insufficient RBAC).",
-			}, errors.New("exit status 1")
+			}, nil
 		}
 		return hosted.Execution{
 			ExitCode: 0,

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -17,6 +18,9 @@ import (
 )
 
 const skillsPreviewHeader = "Skills=V1Preview"
+
+// This existing FAM transport safety guard is not an Azure Skills quota.
+const maxSkillDownloadBytes int64 = 256 << 20
 
 type SkillDetails struct {
 	ID             string `json:"id,omitempty" yaml:"id,omitempty"`
@@ -280,12 +284,29 @@ func (c *Client) DownloadSkillContext(
 		return nil, errs.FoundryWrap(err, "failed to download skill %q", name)
 	}
 	defer resp.Body.Close()
-	data, readErr := io.ReadAll(io.LimitReader(resp.Body, 256*1024*1024))
+	return readSkillDownload(resp, name, maxSkillDownloadBytes)
+}
+
+func readSkillDownload(resp *http.Response, name string, limit int64) ([]byte, error) {
+	if resp.StatusCode == http.StatusOK && resp.ContentLength > limit {
+		return nil, errs.Foundry("skill %q download exceeds the %d byte FAM download safety guard (not an Azure quota)", name, limit)
+	}
+	data, readErr := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if resp.StatusCode != http.StatusOK {
+		responseErr := httpx.ResponseError("Foundry", "download skill", resp, data)
+		if readErr != nil {
+			return nil, errs.FoundryWrap(errors.Join(responseErr, readErr), "failed to read skill %q download error response", name)
+		}
+		if int64(len(data)) > limit {
+			return nil, errs.FoundryWrap(responseErr, "skill %q download error response exceeded the %d byte FAM safety guard; diagnostic body is truncated", name, limit)
+		}
+		return nil, responseErr
+	}
 	if readErr != nil {
 		return nil, errs.FoundryWrap(readErr, "failed to read skill %q download", name)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, httpx.ResponseError("Foundry", "download skill", resp, data)
+	if int64(len(data)) > limit {
+		return nil, errs.Foundry("skill %q download exceeds the %d byte FAM download safety guard (not an Azure quota)", name, limit)
 	}
 	return data, nil
 }

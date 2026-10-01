@@ -1,7 +1,9 @@
 # Command Reference
 
 Command-family catalog, shared options, exit codes, and output contracts for
-the current source tree (`0.17.1` is the prepared release version).
+the **0.18.0 release candidate (2026-10-01 UTC)**. It is not yet tagged or
+published; the existing `main` baseline is 0.17.1. Check `fam version` before
+using candidate-only commands.
 
 **Starting out?** Use the [documentation hub](README.md) and
 [local walkthrough](../README.md#try-fam-locally). This page is for
@@ -183,12 +185,55 @@ does mutate account-level logging.
 
 | Command | Azure | Purpose |
 |---|---|---|
+| `skill validate` | no | Validate a local instructions-only Skill directory for agent integration. |
+| `prompt skill attach` / `prompt skill remove` / `prompt skill list` | no | Edit or inspect pinned native `agent.skills` declarations; does not publish or deploy. |
+| `hosted skill attach` / `hosted skill remove` / `hosted skill list` | no | Edit or inspect the selected service in `fam.skills.yaml`; does not modify application code. |
+| `hosted skill sync` | read-only for remote sources; no Azure for local-only bundle | Explicitly synchronize pinned content and runtime artifacts; remote reads require `--accept-preview`. |
 | `skill create` | mutating, preview (AzureCloud only) | Create an immutable Skill version from inline instructions, a directory, or a zip; optionally make it default. |
 | `skill list` / `skill show` | read-only, preview (AzureCloud only) | Inspect Skills without downloading content. |
 | `skill version list` / `skill version show` | read-only, preview (AzureCloud only) | Inspect immutable Skill versions. |
 | `skill version set-default` | mutating, preview (AzureCloud only) | Change the logical Skill's default version. |
 | `skill download` | read-only, preview (AzureCloud only) | Download the default or selected Skill version as a zip. |
 | `skill delete` / `skill version delete` | destructive, preview (AzureCloud only) | Delete a Skill or one immutable version after `--yes`. |
+
+The command boundaries are intentional:
+
+- `skill validate --path` resolves a contained directory from the current
+  working directory. `skill create -f ... --path` resolves from the manifest
+  directory. Hosted `--path` resolves from `--workspace`.
+- Prompt attach requires `--skill` and `--version`; remove requires `--skill`.
+  Neither accepts a local `--path` or preview flags.
+  Local native attach/remove/list reject YAML merges, aliases, and anchors at
+  the root/`agent` edit boundaries and within `agent.skills`; unrelated nested
+  YAML is preserved. Expand ambiguous declarations before retrying.
+- Hosted attach/remove require exactly one of `--path` or `--skill`; a remote
+  attach also requires `--version`. Attach accepts `--mode bundle|mcp`,
+  `--language python|dotnet`, and paired `--toolbox`/`--toolbox-version`.
+  A new declaration defaults to bundle; code services infer language, while
+  container/image declarations require it explicitly.
+- `hosted skill sync` changes local files, not Azure resources. Remote reads
+  require `--accept-preview`; local-only bundles and explicit empty inventories
+  do not authenticate. Remote sync uses FAM's credential, not azd's login;
+  azd is needed for endpoint lookup only when the workspace does not declare
+  the endpoint. Attach/remove/list do not accept the preview flag.
+- Native Prompt preflight/diff are read-only with `--accept-preview`.
+  Native version mutations and invocation require **both**
+  `--accept-preview` and `--experimental-native-skills`; the latter is not
+  a global flag. Standalone `prompt smoke` reads the actual endpoint-selected
+  immutable versions and requires both flags if any has native Skills, even
+  when local `agent.skills` is omitted or empty. It needs agent/version read
+  access in addition to invocation permission. A local `skills: []` takes
+  effect only through deployment and deliberate routing to the cleared version.
+  Accepted references do not prove runtime consumption, which remains
+  unqualified.
+- `toolbox deploy` with Skills requires `--accept-preview`. Toolbox
+  status/version listing/promotion/deletion do not accept that flag.
+  Skill deletion supports `--yes`, not `--dry-run`; inspect first and retain
+  versions needed by pinned consumers.
+
+See [Skills workflows](tools-and-grounding.md#skills-lifecycle),
+[native limitations](prompt-agents.md#native-skills-preview), and
+[Hosted configuration](hosted-agents.md#hosted-skills).
 
 ### Grounding
 
@@ -216,7 +261,7 @@ does mutate account-level logging.
 
 | Command | Azure | Purpose |
 |---|---|---|
-| `prompt smoke` | mutating (billable) | Invoke the deployed prompt agent once. |
+| `prompt smoke` | reads, then mutating (billable) | Inspect endpoint-selected immutable versions, then invoke the deployed prompt agent once. Requires agent/version read access; remote native Skills require both preview and experimental gates even if absent locally. |
 | `prompt disable` / `prompt enable` | mutating | Suspend or resume the agent endpoint. |
 | `prompt promote` | mutating | Route all stable-endpoint traffic to `--agent-version`, or explicitly restore `--latest`. |
 | `prompt rollback` | mutating | Route all stable-endpoint traffic back to an earlier verified `--agent-version` (rejects `--latest`). |

@@ -18,6 +18,8 @@ import (
 	"time"
 
 	errs "foundry-agent-manager/internal/errors"
+	"foundry-agent-manager/internal/hostedskills"
+	"foundry-agent-manager/internal/netcheck"
 )
 
 const (
@@ -53,13 +55,35 @@ func ComputeDeploymentSnapshot(workspace Workspace, environment string) (Deploym
 	hashString(digest, workspace.Selected.AgentName)
 	hashString(digest, string(workspace.Selected.Mode))
 	hashString(digest, environment)
+	if code := workspace.Selected.Code; workspace.Selected.Mode == DeploymentModeCode && code != nil {
+		hashString(digest, "code-command/v1")
+		hashString(digest, code.Runtime)
+		hashString(digest, code.DependencyResolution)
+		for _, arg := range code.EntryPoint {
+			hashString(digest, arg)
+		}
+	}
 
+	artifact, err := validateSkillArtifacts(workspace)
+	if err != nil {
+		return DeploymentSnapshot{}, err
+	}
+	if artifact != nil {
+		hashString(digest, artifact.Manifest.DeclarationHash)
+		hashString(digest, artifact.SHA256)
+	}
 	if workspace.Selected.Mode == DeploymentModeImage {
 		hashString(digest, workspace.Selected.Image)
 		return DeploymentSnapshot{Hash: hex.EncodeToString(digest.Sum(nil))}, nil
 	}
 	files, err := hostedSourceFiles(workspace.Selected.SourceDirectory, true)
 	if err != nil {
+		return DeploymentSnapshot{}, err
+	}
+	if err := requireSkillFiles(files, artifact); err != nil {
+		return DeploymentSnapshot{}, err
+	}
+	if err := requireCodeFiles(workspace.Selected, files); err != nil {
 		return DeploymentSnapshot{}, err
 	}
 	root, err := os.OpenRoot(workspace.Selected.SourceDirectory)
@@ -85,13 +109,17 @@ func ComputeDeploymentSnapshot(workspace Workspace, environment string) (Deploym
 		}
 		hashString(digest, filepath.ToSlash(file.relative))
 		hashString(digest, fmt.Sprintf("%o", info.Mode().Perm()&0o111))
-		written, copyErr := io.Copy(digest, opened)
+		fileDigest := sha256.New()
+		written, copyErr := io.Copy(io.MultiWriter(digest, fileDigest), opened)
 		closeErr := opened.Close()
 		if copyErr != nil {
 			return DeploymentSnapshot{}, errs.Config("failed to hash Hosted Agent source file %q: %v", file.relative, copyErr)
 		}
 		if closeErr != nil {
 			return DeploymentSnapshot{}, errs.Config("failed to close Hosted Agent source file %q: %v", file.relative, closeErr)
+		}
+		if err := verifySkillFile(artifact, file.relative, fileDigest); err != nil {
+			return DeploymentSnapshot{}, err
 		}
 		result.Bytes += written
 	}
@@ -103,8 +131,18 @@ func BuildCodeArchive(workspace Workspace) (CodeArchive, error) {
 	if workspace.Selected.Mode != DeploymentModeCode {
 		return CodeArchive{}, errs.Config("Hosted code archives require a codeConfiguration deployment")
 	}
+	artifact, err := validateSkillArtifacts(workspace)
+	if err != nil {
+		return CodeArchive{}, err
+	}
 	files, err := hostedSourceFiles(workspace.Selected.SourceDirectory, true)
 	if err != nil {
+		return CodeArchive{}, err
+	}
+	if err := requireSkillFiles(files, artifact); err != nil {
+		return CodeArchive{}, err
+	}
+	if err := requireCodeFiles(workspace.Selected, files); err != nil {
 		return CodeArchive{}, err
 	}
 	archiveFile, err := os.CreateTemp("", "foundry-agent-manager-hosted-*.zip")
@@ -161,7 +199,8 @@ func BuildCodeArchive(workspace Workspace) (CodeArchive, error) {
 			cleanup()
 			return CodeArchive{}, errs.Config("failed to add %q to Hosted Agent code archive: %v", file.relative, err)
 		}
-		if _, err := io.Copy(part, opened); err != nil {
+		fileDigest := sha256.New()
+		if _, err := io.Copy(io.MultiWriter(part, fileDigest), opened); err != nil {
 			opened.Close()
 			cleanup()
 			return CodeArchive{}, errs.Config("failed to archive Hosted Agent source file %q: %v", file.relative, err)
@@ -169,6 +208,10 @@ func BuildCodeArchive(workspace Workspace) (CodeArchive, error) {
 		if err := opened.Close(); err != nil {
 			cleanup()
 			return CodeArchive{}, errs.Config("failed to close Hosted Agent source file %q: %v", file.relative, err)
+		}
+		if err := verifySkillFile(artifact, file.relative, fileDigest); err != nil {
+			cleanup()
+			return CodeArchive{}, err
 		}
 	}
 	if err := zipWriter.Close(); err != nil {
@@ -221,6 +264,148 @@ func BuildCodeArchive(workspace Workspace) (CodeArchive, error) {
 
 type hostedSourceFile struct {
 	relative string
+}
+
+// ValidateSkillArtifacts checks synchronized content and required source/Docker
+// packaging without contacting providers or asserting runtime readiness. For
+// remote Skills, an empty Selected.ProjectEndpoint defers the project-binding
+// check; online preparation must repeat this with the resolved endpoint.
+func ValidateSkillArtifacts(workspace Workspace) (*hostedskills.Artifact, error) {
+	artifact, err := validateSkillArtifacts(workspace)
+	if err != nil || artifact == nil || workspace.Selected.Mode == DeploymentModeImage {
+		return artifact, err
+	}
+	files, err := hostedSourceFiles(workspace.Selected.SourceDirectory, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireSkillFiles(files, artifact); err != nil {
+		return nil, err
+	}
+	return artifact, nil
+}
+
+func validateSkillArtifacts(workspace Workspace) (*hostedskills.Artifact, error) {
+	projectEndpoint := ""
+	if workspace.Selected.Skills.RequiresRemote() {
+		projectEndpoint = workspace.Selected.ProjectEndpoint
+	}
+	artifact, err := hostedskills.ValidateArtifact(hostedskills.ValidateOptions{
+		Root:            workspace.Root,
+		SourceDirectory: workspace.Selected.SourceDirectory,
+		Service:         workspace.Selected.ServiceName,
+		Config:          workspace.Selected.Skills,
+		ProjectEndpoint: projectEndpoint,
+		Image:           workspace.Selected.Image,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if artifact != nil && workspace.Selected.Mode == DeploymentModeDocker {
+		if err := validateContainerSkillContext(workspace, artifact); err != nil {
+			return nil, err
+		}
+	}
+	return artifact, nil
+}
+
+func validateContainerSkillContext(workspace Workspace, artifact *hostedskills.Artifact) error {
+	services, ok := asMap(workspace.resolvedDocument["services"])
+	if !ok {
+		return errs.Config("Hosted Skill container packaging requires a freshly loaded workspace")
+	}
+	service, ok := asMap(services[workspace.Selected.ServiceName])
+	if !ok {
+		return errs.Config("cannot inspect the selected Hosted Skill Docker context")
+	}
+	dockerfile, contextDirectory, err := dockerPaths(workspace.Selected.ServiceName, service["docker"])
+	if err != nil {
+		return err
+	}
+	if filepath.Clean(contextDirectory) != "." {
+		return errs.Config("Hosted Skill artifacts live directly under the service source; docker.context must include that root rather than a nested directory")
+	}
+	root, err := os.OpenRoot(workspace.Selected.SourceDirectory)
+	if err != nil {
+		return errs.Security("cannot inspect Hosted Skill Docker ignore rules: %v", err)
+	}
+	defer root.Close()
+	ignoreFile := ".dockerignore"
+	if _, err := root.Lstat(dockerfile + ".dockerignore"); err == nil {
+		ignoreFile = dockerfile + ".dockerignore"
+	} else if !os.IsNotExist(err) {
+		return errs.Config("cannot inspect Dockerfile-specific ignore rules: %v", err)
+	}
+	if _, err := root.Lstat(ignoreFile); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return errs.Config("cannot inspect %s: %v", ignoreFile, err)
+	}
+	data, err := netcheck.ReadContainedFile(workspace.Selected.SourceDirectory, ignoreFile, "Hosted Skill Docker ignore rules")
+	if err != nil {
+		return err
+	}
+	// Only the common positive-glob subset is statically provable here. Do not
+	// silently reinterpret Docker negation or platform-dependent escape rules.
+	patterns, err := parseSourceIgnore(data, true)
+	if err != nil {
+		return errs.Config("cannot verify Hosted Skill packaging with %s: %s", ignoreFile, strings.ReplaceAll(err.Error(), ".agentignore", ignoreFile))
+	}
+	for _, required := range artifact.RequiredFiles {
+		for candidate := required; candidate != "."; candidate = path.Dir(candidate) {
+			if archivePathIgnored(candidate, candidate != required, patterns) {
+				return errs.Config("required Hosted Skill artifact %q is excluded by %s", required, ignoreFile)
+			}
+		}
+	}
+	return nil
+}
+
+func requireSkillFiles(files []hostedSourceFile, artifact *hostedskills.Artifact) error {
+	if artifact == nil {
+		return nil
+	}
+	included := make(map[string]bool, len(files))
+	for _, file := range files {
+		relative := filepath.ToSlash(file.relative)
+		if err := requireKnownSkillFile(artifact, relative); err != nil {
+			return err
+		}
+		included[relative] = true
+	}
+	for _, required := range artifact.RequiredFiles {
+		if !included[required] {
+			return errs.Config("required Hosted Skill artifact %q is excluded from deployable source; remove the conflicting .agentignore rule", required)
+		}
+	}
+	return nil
+}
+
+func requireKnownSkillFile(artifact *hostedskills.Artifact, relative string) error {
+	if artifact == nil {
+		return nil
+	}
+	relative = filepath.ToSlash(relative)
+	top, _, _ := strings.Cut(relative, "/")
+	if strings.EqualFold(top, hostedskills.DirectoryName) {
+		if _, known := artifact.FileSHA256[relative]; !known {
+			return errs.Config("Hosted Skill artifact %q is not in the validated inventory; retry with stable synchronized output", relative)
+		}
+	}
+	return nil
+}
+
+func verifySkillFile(artifact *hostedskills.Artifact, relative string, digest hash.Hash) error {
+	if err := requireKnownSkillFile(artifact, relative); err != nil {
+		return err
+	}
+	if artifact != nil {
+		if expected, managed := artifact.FileSHA256[filepath.ToSlash(relative)]; managed &&
+			hex.EncodeToString(digest.Sum(nil)) != expected {
+			return errs.Config("Hosted Skill artifact %q changed during packaging; retry with stable synchronized output", relative)
+		}
+	}
+	return nil
 }
 
 type agentIgnorePattern struct {
@@ -342,7 +527,15 @@ func loadAgentIgnore(root string) ([]agentIgnorePattern, error) {
 }
 
 func parseAgentIgnore(data []byte) ([]agentIgnorePattern, error) {
-	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	return parseSourceIgnore(data, false)
+}
+
+func parseSourceIgnore(data []byte, docker bool) ([]agentIgnorePattern, error) {
+	content := string(data)
+	if docker {
+		content = strings.TrimPrefix(content, "\ufeff")
+	}
+	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
 	patterns := make([]agentIgnorePattern, 0, len(lines))
 	for lineNumber, line := range lines {
 		line = strings.TrimSpace(line)
@@ -364,10 +557,17 @@ func parseAgentIgnore(data []byte) ([]agentIgnorePattern, error) {
 		directory := strings.HasSuffix(line, "/")
 		anchored := strings.HasPrefix(line, "/")
 		line = strings.TrimSuffix(strings.TrimPrefix(line, "/"), "/")
+		if docker {
+			line = path.Clean(strings.Trim(line, "/"))
+			if line == "." {
+				continue
+			}
+			directory, anchored = false, true
+		}
 		if line == "" || path.Clean(line) == ".." || strings.HasPrefix(path.Clean(line), "../") {
 			return nil, errs.Security(".agentignore line %d contains an unsafe path", lineNumber+1)
 		}
-		expression := agentIgnoreExpression(line, directory, anchored)
+		expression := agentIgnoreExpression(line, directory, anchored, docker)
 		matcher, err := regexp.Compile(expression)
 		if err != nil {
 			return nil, errs.Config(".agentignore line %d is invalid: %v", lineNumber+1, err)
@@ -381,7 +581,7 @@ func parseAgentIgnore(data []byte) ([]agentIgnorePattern, error) {
 	return patterns, nil
 }
 
-func agentIgnoreExpression(pattern string, directory, anchored bool) string {
+func agentIgnoreExpression(pattern string, directory, anchored, zeroDepthGlobstar bool) string {
 	var expression strings.Builder
 	if anchored || strings.Contains(pattern, "/") {
 		expression.WriteString("^")
@@ -392,8 +592,13 @@ func agentIgnoreExpression(pattern string, directory, anchored bool) string {
 		switch pattern[i] {
 		case '*':
 			if i+1 < len(pattern) && pattern[i+1] == '*' {
-				expression.WriteString(".*")
-				i++
+				if zeroDepthGlobstar && i+2 < len(pattern) && pattern[i+2] == '/' {
+					expression.WriteString(`(?:.*/)?`)
+					i += 2
+				} else {
+					expression.WriteString(".*")
+					i++
+				}
 			} else {
 				expression.WriteString(`[^/]*`)
 			}

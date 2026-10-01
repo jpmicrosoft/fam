@@ -115,9 +115,12 @@ auditable deployment evidence.
 - **AzureCloud only.** Azure Government is rejected before credential
   acquisition or network access until dedicated qualification is complete.
 
-> **Preview status.** This tool is version 0.17.1. Hosted Agents require
-> `--accept-preview`. See [Support status](#support-status-and-release-boundaries)
-> for the full boundary table.
+> **Release status.** These docs prepare **0.18.0 for 2026-10-01 (UTC)**;
+> the release is **not yet tagged or published**. The existing `main` baseline
+> is 0.17.1; candidate source now declares 0.18.0. Use `fam version` to identify
+> your executable. Hosted Agents require `--accept-preview`. Native Prompt
+> Skills remain experimental and runtime-unqualified. See
+> [Support status](#support-status-and-release-boundaries).
 
 Use the [documentation hub](docs/README.md) to choose a task,
 the [FAQ](docs/faq.md) for practical answers, and the
@@ -192,7 +195,9 @@ long-term support promise when an upstream service is still preview.
 | Project connections, APIM connection management | **Preview-supported** | AzureCloud |
 | Hosted Agent lifecycle, sessions, files, logs, scaffold | **Preview-supported** | AzureCloud |
 | Foundry Toolboxes and connector automation | **Preview-supported** | AzureCloud |
-| Memory, Skills, managed OAuth2 connectors, legacy apps | **Preview-supported** | AzureCloud |
+| Memory, Skill resource lifecycle, managed OAuth2 connectors, legacy apps | **Preview-supported** | AzureCloud |
+| Hosted instructions-only Skill bundles and immutable Toolbox MCP (Python/.NET) | **Preview-supported with pinned SDKs; representative live coverage, not a full platform matrix** | Offline authoring / AzureCloud |
+| Native Prompt Skill declarations | **Experimental; creation/lifecycle verified, runtime consumption failed and remains unqualified** | Offline authoring / AzureCloud |
 | API Center discovery, Logic Apps registration planning | **Plan/read-only** | — |
 | Agent 365 blueprint, identity, principal inspection and identity comparison | **Plan/read-only** | AzureCloud |
 | Agent 365 integration logging | **Preview-supported** | AzureCloud |
@@ -200,6 +205,30 @@ long-term support promise when an upstream service is still preview.
 | Agent 365 publication planning and admin handoff | **Plan/read-only** | AzureCloud |
 | Hosted-agent Autopilot wrapper | **Experimental** | AzureCloud |
 | Evaluator calibration | **Release tooling** | — |
+
+### Skills: choose the runtime deliberately
+
+- **Hosted without MCP:** synchronize local or immutable remote Skills into a
+  filesystem bundle. Local-only bundles need no Skill upload or runtime
+  authentication for loading instructions.
+- **Hosted with MCP:** explicitly select immutable versions of both the
+  same-project Toolbox and its Skills, synchronize the lock, and register the
+  provider in the application. A normal Toolbox tool attachment alone is not
+  Skills integration.
+- **Native Prompt:** `agent.skills` is a separate experimental declaration.
+  Native version mutations and invocation require **both**
+  `--experimental-native-skills` and `--accept-preview`. Live reference
+  acceptance did not yield working consumption. The separately tested Copilot
+  harness was rejected as unavailable to the test subscription; it is not an
+  established requirement or an RBAC workaround.
+
+Attach/remove edit local configuration only. Sync prepares Hosted artifacts;
+Skill publication, agent deployment, and promotion are separate operations.
+Existing Python/.NET applications retain their entry points, context providers,
+and tool-approval policies; provider registration and dependency updates are
+explicit application work. See the [Skills workflows](docs/tools-and-grounding.md#skills-lifecycle),
+[Hosted integration](docs/hosted-agents.md#hosted-skills), and
+[qualification boundary](examples/hosted-skills/README.md#live-qualification-boundary).
 
 ### Publishing and identity boundaries
 
@@ -241,7 +270,8 @@ deployment never creates a model implicitly.
 |---|---|
 | Offline validation, planning, and scaffolding | The `fam` executable only |
 | Online Prompt, project, model, connection, or Agent 365 operations | `fam` plus an identity that `DefaultAzureCredential` can resolve. Azure CLI (`az`) is one optional developer credential source, not a universal requirement. |
-| Online Hosted Agent operations | `fam`, Azure Developer CLI (`azd`) 1.32.0 or later, and the `azure.ai.agents` azd extension at exactly `1.0.0-beta.13` |
+| Online Hosted Agent lifecycle and deployment | `fam`, Azure Developer CLI (`azd`) 1.32.0 or later, and the `azure.ai.agents` azd extension at exactly `1.0.0-beta.13` |
+| Hosted Skill sync | Local-only bundles need only `fam`; remote reads need a Foundry identity and a project endpoint, declared in the workspace or resolved from local azd environment state. |
 | Optional source build | Go 1.26 or later |
 
 Install the pinned Hosted Agent extension explicitly:

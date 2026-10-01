@@ -3,12 +3,16 @@ package foundry
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"strings"
 	"testing"
+	"testing/iotest"
+
+	errs "foundry-agent-manager/internal/errors"
 )
 
 func TestCreateSkillInlineUsesPreviewHeaderAndDocumentedBody(t *testing.T) {
@@ -111,4 +115,108 @@ func TestDownloadSkillUsesZipAcceptHeader(t *testing.T) {
 		mock.requests[0].Header.Get("Foundry-Features") != skillsPreviewHeader {
 		t.Fatalf("unexpected download request or data")
 	}
+}
+
+func TestSkillDownloadExactStreamingBounds(t *testing.T) {
+	const limit = 64
+	for _, length := range []int64{-1, 0, limit} {
+		for _, count := range []int{limit - 1, limit, limit + 1, limit + 10} {
+			reader := strings.NewReader(strings.Repeat("x", count))
+			resp := &http.Response{
+				StatusCode:    http.StatusOK,
+				ContentLength: length,
+				Body:          io.NopCloser(reader),
+			}
+			data, err := readSkillDownload(resp, "docs", limit)
+			if count <= limit {
+				if err != nil || len(data) != count {
+					t.Fatalf("length=%d: %d bytes must pass without truncation: %v", length, count, err)
+				}
+			} else {
+				if !errs.IsKind(err, "foundry") || data != nil {
+					t.Fatalf("length=%d: %d bytes must be rejected: %v", length, count, err)
+				}
+				if reader.Len() != count-limit-1 {
+					t.Fatal("download must stop after the guard plus one byte")
+				}
+			}
+		}
+	}
+}
+
+func TestDownloadSkillRejectsDeclaredOverflowAndClosesBody(t *testing.T) {
+	if maxSkillDownloadBytes != 256<<20 {
+		t.Fatal("the existing 256 MiB FAM download guard must not change")
+	}
+	body := &skillDownloadTestBody{Reader: iotest.ErrReader(errors.New("body must not be read"))}
+	mock := &mockHTTP{responses: []*http.Response{{
+		StatusCode:    http.StatusOK,
+		ContentLength: maxSkillDownloadBytes + 1,
+		Body:          body,
+	}}}
+	client := NewClient("https://acct.services.ai.azure.com/api/projects/p", &mockCred{}, mock, false)
+	data, err := client.DownloadSkillContext(context.Background(), "docs", "")
+	if !errs.IsKind(err, "foundry") || !strings.Contains(err.Error(), "safety guard") || data != nil || !body.closed {
+		t.Fatalf("declared overflow must fail before reading and close the response: %v", err)
+	}
+	if mock.requests[0].URL.Path != "/api/projects/p/skills/docs/content" {
+		t.Fatalf("unexpected default download path: %s", mock.requests[0].URL.Path)
+	}
+}
+
+func TestSkillDownloadPreservesHTTPDiagnosticsOnOverflow(t *testing.T) {
+	for status, kind := range map[int]string{
+		http.StatusForbidden: "authorization", http.StatusNotFound: "not_found",
+		http.StatusTooManyRequests: "transient", http.StatusBadRequest: "foundry",
+	} {
+		reader := strings.NewReader("denied: " + strings.Repeat("x", 100))
+		resp := &http.Response{
+			StatusCode:    status,
+			ContentLength: maxSkillDownloadBytes + 1,
+			Header:        http.Header{"X-Ms-Request-Id": []string{"synthetic-request"}},
+			Body:          io.NopCloser(reader),
+		}
+		data, err := readSkillDownload(resp, "docs", 64)
+		if !errs.IsKind(err, kind) || data != nil ||
+			!strings.Contains(err.Error(), "denied:") ||
+			!strings.Contains(err.Error(), "synthetic-request") ||
+			!strings.Contains(err.Error(), "truncated") {
+			t.Fatalf("HTTP %d must retain diagnostics on overflow: %v", status, err)
+		}
+		if reader.Len() != 108-65 {
+			t.Fatal("error response must also be bounded")
+		}
+	}
+}
+
+func TestSkillDownloadPreservesReadErrors(t *testing.T) {
+	failure := errors.New("synthetic read failure")
+	for _, status := range []int{http.StatusOK, http.StatusForbidden} {
+		resp := &http.Response{
+			StatusCode: status,
+			Header:     http.Header{"X-Ms-Request-Id": []string{"synthetic-request"}},
+			Body: io.NopCloser(io.MultiReader(
+				strings.NewReader("partial body"),
+				iotest.ErrReader(failure),
+			)),
+		}
+		data, err := readSkillDownload(resp, "docs", 64)
+		if !errors.Is(err, failure) || data != nil {
+			t.Fatalf("read error must not be swallowed or return content: %v", err)
+		}
+		if status == http.StatusForbidden && (!errs.IsKind(err, "authorization") ||
+			!strings.Contains(err.Error(), "synthetic-request")) {
+			t.Fatalf("read errors must not erase HTTP diagnostics: %v", err)
+		}
+	}
+}
+
+type skillDownloadTestBody struct {
+	io.Reader
+	closed bool
+}
+
+func (body *skillDownloadTestBody) Close() error {
+	body.closed = true
+	return nil
 }

@@ -1,6 +1,7 @@
 package hosted
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	errs "foundry-agent-manager/internal/errors"
 	"foundry-agent-manager/internal/foundryid"
 	"foundry-agent-manager/internal/netcheck"
+	"foundry-agent-manager/internal/skillruntime"
 
 	"gopkg.in/yaml.v3"
 )
@@ -166,26 +168,18 @@ func Scaffold(options ScaffoldOptions) (ScaffoldResult, error) {
 	defer os.RemoveAll(temp)
 
 	sourceRelative := filepath.Join("src", options.AgentName)
-	requirements := []string{
-		"agent-framework-core==1.13.0",
-		"agent-framework-foundry==1.10.4",
-		"agent-framework-foundry-hosting==1.0.0b260730",
+	requirements := append(strings.Split(strings.TrimSpace(strings.ReplaceAll(skillruntime.PythonRequirements, "\r\n", "\n")), "\n"),
 		"azure-identity",
 		"python-dotenv",
-	}
+	)
 	envExample := []string{
 		"AZURE_AI_MODEL_DEPLOYMENT_NAME=<model-deployment-name>",
 	}
 	if options.BingGroundingConnection != "" || options.BingCustomSearchConnection != "" {
-		requirements = []string{
-			"agent-framework-core==1.13.0",
-			"agent-framework-foundry==1.10.4",
-			"agent-framework-foundry-hosting==1.0.0b260730",
+		requirements = append(requirements,
 			"aiohttp",
 			"azure-ai-projects",
-			"azure-identity",
-			"python-dotenv",
-		}
+		)
 	}
 	if options.BingGroundingConnection != "" {
 		envExample = append(
@@ -310,6 +304,21 @@ func scaffoldAzureYAML(
 }
 
 func renderHostedAzureYAML(options hostedAzureYAMLOptions) (string, error) {
+	code, err := parseCodeConfiguration(options.AgentName, map[string]any{
+		"runtime": options.Runtime, "entryPoint": options.EntryPoint,
+		"dependencyResolution": options.DependencyResolution,
+	})
+	if err != nil {
+		return "", err
+	}
+	file, err := azdEntryPointFile(code)
+	if err != nil {
+		return "", err
+	}
+	entryPoint, err := json.Marshal(file)
+	if err != nil {
+		return "", errs.Config("failed to encode Hosted Agent entry point: %v", err)
+	}
 	toolEnvironment := ""
 	if options.BingGroundingConnection {
 		toolEnvironment += "      BING_GROUNDING_CONNECTION_NAME: ${BING_GROUNDING_CONNECTION_NAME}\n"
@@ -378,7 +387,7 @@ services:
 		options.AgentName,
 		options.Source,
 		options.Runtime,
-		options.EntryPoint,
+		string(entryPoint),
 		options.DependencyResolution,
 		metadataBlock,
 		policiesBlock,
@@ -410,7 +419,7 @@ func scaffoldPython(protocol string, bingGrounding, bingCustomSearch, toolbox bo
 	}
 	if toolbox || bingGrounding || bingCustomSearch {
 		toolSetup += "    tools = []\n"
-		agentTools = "        tools=tools,\n"
+		agentTools = "            tools=tools,\n"
 	}
 	if toolbox {
 		toolSetup += `    toolbox = FoundryToolbox(credential)
@@ -446,7 +455,12 @@ func scaffoldPython(protocol string, bingGrounding, bingCustomSearch, toolbox bo
     )
 `
 	}
-	return fmt.Sprintf(`import os
+	return fmt.Sprintf(`import importlib.util
+import os
+import stat
+import sys
+from contextlib import contextmanager
+from pathlib import Path
 
 from agent_framework import Agent
 from agent_framework.foundry import FoundryChatClient
@@ -457,21 +471,73 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+@contextmanager
+def _skills_options(project_endpoint, credential):
+    skills_root = Path(__file__).resolve().parent / "fam_skills"
+    try:
+        skills_root.lstat()
+    except FileNotFoundError:
+        yield {}
+        return
+
+    manifest_path = skills_root / "manifest.json"
+    helper_path = skills_root / "fam_skills_runtime.py"
+    for path, kind in (
+        (skills_root, stat.S_ISDIR),
+        (manifest_path, stat.S_ISREG),
+        (helper_path, stat.S_ISREG),
+    ):
+        try:
+            info = path.lstat()
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                "FAM Skills artifacts are incomplete; sync Skills and generate the runtime helper"
+            ) from exc
+        reparse = getattr(info, "st_file_attributes", 0) & getattr(
+            stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400
+        )
+        if not kind(info.st_mode) or reparse:
+            raise RuntimeError("FAM Skills artifacts must be regular files in a real directory")
+
+    spec = importlib.util.spec_from_file_location("_fam_skills_runtime", helper_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("FAM Skills runtime helper could not be loaded")
+    if spec.name in sys.modules:
+        raise RuntimeError("FAM Skills runtime is already active")
+    helper = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = helper
+    try:
+        # Do not create or trust bytecode caches inside the locked artifact.
+        exec(compile(helper_path.read_bytes(), str(helper_path), "exec"), helper.__dict__)
+        with helper.open_runtime(
+            manifest_path=manifest_path,
+            project_endpoint=project_endpoint,
+            credential=credential,
+        ) as provider:
+            if provider is None:
+                raise RuntimeError("FAM Skills runtime did not return a ready context provider")
+            yield {"context_providers": [provider]}
+    finally:
+        sys.modules.pop(spec.name, None)
+
+
 def main() -> None:
     project_endpoint = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
     credential = DefaultAzureCredential()
 %s
-    client = FoundryChatClient(
-        project_endpoint=project_endpoint,
-        model=os.environ["AZURE_AI_MODEL_DEPLOYMENT_NAME"],
-        credential=credential,
-    )
-    agent = Agent(
-        client=client,
-        instructions="You are a helpful assistant. Keep your answers concise.",
-%s        default_options={"store": False},
-    )
-    %s(agent).run()
+    with _skills_options(project_endpoint, credential) as skills_options:
+        client = FoundryChatClient(
+            project_endpoint=project_endpoint,
+            model=os.environ["AZURE_AI_MODEL_DEPLOYMENT_NAME"],
+            credential=credential,
+        )
+        agent = Agent(
+            client=client,
+            instructions="You are a helpful assistant. Keep your answers concise.",
+%s            default_options={"store": False},
+            **skills_options,
+        )
+        %s(agent).run()
 
 
 if __name__ == "__main__":

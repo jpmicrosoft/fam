@@ -5,6 +5,7 @@ package hosted
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"foundry-agent-manager/internal/custommetadata"
 	errs "foundry-agent-manager/internal/errors"
 	"foundry-agent-manager/internal/foundryid"
+	"foundry-agent-manager/internal/hostedskills"
 	"foundry-agent-manager/internal/netcheck"
 	agenttools "foundry-agent-manager/internal/tools"
 
@@ -129,6 +131,7 @@ type Service struct {
 	Toolbox          *ToolboxRuntime          `json:"toolbox,omitempty" yaml:"toolbox,omitempty"`
 	BingGrounding    *BingGroundingRuntime    `json:"bingGrounding,omitempty" yaml:"bingGrounding,omitempty"`
 	BingCustomSearch *BingCustomSearchRuntime `json:"bingCustomSearch,omitempty" yaml:"bingCustomSearch,omitempty"`
+	Skills           *hostedskills.Config     `json:"skills,omitempty" yaml:"skills,omitempty"`
 	ProjectService   string                   `json:"projectService,omitempty" yaml:"projectService,omitempty"`
 	ProjectEndpoint  string                   `json:"projectEndpoint,omitempty" yaml:"projectEndpoint,omitempty"`
 	Uses             []string                 `json:"uses,omitempty" yaml:"uses,omitempty"`
@@ -137,17 +140,18 @@ type Service struct {
 }
 
 type Workspace struct {
-	Root             string   `json:"root" yaml:"root"`
-	AzureYAML        string   `json:"azureYaml" yaml:"azureYaml"`
-	Name             string   `json:"name" yaml:"name"`
-	Hash             string   `json:"hash" yaml:"hash"`
-	HostedServices   []string `json:"hostedServices" yaml:"hostedServices"`
-	Selected         Service  `json:"selected" yaml:"selected"`
-	ReferencedFiles  []string `json:"referencedFiles,omitempty" yaml:"referencedFiles,omitempty"`
-	ExistingProject  bool     `json:"existingProject" yaml:"existingProject"`
-	ProvisioningHint string   `json:"provisioningHint" yaml:"provisioningHint"`
-	ContractWarnings []string `json:"contractWarnings,omitempty" yaml:"contractWarnings,omitempty"`
-	resolvedDocument map[string]any
+	Root               string   `json:"root" yaml:"root"`
+	AzureYAML          string   `json:"azureYaml" yaml:"azureYaml"`
+	Name               string   `json:"name" yaml:"name"`
+	Hash               string   `json:"hash" yaml:"hash"`
+	HostedServices     []string `json:"hostedServices" yaml:"hostedServices"`
+	Selected           Service  `json:"selected" yaml:"selected"`
+	ReferencedFiles    []string `json:"referencedFiles,omitempty" yaml:"referencedFiles,omitempty"`
+	ExistingProject    bool     `json:"existingProject" yaml:"existingProject"`
+	ProvisioningHint   string   `json:"provisioningHint" yaml:"provisioningHint"`
+	ContractWarnings   []string `json:"contractWarnings,omitempty" yaml:"contractWarnings,omitempty"`
+	resolvedDocument   map[string]any
+	configurationFiles map[string][]byte
 }
 
 type documentResolver struct {
@@ -250,6 +254,32 @@ func LoadWorkspace(path, selectedService string) (Workspace, error) {
 	if err != nil {
 		return Workspace{}, err
 	}
+	// Retain the exact inputs to resolvedDocument, not a re-marshaled document.
+	// Skill declarations added below are not inputs to azure.yaml projection.
+	configurationFiles := make(map[string][]byte, len(resolver.files))
+	for name, data := range resolver.files {
+		configurationFiles[name] = append([]byte(nil), data...)
+	}
+	selected.Skills, err = hostedskills.Load(root, selectedService)
+	if err != nil {
+		return Workspace{}, err
+	}
+	if selected.Skills != nil {
+		if selected.Code != nil {
+			language := "python"
+			if strings.HasPrefix(selected.Code.Runtime, "dotnet_") {
+				language = "dotnet"
+			}
+			if selected.Skills.Language != language {
+				return Workspace{}, errs.Manifest("services.%s Hosted Skill language does not match codeConfiguration.runtime", selectedService)
+			}
+		}
+		declaration, err := json.Marshal(selected.Skills)
+		if err != nil {
+			return Workspace{}, errs.Manifest("cannot encode Hosted Skill declaration: %v", err)
+		}
+		resolver.files[hostedskills.FileName] = declaration
+	}
 	referenced := sortedFileNames(resolver.files)
 	selected.ReferencedFiles = append([]string(nil), referenced...)
 	existingProject := strings.TrimSpace(selected.ProjectEndpoint) != ""
@@ -259,19 +289,26 @@ func LoadWorkspace(path, selectedService string) (Workspace, error) {
 	}
 
 	warnings := contractWarnings(selectedMap, resolvedServices, legacyConfigs[selectedService])
+	if selected.Skills != nil && len(selected.Skills.Skills) != 0 {
+		warnings = append(warnings, "Hosted Skill declarations and synchronized artifacts do not prove runtime discovery/loading; the application must register and verify its provider")
+		if selected.Mode == DeploymentModeImage {
+			warnings = append(warnings, "prebuilt images receive no local Skill files; matching immutable image and operator integration evidence are required")
+		}
+	}
 
 	return Workspace{
-		Root:             root,
-		AzureYAML:        filepath.Join(root, AzureYAMLFile),
-		Name:             getString(document, "name"),
-		Hash:             hashFiles(resolver.files),
-		HostedServices:   hostedNames,
-		Selected:         selected,
-		ReferencedFiles:  referenced,
-		ExistingProject:  existingProject,
-		ProvisioningHint: hint,
-		ContractWarnings: warnings,
-		resolvedDocument: deepCloneMap(document),
+		Root:               root,
+		AzureYAML:          filepath.Join(root, AzureYAMLFile),
+		Name:               getString(document, "name"),
+		Hash:               hashFiles(resolver.files),
+		HostedServices:     hostedNames,
+		Selected:           selected,
+		ReferencedFiles:    referenced,
+		ExistingProject:    existingProject,
+		ProvisioningHint:   hint,
+		ContractWarnings:   warnings,
+		resolvedDocument:   deepCloneMap(document),
+		configurationFiles: configurationFiles,
 	}, nil
 }
 
@@ -520,6 +557,9 @@ func buildService(
 			return Service{}, parseErr
 		}
 		code = &parsed
+		if _, err := codeSourceFiles(sourceRoot, code); err != nil {
+			return Service{}, err
+		}
 	case image != "":
 		mode = DeploymentModeImage
 		if err := validateImage(image, serviceName); err != nil {
@@ -859,7 +899,7 @@ func parseCodeConfiguration(serviceName string, document map[string]any) (CodeCo
 			runtime,
 		)
 	}
-	entryPoint, err := entryPointArgs(document["entryPoint"])
+	entryPoint, err := entryPointArgs(runtime, document["entryPoint"])
 	if err != nil {
 		return CodeConfiguration{}, errs.ManifestWrap(
 			err,
@@ -878,21 +918,15 @@ func parseCodeConfiguration(serviceName string, document map[string]any) (CodeCo
 			dependency,
 		)
 	}
-	return CodeConfiguration{
+	code := CodeConfiguration{
 		Runtime:              runtime,
 		EntryPoint:           entryPoint,
 		DependencyResolution: dependency,
-	}, nil
-}
-
-func entryPointArgs(value any) ([]string, error) {
-	entryPoint, ok := value.(string)
-	if !ok || strings.TrimSpace(entryPoint) == "" || strings.ContainsRune(entryPoint, '\x00') {
-		return nil, errs.Manifest(
-			"must be a non-empty string for the pinned azure.ai.agents extension",
-		)
 	}
-	return []string{entryPoint}, nil
+	if _, err := codeEntryPointFile(code); err != nil {
+		return CodeConfiguration{}, err
+	}
+	return code, nil
 }
 
 func parseProtocols(serviceName string, value any) ([]Protocol, error) {

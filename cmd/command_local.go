@@ -6,20 +6,24 @@ import (
 	"strings"
 
 	"foundry-agent-manager/internal/config"
+	"foundry-agent-manager/internal/skills"
 	"foundry-agent-manager/internal/tools"
 
 	"github.com/spf13/cobra"
 )
 
 type validateResult struct {
-	Valid     bool   `json:"valid" yaml:"valid"`
-	Manifest  string `json:"manifest" yaml:"manifest"`
-	Cloud     string `json:"cloud" yaml:"cloud"`
-	Agent     string `json:"agent" yaml:"agent"`
-	Tools     int    `json:"tools" yaml:"tools"`
-	Toolboxes int    `json:"toolboxes" yaml:"toolboxes"`
-	Grounding int    `json:"grounding" yaml:"grounding"`
-	Metadata  int    `json:"metadata" yaml:"metadata"`
+	Valid            bool   `json:"valid" yaml:"valid"`
+	Manifest         string `json:"manifest" yaml:"manifest"`
+	Cloud            string `json:"cloud" yaml:"cloud"`
+	Agent            string `json:"agent" yaml:"agent"`
+	Tools            int    `json:"tools" yaml:"tools"`
+	Toolboxes        int    `json:"toolboxes" yaml:"toolboxes"`
+	Grounding        int    `json:"grounding" yaml:"grounding"`
+	Metadata         int    `json:"metadata" yaml:"metadata"`
+	Skills           int    `json:"skills" yaml:"skills"`
+	SkillsConfigured bool   `json:"skillsConfigured" yaml:"skillsConfigured"`
+	SkillsValidation string `json:"skillsValidation" yaml:"skillsValidation"`
 	// DestinationTrust states explicitly that an offline command did not evaluate
 	// operator approval of APIM, OpenAPI, or MCP destinations.
 	DestinationTrust string `json:"destinationTrust" yaml:"destinationTrust"`
@@ -58,28 +62,36 @@ func cmdValidate(cmd *cobra.Command, _ []string) error {
 		Toolboxes:        len(prepared.Toolboxes),
 		Grounding:        len(prepared.Grounding),
 		Metadata:         len(prepared.Resolved.Config.Agent.Metadata),
+		Skills:           len(prepared.Desired.Skills),
+		SkillsConfigured: prepared.Desired.ManageSkills,
+		SkillsValidation: "structure only; remote content and native transport readiness not evaluated",
 		DestinationTrust: destinationTrustNotEvaluated,
 	}
 	return printResult(cmd, result, fmt.Sprintf(
-		"manifest OK (structure only): %s\n  metadata: %d field(s)\n  destination trust: %s",
+		"manifest OK (structure only): %s\n  metadata: %d field(s)\n  native skills: %d (configured=%t; %s)\n  destination trust: %s",
 		result.Manifest,
 		result.Metadata,
+		result.Skills,
+		result.SkillsConfigured,
+		result.SkillsValidation,
 		result.DestinationTrust,
 	))
 }
 
 type planResult struct {
-	Cloud           string            `json:"cloud" yaml:"cloud"`
-	Agent           string            `json:"agent" yaml:"agent"`
-	Model           string            `json:"model" yaml:"model"`
-	ProjectEndpoint string            `json:"projectEndpoint,omitempty" yaml:"projectEndpoint,omitempty"`
-	Tools           []string          `json:"tools" yaml:"tools"`
-	Toolboxes       []string          `json:"toolboxes,omitempty" yaml:"toolboxes,omitempty"`
-	Grounding       []string          `json:"grounding,omitempty" yaml:"grounding,omitempty"`
-	RuntimeActions  []string          `json:"runtimeActions,omitempty" yaml:"runtimeActions,omitempty"`
-	RAIPolicy       string            `json:"raiPolicy,omitempty" yaml:"raiPolicy,omitempty"`
-	Metadata        map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
-	APIM            *planAPIM         `json:"apim,omitempty" yaml:"apim,omitempty"`
+	Cloud            string             `json:"cloud" yaml:"cloud"`
+	Agent            string             `json:"agent" yaml:"agent"`
+	Model            string             `json:"model" yaml:"model"`
+	ProjectEndpoint  string             `json:"projectEndpoint,omitempty" yaml:"projectEndpoint,omitempty"`
+	Tools            []string           `json:"tools" yaml:"tools"`
+	Toolboxes        []string           `json:"toolboxes,omitempty" yaml:"toolboxes,omitempty"`
+	Grounding        []string           `json:"grounding,omitempty" yaml:"grounding,omitempty"`
+	RuntimeActions   []string           `json:"runtimeActions,omitempty" yaml:"runtimeActions,omitempty"`
+	RAIPolicy        string             `json:"raiPolicy,omitempty" yaml:"raiPolicy,omitempty"`
+	Metadata         map[string]string  `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	APIM             *planAPIM          `json:"apim,omitempty" yaml:"apim,omitempty"`
+	Skills           []skills.Reference `json:"skills" yaml:"skills"`
+	SkillsConfigured bool               `json:"skillsConfigured" yaml:"skillsConfigured"`
 	// DestinationTrust states explicitly that plan did not evaluate operator
 	// approval of the destinations it prints.
 	DestinationTrust string `json:"destinationTrust" yaml:"destinationTrust"`
@@ -109,6 +121,8 @@ func cmdPlan(cmd *cobra.Command, _ []string) error {
 		Tools:            toolDescriptions,
 		RAIPolicy:        cfg.Agent.RAIPolicyID,
 		Metadata:         cfg.Agent.Metadata,
+		Skills:           cfg.Agent.Skills,
+		SkillsConfigured: cfg.Agent.SkillsConfigured,
 		DestinationTrust: destinationTrustNotEvaluated,
 	}
 	for _, toolbox := range prepared.Toolboxes {
@@ -155,6 +169,12 @@ func cmdPlan(cmd *cobra.Command, _ []string) error {
 		toolText = strings.Join(result.Tools, ", ")
 	}
 	fmt.Fprintf(&text, "  tools:    %s\n", toolText)
+	fmt.Fprintf(&text, "  skills:   %s\n", promptSkillsSummary(cfg.Agent.Skills, cfg.Agent.SkillsConfigured))
+	if cfg.Agent.SkillsConfigured {
+		result.RuntimeActions = append(result.RuntimeActions,
+			"native Prompt Skills transport requires --accept-preview and --experimental-native-skills; service acceptance, harness requirements, and invocation behavior are not live-qualified; no prompt-text or MCP fallback",
+		)
+	}
 	if len(result.Metadata) > 0 {
 		keys := make([]string, 0, len(result.Metadata))
 		for key := range result.Metadata {

@@ -7,6 +7,7 @@ import (
 
 	errs "foundry-agent-manager/internal/errors"
 	"foundry-agent-manager/internal/netcheck"
+	"foundry-agent-manager/internal/skills"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -47,6 +48,52 @@ func ValidateManifest(doc map[string]interface{}) error {
 	}
 	if err := validateSpecFileReferences(doc); err != nil {
 		return err
+	}
+	agent, _ := doc["agent"].(map[string]interface{})
+	if _, _, err := resolvePromptSkills(agent); err != nil {
+		return errs.Manifest("manifest failed schema validation: %v", err)
+	}
+	return nil
+}
+
+func resolvePromptSkills(agent map[string]interface{}) ([]skills.Reference, bool, error) {
+	raw, configured := agent["skills"]
+	if !configured {
+		return nil, false, nil
+	}
+	items, ok := raw.([]interface{})
+	if !ok {
+		return nil, true, errs.Config("agent.skills must be an array of pinned name/version references")
+	}
+	references := make([]skills.Reference, 0, len(items))
+	for i, item := range items {
+		object, ok := item.(map[string]interface{})
+		if !ok || len(object) != 2 {
+			return nil, true, errs.Config("agent.skills[%d] must contain only name and version; publish local directories separately", i)
+		}
+		name, nameOK := object["name"].(string)
+		version, versionOK := object["version"].(string)
+		if !nameOK || !versionOK {
+			return nil, true, errs.Config("agent.skills[%d] requires string name and version", i)
+		}
+		references = append(references, skills.Reference{Name: name, Version: version})
+	}
+	if err := validatePromptSkills(references); err != nil {
+		return nil, true, err
+	}
+	return references, true, nil
+}
+
+func validatePromptSkills(references []skills.Reference) error {
+	seen := make(map[string]bool, len(references))
+	for i, reference := range references {
+		if err := skills.ValidateReference(reference); err != nil {
+			return errs.Config("agent.skills[%d]: %v", i, err)
+		}
+		if seen[reference.Name] {
+			return errs.Config("agent.skills[%d]: duplicate skill name %q", i, reference.Name)
+		}
+		seen[reference.Name] = true
 	}
 	return nil
 }

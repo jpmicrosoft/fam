@@ -32,6 +32,8 @@ const (
 type ClientOptions struct {
 	Scope        string
 	AllowPreview bool
+	// NativePromptSkillsEnabled opts into SDK-based, not live-qualified transport.
+	NativePromptSkillsEnabled bool
 }
 
 // AgentResult is the outcome of an agent version creation.
@@ -129,11 +131,12 @@ type HTTPClient interface {
 
 // Client manages the Foundry prompt-agent lifecycle.
 type Client struct {
-	endpoint     string
-	scope        string
-	cred         azcore.TokenCredential
-	httpClient   HTTPClient
-	allowPreview bool
+	endpoint                  string
+	scope                     string
+	cred                      azcore.TokenCredential
+	httpClient                HTTPClient
+	allowPreview              bool
+	nativePromptSkillsEnabled bool
 }
 
 // NewClient creates a public-cloud client and preserves the original constructor.
@@ -155,11 +158,12 @@ func NewClientWithOptions(endpoint string, cred azcore.TokenCredential, httpClie
 		}
 	}
 	return &Client{
-		endpoint:     strings.TrimRight(endpoint, "/"),
-		scope:        options.Scope,
-		cred:         cred,
-		httpClient:   httpClient,
-		allowPreview: options.AllowPreview,
+		endpoint:                  strings.TrimRight(endpoint, "/"),
+		scope:                     options.Scope,
+		cred:                      cred,
+		httpClient:                httpClient,
+		allowPreview:              options.AllowPreview,
+		nativePromptSkillsEnabled: options.NativePromptSkillsEnabled,
 	}
 }
 
@@ -182,13 +186,14 @@ func (c *Client) do(ctx context.Context, method, path string, body interface{}) 
 }
 
 type requestOptions struct {
-	contentType     string
-	accept          string
-	apiVersion      string
-	omitAPIVersion  bool
-	suppressPreview bool
-	foundryFeatures string
-	headers         http.Header
+	contentType          string
+	accept               string
+	apiVersion           string
+	omitAPIVersion       bool
+	suppressPreview      bool
+	suppressNativeSkills bool
+	foundryFeatures      string
+	headers              http.Header
 }
 
 type rawRequestBody struct {
@@ -265,6 +270,9 @@ func (c *Client) doWithOptions(
 	} else if c.allowPreview && !options.suppressPreview {
 		req.Header.Set("Foundry-Features", previewHeader)
 	}
+	if c.nativePromptSkillsEnabled && !options.suppressNativeSkills && nativePromptSkillsRequestPath(path) {
+		addSkillsPreviewHeader(req.Header)
+	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return resp, err
@@ -279,6 +287,24 @@ func (c *Client) doWithOptions(
 		return nil, err
 	}
 	return resp, nil
+}
+
+func nativePromptSkillsRequestPath(path string) bool {
+	path, _, _ = strings.Cut(path, "?")
+	return path == "/agents" || strings.HasPrefix(path, "/agents/") || path == "/openai/v1/responses"
+}
+
+func addSkillsPreviewHeader(header http.Header) {
+	features := strings.Join(header.Values("Foundry-Features"), ",")
+	for _, feature := range strings.Split(features, ",") {
+		if strings.TrimSpace(feature) == skillsPreviewHeader {
+			return
+		}
+	}
+	if features != "" {
+		features += ","
+	}
+	header.Set("Foundry-Features", features+skillsPreviewHeader)
 }
 
 func validateResponseDestination(request *http.Request, response *http.Response) error {
@@ -394,6 +420,26 @@ func (c *Client) UpsertContext(ctx context.Context, name, model, instructions, d
 	return c.UpsertDefinitionContext(ctx, name, description, definition)
 }
 
+// RequireNativePromptSkills requires an explicit experimental transport opt-in.
+// @azure/ai-projects 2.7.1 serializes native Skills with API v1, but does not
+// establish a required harness or automatically add a Skills header to Agents.
+// Live service evidence (2026-10-01, request 0872ad70d3c4c21fdf6ae199ee2acae0)
+// rejected native creation with preview_feature_required, requiring Skills=V1Preview.
+// SDK evidence:
+// https://unpkg.com/@azure/ai-projects@2.7.1/dist/commonjs/models/models.js
+// https://unpkg.com/@azure/ai-projects@2.7.1/dist/commonjs/api/agents/operations.js
+func RequireNativePromptSkills(acceptPreview, experimental bool) error {
+	if !acceptPreview {
+		return errs.Config("native Prompt Skills require explicit preview acceptance; pass --accept-preview")
+	}
+	if !experimental {
+		return errs.Config(
+			"native Prompt Skills transport is gated: pass --experimental-native-skills to opt into the published SDK v1 contract; service acceptance, harness requirements, and invocation behavior are not live-qualified; no prompt-text or MCP fallback is permitted",
+		)
+	}
+	return nil
+}
+
 // UpsertDefinitionContext creates an immutable agent version from a complete
 // prompt-agent definition.
 func (c *Client) UpsertDefinitionContext(
@@ -406,6 +452,12 @@ func (c *Client) UpsertDefinitionContext(
 	if definition == nil {
 		return nil, errs.Config("agent definition is required")
 	}
+	_, nativeSkills := definition["skills"]
+	if nativeSkills {
+		if err := RequireNativePromptSkills(c.allowPreview || c.nativePromptSkillsEnabled, c.nativePromptSkillsEnabled); err != nil {
+			return nil, err
+		}
+	}
 	body := map[string]interface{}{"definition": definition}
 	if description != "" {
 		body["description"] = description
@@ -414,7 +466,9 @@ func (c *Client) UpsertDefinitionContext(
 		body["metadata"] = metadata[0]
 	}
 
-	resp, err := c.do(ctx, http.MethodPost, agentPath(name)+"/versions", body)
+	resp, err := c.doWithOptions(ctx, http.MethodPost, agentPath(name)+"/versions", body, requestOptions{
+		suppressNativeSkills: !nativeSkills,
+	})
 	if err != nil {
 		wrapped := errs.FoundryWrap(err, "failed to create agent %q version", name)
 		if errs.IsAuthenticationOrAuthorization(err) {

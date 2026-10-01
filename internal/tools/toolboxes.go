@@ -64,9 +64,13 @@ type ToolboxDefinition struct {
 
 // Payload returns the Foundry REST request body for creating a version.
 func (d ToolboxDefinition) Payload() map[string]interface{} {
+	toolValues := d.Tools
+	if toolValues == nil {
+		toolValues = []interface{}{}
+	}
 	payload := map[string]interface{}{
 		"description": d.Description,
-		"tools":       d.Tools,
+		"tools":       toolValues,
 	}
 	if len(d.Skills) > 0 {
 		payload["skills"] = d.Skills

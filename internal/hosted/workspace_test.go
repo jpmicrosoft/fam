@@ -147,7 +147,7 @@ func TestLoadWorkspacePreservesHostedMetadata(t *testing.T) {
 	}
 }
 
-func TestLoadWorkspaceRejectsArrayEntryPointUnsupportedByPinnedExtension(t *testing.T) {
+func TestLoadWorkspaceAcceptsCommandEntryPoint(t *testing.T) {
 	root := validCodeWorkspace(t)
 	path := filepath.Join(root, AzureYAMLFile)
 	data, err := os.ReadFile(path)
@@ -158,8 +158,12 @@ func TestLoadWorkspaceRejectsArrayEntryPointUnsupportedByPinnedExtension(t *test
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadWorkspace(root, ""); err == nil || !errs.IsKind(err, "manifest") {
-		t.Fatalf("expected array entryPoint rejection, got %v", err)
+	workspace, err := LoadWorkspace(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := workspace.Selected.Code.EntryPoint; len(got) != 2 || got[0] != "python" || got[1] != "main.py" {
+		t.Fatalf("unexpected command entry point: %#v", got)
 	}
 }
 
@@ -194,7 +198,7 @@ services:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := workspace.Selected.Code.EntryPoint; len(got) != 1 || got[0] != "Agent.dll" {
+	if got := workspace.Selected.Code.EntryPoint; len(got) != 2 || got[0] != "dotnet" || got[1] != "Agent.dll" {
 		t.Fatalf("unexpected entry point: %#v", got)
 	}
 	if got := workspace.Selected.Protocols; len(got) != 1 ||

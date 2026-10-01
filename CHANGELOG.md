@@ -5,16 +5,101 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Version status.** `0.17.1` is the version compiled into the executable
-> ([`internal/config/config.go`](internal/config/config.go)) and reported by
-> `fam version`. Release archives plus a GitHub Release are
-> produced only after the matching `v0.17.1` tag is pushed; see
-> [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+> **Version status.** `0.18.0` is the prepared release candidate for
+> **2026-10-01 (UTC)**, not a published or tagged release. The existing `main`
+> baseline is `0.17.1`; the candidate's
+> [`internal/config/config.go`](internal/config/config.go) now declares
+> `0.18.0`. Before tagging, maintainers must verify the final executable's
+> `fam version` output and complete release qualification. Archives and a
+> GitHub Release are produced by
+> [`.github/workflows/ci.yml`](.github/workflows/ci.yml) only after the matching
+> tag passes its release gates.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-01
+
+**Release candidate — not yet tagged or published.**
+
+### Added
+
+- Added instructions-only Skills integration: offline `skill validate`,
+  local `prompt skill attach/remove/list`, and local
+  `hosted skill attach/remove/list` plus explicit `hosted skill sync`.
+  Attachment editing never publishes content, deploys an agent, or deletes
+  shared Azure resources.
+- Added pinned native Prompt `agent.skills` declarations, preservation when
+  omitted, explicit clearing on deployment with `skills: []`, content validation,
+  drift comparison, and exact-version reference readback. Native version mutations
+  and invocation require both `--experimental-native-skills` and
+  `--accept-preview`. Creation, pins, detachment, promotion, and rollback
+  passed live checks, but **native runtime consumption failed and remains
+  unqualified**. Neither tested request format fixed consumption; the explicit
+  Copilot harness route was separately blocked by subscription preview access.
+  FAM does not infer a harness requirement or substitute another runtime.
+- Added per-service Hosted `fam.skills.yaml` declarations and synchronized,
+  ownership-checked runtime artifacts. Python and .NET providers support local
+  or pinned-remote bundles without runtime MCP, and explicit immutable
+  same-project Toolbox MCP with selected immutable Skill versions.
+  Existing applications integrate the provider without an entry-point rewrite;
+  new Python scaffolds include the provider-lifetime hook.
+- Added pinned real-SDK examples and qualification guidance for Python and
+  .NET, including .NET publish-output copying and image digest/build evidence.
+  Hosted bundle and immutable Toolbox MCP consumption passed representative
+  live checks; code, container, and prebuilt-image coverage is not an exhaustive
+  runtime/platform matrix.
+- Added a required Linux `hosted-skills-runtime` CI job with immutable setup
+  Action pins, Python 3.13 and pinned real-package tests, and .NET SDK
+  10.0.401 build/publish execution in strict symlink mode. It compares exact
+  bundle/helper SHA-256 inventories and has a static QA contract. Python runs
+  through the direct script entry point, rejecting zero or skipped tests.
+  Release depends on this job alongside `ci` and `update-native`. Only a
+  validated manual pre-0.18 historical rebuild with the entire runtime path
+  absent can omit adapter steps; missing current qualification inputs fail.
+
 ### Fixed
 
+- Bounded Python MCP HTTP response streams before parsing using the existing
+  transport safety guards, requested identity encoding, and rejected encoded
+  responses. Session termination now streams and drains the bounded response
+  instead of buffering it.
+- Applied a linked cancellation deadline to .NET Skills startup and rechecked the
+  size-bounded manifest's digest before readiness, while preserving post-startup
+  content snapshots. Session cleanup now accepts only HTTP 200/204 or 404
+  (already absent), rejecting HTTP 202 and other uncertain success statuses.
+- Guarded .NET adapter-issued `load_skill` functions against use after runtime
+  disposal, including cached function references. The SDK delegate preserves
+  metadata/schema and checks disposal and cancellation before and after
+  invocation; hosts must still stop invocations before teardown.
+- Normalized Hosted code entry points to the pinned azd extension's scalar
+  filename contract while retaining executable-plus-filename arrays for REST.
+  azd diagnostics and deployment reject unsupported extra arguments rather
+  than dropping them. Temporary `azure.yaml` projection uses recoverable-conflict
+  mitigation, not atomic compare-and-swap with uncoordinated editors; retained
+  recovery files require operator reconciliation and cleanup. Rooted,
+  identity-checked byte comparisons are size-bounded, and a hard-link probe
+  precedes configuration copies/displacement. A FAM-owned recovery `.gitignore`
+  protects ordinary Git additions, not tracked files, force-adds, or other
+  uploads. .NET remote builds validate contained project source instead of
+  requiring the server-produced DLL locally.
+- Qualified manual release source refs as `refs/tags/...` and shared
+  release-tag/peeled-commit validation across qualification and publication
+  jobs before tests/builds. CI/publication checkouts do not persist credentials.
+- Composed `Skills=V1Preview` for opted-in native Prompt operations after
+  live creation required it; preserved applicable preview features without
+  changing ordinary no-Skills creation. This resolves transport acceptance,
+  not the unresolved native runtime-consumption failure.
+- Made standalone Prompt smoke inspect actual endpoint-selected immutable
+  versions before inference, requiring read access and both native opt-in flags
+  when remote references exist. An omitted or empty local declaration does not
+  bypass the gates or detach deployed Skills.
+- Rejected ambiguous YAML merges, aliases, and anchors at native Skill
+  listing/editing boundaries while preserving unrelated nested YAML.
+- Accommodated Foundry MCP's direct `skill-md` resources and empty HTTP 204
+  notification acknowledgements in the .NET provider, while retaining
+  complete-archive validation and rejecting body-bearing acknowledgements.
+  Text digests verify exact instruction bytes; source archive digests remain
+  separate provenance when the runtime receives text only.
 - Pinned the weekly Foundry capability review to the matching compiler and
   runtime from the `jpmicrosoft/gh-aw` fix for granted Git subcommands and
   denial-guard hangs. Existing inference limits, allowlists, and
@@ -57,6 +142,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   compiler/runtime fork remains unchanged.
 - Updated `golang.org/x/sys` to `v0.48.0` and raised the minimum source-build
   toolchain to Go 1.26. Published FAM binaries still do not require Go installed.
+
+### Security
+
+- Skills integration rejects scripts, supporting resources, malformed
+  frontmatter, unsafe package paths, duplicate identities, and digest or
+  inventory mismatches. These instructions-only and bounded-processing checks
+  do not establish that instruction content is trustworthy or safe.
+- Hosted Skills providers expose only their own `load_skill` tool without
+  weakening unrelated tool approvals. MCP uses renewable credentials bound
+  to the exact same-project immutable Toolbox endpoint, rejects redirects,
+  and reports cleanup failures instead of silently claiming cleanup succeeded.
+- Prebuilt-image Skills bind local integration evidence to an immutable image
+  digest and require a rebuilt image for runtime inventory/helper changes,
+  including detachment. Artifact hashes and operator build records are not
+  independent verification of image contents or runtime consumption.
 
 ## [0.17.1] - 2026-09-09
 

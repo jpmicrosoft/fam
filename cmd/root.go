@@ -784,6 +784,15 @@ All commands default to text output; use --output json or --output yaml for auto
 		"Skip azd deploy only when the deployable snapshot and verified remote latest version match a successful receipt.",
 	)
 	root.AddCommand(hostedDeploy)
+	registerHostedSkillCommands(root)
+
+	skillValidate := &cobra.Command{
+		Use: "skill-validate", Short: "Validate a local instructions-only Skill directory without contacting Azure.",
+		Args: noArgs, RunE: cmdSkillValidate, SilenceUsage: true,
+	}
+	skillValidate.Flags().String("path", "", "Contained relative directory with a single SKILL.md.")
+	requireFlags(skillValidate, "path")
+	root.AddCommand(skillValidate)
 
 	commands := []*cobra.Command{
 		newManifestCommand("init", "Write a starter manifest to a new file (offline).", cmdInit),
@@ -838,6 +847,9 @@ All commands default to text output; use --output json or --output yaml for auto
 		newManifestCommand("skill-delete", "Delete one preview skill and all versions.", cmdSkillDelete),
 		newManifestCommand("skill-version-delete", "Delete one immutable preview skill version.", cmdSkillVersionDelete),
 		newManifestCommand("skill-download", "Download a preview skill version as a zip archive.", cmdSkillDownload),
+		newManifestCommand("prompt-skill-attach", "Attach a pinned Skill in the local Prompt manifest without deploying.", cmdPromptSkillAttach),
+		newManifestCommand("prompt-skill-remove", "Remove a Skill from the local Prompt manifest without deleting it in Azure.", cmdPromptSkillRemove),
+		newManifestCommand("prompt-skill-list", "List local native Prompt Skill declarations without contacting Azure.", cmdPromptSkillList),
 		newManifestCommand("grounding-validate", "Validate managed document-grounding definitions and files (offline).", cmdGroundingValidate),
 		newManifestCommand("grounding-plan", "Plan managed vector-store synchronization without calling Azure.", cmdGroundingPlan),
 		newManifestCommand("grounding-sync", "Upload and index manifest documents in a managed vector store.", cmdGroundingSync),
@@ -1057,6 +1069,9 @@ All commands default to text output; use --output json or --output yaml for auto
 			)
 		case "status", "diff":
 			command.Flags().Bool("no-apim", false, "Skip APIM connection inspection.")
+			if command.Name() == "diff" {
+				addPromptPreviewFlag(command)
+			}
 		case "compatibility":
 			command.Flags().String("model-name", "", "Base model name from the Microsoft compatibility table; defaults to agent.model.")
 			command.Flags().String("region", "", "Azure region; defaults to project.location.")
@@ -1115,6 +1130,13 @@ All commands default to text output; use --output json or --output yaml for auto
 			command.Flags().String("destination", "", "Destination zip path.")
 			command.Flags().Bool("force", false, "Replace an existing destination.")
 			requireFlags(command, "destination")
+		case "prompt-skill-attach":
+			command.Flags().String("skill", "", "Existing Foundry Skill name; publish local content separately.")
+			command.Flags().String("version", "", "Explicit immutable Skill version.")
+			requireFlags(command, "skill", "version")
+		case "prompt-skill-remove":
+			command.Flags().String("skill", "", "Skill name to remove from the local declaration.")
+			requireFlags(command, "skill")
 		case "grounding-validate", "grounding-plan", "grounding-status":
 			command.Flags().String("grounding", "", "Managed vector-store name; required when the manifest defines multiple stores.")
 		case "grounding-sync":
@@ -1205,6 +1227,7 @@ All commands default to text output; use --output json or --output yaml for auto
 		case "endpoint-configure":
 			command.Flags().String("receipt", "", "Operation receipt path (defaults beside the manifest).")
 		case "smoke":
+			addPromptPreviewFlag(command)
 			command.Flags().String("prompt", "Reply with a short readiness confirmation.", "Prompt sent to the agent.")
 			command.Flags().String(
 				"structured-inputs-file",
@@ -1600,9 +1623,14 @@ func addDestructiveFlags(command *cobra.Command) {
 
 func addPromptPreviewFlag(command *cobra.Command) {
 	command.Flags().Bool(
+		"experimental-native-skills",
+		false,
+		"Opt into the SDK-documented native Prompt Skills transport; service availability and runtime consumption remain unqualified. Requires --accept-preview.",
+	)
+	command.Flags().Bool(
 		"accept-preview",
 		false,
-		"Explicitly accept preview limitations for any preview prompt-agent tool in the manifest.",
+		"Explicitly accept preview limitations for Prompt Agent tools and native Skills.",
 	)
 }
 
