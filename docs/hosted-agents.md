@@ -961,10 +961,10 @@ The wrapper provides a reproducible, reviewed entry point for evaluating that
 sample; it is not a general Autopilot deployment abstraction or a supported
 replacement for the Prompt/Hosted paths.
 
-The Agent 365 support table is broader than the currently published
-programmatic implementation guidance. This wrapper follows the concrete
-Hosted-agent how-to and pinned Hosted sample; the table is not treated as a
-substitute for a Prompt Agent implementation decision.
+The Microsoft Learn Agent 365 integration support table lists Autopilot
+publishing for Hosted agents only (Prompt agents: registry sync and activity
+data collection, no Autopilot publishing). This agrees with the Hosted-agent
+Autopilot quickstart and the pinned Hosted sample that this wrapper follows.
 
 The shared stable `v1` Microsoft 365 publish request schema documents
 `publishAsAutopilot`, `accessBoundaries`, and `optionalPermissionScopes`
