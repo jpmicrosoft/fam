@@ -599,10 +599,9 @@ The command uses the dedicated public publishing contract:
 POST /agents/{name}/microsoft365/publish?api-version=v1
 ```
 
-It explicitly sends `publishAsAutopilot: false`. When first-party pages use
-broader or older wording, the manager follows this dedicated REST contract
-rather than treating migration guidance that describes portal-only
-publication as the current automation boundary.
+It explicitly sends `publishAsAutopilot: false`. The manager follows this
+dedicated REST contract rather than treating migration guidance that describes
+portal-only publication as the current automation boundary.
 
 The [shared stable `v1` publishing schema](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/2d5434a392f65d016fcfb2ed948634ad91612d3f/specification/ai-foundry/data-plane/Foundry/openapi3/v1/microsoft-foundry-openapi3.json)
 documents `publishAsAutopilot`, `accessBoundaries`, and
