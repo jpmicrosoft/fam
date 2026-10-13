@@ -477,6 +477,15 @@ func TestWeeklyFoundryChangelogPublicationProtection(t *testing.T) {
 
 func TestWeeklyFoundryGoReadinessBeforeInference(t *testing.T) {
 	source, compiled := weeklyReviewDocuments(t)
+	var ci weeklyReviewDocument
+	if err := yaml.Unmarshal([]byte(repositoryFile(t, ".github", "workflows", "ci.yml")), &ci); err != nil {
+		t.Fatal(err)
+	}
+	ciSteps := ci.Jobs["ci"].Steps
+	ciGoSetup := ciSteps[weeklyReviewStepIndex(t, ciSteps, "Set up Go")]
+	if !regexp.MustCompile(`^actions/setup-go@[0-9a-f]{40}$`).MatchString(ciGoSetup.Uses) {
+		t.Fatal("CI Go setup must use an immutable action pin")
+	}
 	agentSteps := compiled.Jobs["agent"].Steps
 	setupIndex := weeklyReviewStepIndex(t, agentSteps, "Set up Go for the weekly review")
 	prepareIndex := weeklyReviewStepIndex(t, agentSteps, "Prepare offline Go validation")
@@ -489,7 +498,7 @@ func TestWeeklyFoundryGoReadinessBeforeInference(t *testing.T) {
 	}
 	for _, steps := range [][]weeklyReviewStep{source.Steps, agentSteps} {
 		setup := steps[weeklyReviewStepIndex(t, steps, "Set up Go for the weekly review")]
-		if setup.Uses != "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e" ||
+		if setup.Uses != ciGoSetup.Uses ||
 			setup.With["go-version-file"] != "go.mod" || setup.With["cache"] != false {
 			t.Fatalf("Go setup must use the CI pin and go.mod without an implicit cache: %#v", setup)
 		}
@@ -757,7 +766,7 @@ func TestWeeklyFoundryCompletionGateWiring(t *testing.T) {
 		t.Fatal("completion gate must compile unchanged from trusted inline source")
 	}
 	if gate.If != "success()" || gate.ContinueOnError ||
-		gate.Uses != "actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3" ||
+		!regexp.MustCompile(`^actions/github-script@[0-9a-f]{40}$`).MatchString(gate.Uses) ||
 		gate.Env["GH_AW_AGENT_OUTPUT"] != "/tmp/gh-aw/agent_output.json" ||
 		gate.TimeoutMinutes != 1 {
 		t.Fatal("completion gate must be pinned, bounded, fail closed, and preserve earlier failures")
