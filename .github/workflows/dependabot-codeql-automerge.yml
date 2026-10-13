@@ -1,0 +1,155 @@
+name: Dependabot CodeQL auto-merge
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: dependabot-codeql-automerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    if: >-
+      github.repository == 'jpmicrosoft/fam' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+      checks: read
+      statuses: read
+    steps:
+      # Never check out or execute PR code in this privileged workflow.
+      - name: Verify Dependabot metadata and commit signatures
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      - name: Validate CodeQL-only changes and wait for checks
+        id: policy
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
+          GH_TOKEN: ${{ github.token }}
+        with:
+          script: |
+            const {execFileSync} = require('node:child_process');
+            const actions = ['init', 'autobuild', 'analyze'];
+            const names = process.env.DEPENDENCY_NAMES.split(',').map(name => name.trim());
+            if (process.env.PACKAGE_ECOSYSTEM !== 'github_actions' ||
+                process.env.DEPENDENCY_GROUP !== 'codeql' ||
+                !['version-update:semver-patch', 'version-update:semver-minor'].includes(process.env.UPDATE_TYPE) ||
+                names.length !== actions.length ||
+                !actions.every(action => names.includes(`github/codeql-action/${action}`))) {
+              core.notice('Manual merge required: not a grouped CodeQL-only patch/minor update.');
+              return;
+            }
+            const pr = context.payload.pull_request;
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              ...context.repo, pull_number: pr.number, per_page: 100
+            });
+            if (commits.length === 0 || commits.at(-1).sha !== pr.head.sha ||
+                commits.some(commit => commit.author?.login !== 'dependabot[bot]' ||
+                  commit.commit?.verification?.verified !== true)) {
+              throw new Error('Every commit on the verified head must be signed and authored by Dependabot.');
+            }
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...context.repo, pull_number: pr.number, per_page: 100
+            });
+            if (files.length !== 1 || files[0].filename !== '.github/workflows/codeql.yml' ||
+                files[0].status !== 'modified' || files[0].additions !== 3 || files[0].deletions !== 3 ||
+                typeof files[0].patch !== 'string') {
+              throw new Error('CodeQL auto-merge requires exactly three pin replacements in codeql.yml.');
+            }
+            const changes = files[0].patch.split('\n').filter(line => /^[+-]/.test(line));
+            const pin = /^([+-])(\s*uses: github\/codeql-action\/(init|autobuild|analyze)@)([0-9a-f]{40}) # v(\d+)\.(\d+)\.(\d+)$/;
+            const parsed = changes.map(line => pin.exec(line));
+            if (parsed.length !== 6 || parsed.some(line => !line)) {
+              throw new Error('CodeQL auto-merge rejects changes other than immutable version pins.');
+            }
+            for (const action of actions) {
+              const removed = parsed.filter(line => line[1] === '-' && line[3] === action);
+              const added = parsed.filter(line => line[1] === '+' && line[3] === action);
+              if (removed.length !== 1 || added.length !== 1) {
+                throw new Error('Each CodeQL action must have exactly one pin replacement.');
+              }
+              const old = removed[0], next = added[0];
+              if (old[2] !== next[2] || old[4] === next[4] || old[5] !== next[5] ||
+                  !(Number(next[6]) > Number(old[6]) ||
+                    (next[6] === old[6] && Number(next[7]) > Number(old[7])))) {
+                throw new Error('CodeQL auto-merge permits only forward patch/minor pin updates.');
+              }
+            }
+            const required = [
+              ['CI and Release', 'ci'],
+              ['CI and Release', 'weekly-review-validation'],
+              ['CI and Release', 'hosted-skills-runtime'],
+              ['CI and Release', 'update-native (windows-latest)'],
+              ['CI and Release', 'update-native (macos-latest)'],
+              ...(context.payload.repository.private
+                ? [['CodeQL', 'skip-private']]
+                : ['go', 'python', 'csharp'].map(language => ['CodeQL', `analyze (${language})`]))
+            ];
+            for (let attempt = 0; attempt < 40; attempt++) {
+              const latest = JSON.parse(execFileSync('gh', [
+                'pr', 'view', String(pr.number), '--repo', `${context.repo.owner}/${context.repo.repo}`,
+                '--json', 'headRefOid,state,isDraft,statusCheckRollup'
+              ], {encoding: 'utf8'}));
+              if (latest.headRefOid !== pr.head.sha || latest.state !== 'OPEN' || latest.isDraft) {
+                throw new Error('Pull request changed while validating; refusing this run.');
+              }
+              const checks = required.map(([workflow, name]) =>
+                latest.statusCheckRollup.filter(check => check.workflowName === workflow && check.name === name));
+              if (checks.some(matches => matches.some(check =>
+                  check.status === 'COMPLETED' && check.conclusion !== 'SUCCESS'))) {
+                throw new Error('A required CI or CodeQL check did not succeed; refusing to merge.');
+              }
+              if (checks.every(matches => matches.length > 0 && matches.every(check =>
+                  check.status === 'COMPLETED' && check.conclusion === 'SUCCESS'))) {
+                core.setOutput('eligible', 'true');
+                return;
+              }
+              core.info('Waiting for CI and CodeQL checks on the verified PR head.');
+              await new Promise(resolve => setTimeout(resolve, 30000));
+            }
+            throw new Error('Timed out waiting for CI and CodeQL; refusing to merge.');
+
+      - name: Create a short-lived merge token for this repository
+        if: steps.policy.outputs.eligible == 'true'
+        id: merge-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.CODEQL_AUTOMERGE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CODEQL_AUTOMERGE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
+      - name: Merge the verified head without bypassing protections
+        if: steps.policy.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ steps.merge-token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # Do not queue --auto across later pushes that have not passed this policy.
+        run: |
+          set -euo pipefail
+          merged="$(gh api --method PUT "repos/$REPOSITORY/pulls/$PR_NUMBER/merge" \
+            -f sha="$HEAD_SHA" -f merge_method=squash --jq '.merged')"
+          if [ "$merged" != true ]; then
+            echo "::error::GitHub did not merge the verified PR head."
+            exit 1
+          fi

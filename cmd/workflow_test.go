@@ -598,17 +598,21 @@ func TestCodeQLWorkflowIsSafeWhilePrivate(t *testing.T) {
 }
 
 func TestCodeQLWorkflowUsesSHAPinnedActions(t *testing.T) {
-	_, raw := loadWorkflow(t, "codeql.yml")
-	for _, want := range []string{
-		"actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-		"actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
-		"github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
-		"github/codeql-action/autobuild@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
-		"github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
+	document, _ := loadWorkflow(t, "codeql.yml")
+	for _, action := range []string{"actions/checkout", "actions/setup-go", "actions/setup-dotnet"} {
+		requireWorkflowActionPin(t, document, action)
+	}
+	var codeQLPin string
+	for _, action := range []string{
+		"github/codeql-action/init",
+		"github/codeql-action/autobuild",
+		"github/codeql-action/analyze",
 	} {
-		if !strings.Contains(raw, want) {
-			t.Fatalf("codeql.yml missing immutable SHA pin %q", want)
+		pin := requireWorkflowActionPin(t, document, action)
+		if codeQLPin != "" && pin != codeQLPin {
+			t.Fatalf("CodeQL actions must use the same immutable revision: %s uses %s, want %s", action, pin, codeQLPin)
 		}
+		codeQLPin = pin
 	}
 }
 
@@ -632,7 +636,6 @@ func TestCodeQLCoversHostedSkillsLanguages(t *testing.T) {
 		"languages: ${{ matrix.language }}",
 		"matrix.language == 'csharp'",
 		"examples/hosted-skills/dotnet/HostedSkills.Example.csproj",
-		"actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68",
 		"--no-incremental",
 	} {
 		if !strings.Contains(raw, want) {
@@ -642,11 +645,112 @@ func TestCodeQLCoversHostedSkillsLanguages(t *testing.T) {
 }
 
 func TestAllWorkflowsUseSHAPinnedActions(t *testing.T) {
-	unpinned := regexp.MustCompile(`uses:\s+[a-zA-Z0-9_-]+/[a-zA-Z0-9_/-]+@v\d`)
-	for _, name := range []string{"ci.yml", "codeql.yml", "live-evaluator-calibration.yml"} {
-		_, raw := loadWorkflow(t, name)
-		if match := unpinned.FindString(raw); match != "" {
-			t.Fatalf("%s has an unpinned action reference (tag instead of SHA): %q", name, match)
+	entries, err := os.ReadDir(filepath.Dir(workflowPath(t, "ci.yml")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || (filepath.Ext(entry.Name()) != ".yml" && filepath.Ext(entry.Name()) != ".yaml") {
+			continue
 		}
+		document, _ := loadWorkflow(t, entry.Name())
+		for _, uses := range workflowActionReferences(t, document) {
+			if !immutableWorkflowAction.MatchString(uses) {
+				t.Errorf("%s action must use a full immutable commit SHA: %q", entry.Name(), uses)
+			}
+		}
+	}
+}
+
+var immutableWorkflowAction = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$`)
+
+func workflowActionReferences(t *testing.T, document map[string]interface{}) []string {
+	t.Helper()
+	var references []string
+	var walk func(interface{})
+	walk = func(value interface{}) {
+		switch value := value.(type) {
+		case map[string]interface{}:
+			for key, child := range value {
+				if key == "uses" {
+					reference, ok := child.(string)
+					if !ok {
+						t.Fatalf("workflow uses must be a string, got %#v", child)
+					}
+					references = append(references, reference)
+				} else {
+					walk(child)
+				}
+			}
+		case []interface{}:
+			for _, child := range value {
+				walk(child)
+			}
+		}
+	}
+	walk(document["jobs"])
+	return references
+}
+
+func requireWorkflowActionPin(t *testing.T, document map[string]interface{}, action string) string {
+	t.Helper()
+	var pin string
+	for _, uses := range workflowActionReferences(t, document) {
+		if strings.HasPrefix(uses, action+"@") {
+			if !immutableWorkflowAction.MatchString(uses) {
+				t.Fatalf("%s must use a full immutable commit SHA, got %q", action, uses)
+			}
+			_, revision, _ := strings.Cut(uses, "@")
+			if pin != "" && pin != revision {
+				t.Fatalf("%s uses inconsistent revisions", action)
+			}
+			pin = revision
+		}
+	}
+	if pin == "" {
+		t.Fatalf("workflow is missing required action %s", action)
+	}
+	return pin
+}
+
+func TestImmutableWorkflowActionReferences(t *testing.T) {
+	for _, reference := range []string{
+		"actions/checkout@" + strings.Repeat("a", 40),
+		"github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
+		"github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d",
+		"actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+		"owner/repo/.github/workflows/reusable.yml@" + strings.Repeat("b", 40),
+	} {
+		if !immutableWorkflowAction.MatchString(reference) {
+			t.Errorf("valid immutable reference rejected: %s", reference)
+		}
+	}
+	for _, reference := range []string{
+		"actions/checkout@v7",
+		"actions/checkout@main",
+		"actions/checkout@",
+		"actions/checkout@1234567",
+		"actions/checkout@" + strings.Repeat("g", 40),
+		"actions/checkout@" + strings.Repeat("a", 41),
+		"actions/checkout@" + strings.Repeat("a", 40) + "-suffix",
+		"actions/checkout@${{ inputs.ref }}",
+	} {
+		if immutableWorkflowAction.MatchString(reference) {
+			t.Errorf("mutable or malformed reference accepted: %s", reference)
+		}
+	}
+	document := map[string]interface{}{
+		"jobs": map[string]interface{}{
+			"reusable": map[string]interface{}{"uses": "owner/repo/.github/workflows/reusable.yml@main"},
+			"test": map[string]interface{}{
+				"steps": []interface{}{
+					map[string]interface{}{"uses": "actions/checkout@main"},
+					map[string]interface{}{"run": "echo 'uses: actions/checkout@" + strings.Repeat("a", 40) + "'"},
+				},
+			},
+		},
+	}
+	if got := workflowActionReferences(t, document); len(got) != 2 {
+		t.Fatalf("must inspect actual step and reusable-workflow references, not script text: %v", got)
 	}
 }

@@ -194,8 +194,8 @@ schedule, or manual dispatch:
 | Python | `none` | Python source, including the embedded Skills runtime adapter; no application build step. |
 | C# | `manual` | A non-incremental Release build of `examples/hosted-skills/dotnet/HostedSkills.Example.csproj` with .NET SDK **10.0.401**, which compiles the linked embedded `FamSkillsRuntime.cs` adapter. Build output stays in runner scratch space. |
 
-CodeQL init/autobuild/analyze use the same immutable Action commit
-(`github/codeql-action` **v4.38.2**); checkout and setup Actions are also
+CodeQL init/autobuild/analyze use the same immutable Action commit;
+checkout and setup Actions are also
 commit-pinned. Results use separate `/language:<language>` categories.
 The workflow retains its public-visibility check: analysis runs only for a
 public repository, while private repositories receive an explicit skip notice.
@@ -208,6 +208,71 @@ Static analysis is separate from the real-SDK runtime gate, dependency audits,
 and human security review. It does not execute the Skills test suites or
 establish live runtime consumption. CodeQL is a separate workflow, not another
 entry in the release job's `needs` list below.
+
+### Routine dependency updates
+
+Dependabot opens a separate weekly `codeql` group for patch/minor updates to
+the three CodeQL actions. Other Actions remain in the `github-actions` group;
+major CodeQL updates use a separate `codeql-major` group and require a manual
+merge. Go updates
+and the coupled gh-aw compiler/runtime are not eligible for auto-merge.
+
+[`../.github/workflows/dependabot-codeql-automerge.yml`](../.github/workflows/dependabot-codeql-automerge.yml)
+verifies Dependabot metadata and signed commits, then accepts only the three
+SHA/version replacements in `codeql.yml`. It waits for CI, weekly validation,
+native updater checks, the Hosted Skills runtime gate, and all three CodeQL
+analyses (or the explicit private-repository skip). It refuses changed PR
+heads, failures, missing checks, downgrades, major updates, and unrelated edits.
+Every PR commit must be verified and authored by Dependabot; maintainer-edited
+PRs remain manual.
+The privileged `pull_request_target` workflow never checks out PR code.
+
+Repository auto-merge is enabled for maintainers. This automation performs a
+direct squash merge through the GitHub API with the verified head SHA, never an administrator bypass
+or an approval bot. It deliberately does not queue `--auto`: an authorization
+must not survive a later push whose CodeQL checks have not passed this policy.
+The existing `main` rules still require an up-to-date branch and successful
+`ci`; no human approval is currently required. A failed or timed-out automation
+run leaves the PR unmerged; rerun it after resolving the failure. A Dependabot
+rebase triggers fresh validation when the PR is behind `main`.
+
+#### One-time GitHub App setup
+
+CodeQL bumps change workflow files. The built-in `GITHUB_TOKEN` cannot merge
+those changes because it cannot be granted the separate **Workflows** permission.
+Validation therefore uses a read-only built-in token; only after the policy
+passes does the workflow create a short-lived GitHub App token for the merge.
+The action restricts that token to this repository and revokes it at job end.
+
+1. [Register a private GitHub App](https://github.com/settings/apps/new) under the
+   repository owner. Use the repository URL as its homepage, disable webhooks,
+   and do not enable user authorization/OAuth or device flow.
+2. Grant repository **Contents: Read and write**, **Pull requests: Read and write**,
+   and **Workflows: Read and write**. Leave other optional permissions disabled.
+   Install it for **only `jpmicrosoft/fam`**. Do not add the App to branch-protection
+   or ruleset bypass lists.
+3. Generate a private key. Store the App's **Client ID** in repository Actions
+   variable `CODEQL_AUTOMERGE_APP_CLIENT_ID`, and the complete downloaded PEM in
+   repository Actions secret `CODEQL_AUTOMERGE_APP_PRIVATE_KEY`. Do not put the
+   private key in Git, chat, or a Dependabot secret, and do not reuse other tokens.
+
+For example, substitute your Client ID and the local path to the downloaded key:
+
+```powershell
+gh variable set CODEQL_AUTOMERGE_APP_CLIENT_ID --repo jpmicrosoft/fam --body '<APP_CLIENT_ID>'
+Get-Content -Raw 'C:\path\to\downloaded-app-key.pem' |
+    gh secret set CODEQL_AUTOMERGE_APP_PRIVATE_KEY --repo jpmicrosoft/fam
+```
+
+The workflow must be merged to `main`, and the App installed and configured,
+before unattended merges work. Missing credentials or permissions fail the
+token/merge step explicitly; there is no fallback to an unrelated credential
+or an administrator merge. Existing mixed dependency PRs remain manual.
+
+Workflow contracts validate full 40-character SHA pins and a shared CodeQL
+revision rather than hard-coding a particular dependency release. Keep the
+special compiler/runtime and gateway compatibility contracts: those are
+intentional coordinated pins, not ordinary action-version assertions.
 
 ### Release job
 

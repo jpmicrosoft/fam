@@ -417,9 +417,11 @@ func TestLiveEvaluatorCalibrationWorkflowIsManualAndProtected(t *testing.T) {
 		"id-token: write",
 		"qa/evaluator-calibration/requirements.txt",
 		"scripts/Invoke-LiveEvaluatorCalibration.ps1",
-		"actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
 		"retention-days: 30",
 	)
+	if !regexp.MustCompile(`(?m)^\s+uses: actions/upload-artifact@[0-9a-f]{40}(?:\s+#.*)?$`).MatchString(workflow) {
+		t.Error("live calibration must archive evidence with a commit-pinned upload-artifact action")
+	}
 	if strings.Contains(workflow, "schedule:") {
 		t.Error("live evaluator calibration must remain manually triggered to control billed evaluation runs")
 	}
