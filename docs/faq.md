@@ -1057,9 +1057,10 @@ not assign the role.
 
 Publication commands (`info`, `plan`, `status`, `admin-handoff`) are read-only
 and plan-only. They do not perform generic registry mutation or arbitrary
-existing blueprint binding. Official docs currently contain conflicting
-information about Prompt vs. Hosted support; the CLI does not claim Prompt
-execution. Registry status has no documented manager API and remains
+existing blueprint binding. The Microsoft Learn Agent 365 integration table
+lists Autopilot publishing for Hosted agents only (Prompt agents: registry sync
+and activity data collection), matching the Hosted-only Autopilot quickstart;
+the CLI does not claim Prompt execution. Registry status has no documented manager API and remains
 unverified.
 
 ### How does identity lifecycle work after publication?
