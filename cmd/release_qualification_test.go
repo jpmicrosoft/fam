@@ -118,7 +118,7 @@ func TestNoDuplicateCommandPaths(t *testing.T) {
 // flag token, not merely as a substring of a longer flag name (for example
 // --connection must not spuriously match inside --connection-api-version).
 func flagMentionedInHelp(helpText, name string) bool {
-	re := regexp.MustCompile(`(?m)--` + regexp.QuoteMeta(name) + `([\s,=]|$)`)
+	re := regexp.MustCompile(`(?m)--` + regexp.QuoteMeta(name) + `([\s,=\[]|$)`)
 	return re.MatchString(helpText)
 }
 
